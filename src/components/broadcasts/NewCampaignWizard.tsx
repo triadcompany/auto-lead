@@ -162,8 +162,9 @@ export function NewCampaignWizard({ onClose }: Props) {
   const [limitPerHour, setLimitPerHour] = useState(600);
   // Janela vazia por padrão = sem restrição (o worker dispara a qualquer hora).
   // Se o usuário preencher, a janela é aplicada (timezone Brasil).
-  const [windowStart, setWindowStart] = useState('09:00');
-  const [windowEnd, setWindowEnd] = useState('18:00');
+  const [windowStart, setWindowStart] = useState('');
+  const [windowEnd, setWindowEnd] = useState('');
+  const [batchSize, setBatchSize] = useState(10);
   const [noDuplicate, setNoDuplicate] = useState(true);
   const [enableAutomation, setEnableAutomation] = useState(false);
   const [selectedAutomationId, setSelectedAutomationId] = useState('');
@@ -631,6 +632,7 @@ export function NewCampaignWizard({ onClose }: Props) {
       settings: {
         minDelay,
         maxDelay,
+        batchSize,
         limitPerHour,
         // Só envia janela se o usuário tiver preenchido AMBOS os campos
         ...(windowStart && windowEnd ? { windowStart, windowEnd } : {}),
@@ -1390,26 +1392,26 @@ export function NewCampaignWizard({ onClose }: Props) {
                   <Button
                     type="button"
                     size="sm"
-                    variant={minDelay === 5 && maxDelay === 15 ? 'default' : 'outline'}
-                    onClick={() => { setMinDelay(5); setMaxDelay(15); setLimitPerHour(240); }}
-                  >
-                    Conservador (5–15s)
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={minDelay === 2 && maxDelay === 6 ? 'default' : 'outline'}
-                    onClick={() => { setMinDelay(2); setMaxDelay(6); setLimitPerHour(600); }}
-                  >
-                    Moderado (2–6s) — recomendado
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={minDelay === 1 && maxDelay === 3 ? 'default' : 'outline'}
-                    onClick={() => { setMinDelay(1); setMaxDelay(3); setLimitPerHour(1200); }}
+                    variant={minDelay === 1 && maxDelay === 3 && batchSize === 15 ? 'default' : 'outline'}
+                    onClick={() => { setMinDelay(1); setMaxDelay(3); setBatchSize(15); setLimitPerHour(500); }}
                   >
                     Rápido (1–3s)
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={minDelay === 3 && maxDelay === 8 && batchSize === 10 ? 'default' : 'outline'}
+                    onClick={() => { setMinDelay(3); setMaxDelay(8); setBatchSize(10); setLimitPerHour(300); }}
+                  >
+                    Balanceado (3–8s) — recomendado
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={minDelay === 10 && maxDelay === 25 && batchSize === 5 ? 'default' : 'outline'}
+                    onClick={() => { setMinDelay(10); setMaxDelay(25); setBatchSize(5); setLimitPerHour(100); }}
+                  >
+                    Seguro (10–25s)
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -1424,6 +1426,10 @@ export function NewCampaignWizard({ onClose }: Props) {
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div><Label>Limite/hora</Label><Input type="number" value={limitPerHour} onChange={e => setLimitPerHour(+e.target.value)} /></div>
+                <div><Label>Msgs por lote</Label><Input type="number" min={1} max={50} value={batchSize} onChange={e => setBatchSize(+e.target.value)} /></div>
+                <div></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div><Label>Janela início (opcional)</Label><Input type="time" value={windowStart} onChange={e => setWindowStart(e.target.value)} placeholder="24h" /></div>
                 <div><Label>Janela fim (opcional)</Label><Input type="time" value={windowEnd} onChange={e => setWindowEnd(e.target.value)} placeholder="24h" /></div>
               </div>
@@ -1480,7 +1486,7 @@ export function NewCampaignWizard({ onClose }: Props) {
                     ['Total válidos', rows.length],
                     ...(discarded > 0 ? [['Inválidos removidos', discarded]] : []),
                     ...(duplicates > 0 ? [['Duplicatas removidas', duplicates]] : []),
-                    ['Delay', `${minDelay}s – ${maxDelay}s`],
+                    ['Velocidade', `${minDelay}–${maxDelay}s · lote ${batchSize}`],
                     ['Limite/hora', limitPerHour],
                     ['Janela', windowStart && windowEnd ? `${windowStart} – ${windowEnd}` : 'Sem restrição (24h)'],
                   ].map(([label, value]) => (
