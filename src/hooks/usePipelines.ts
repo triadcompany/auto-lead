@@ -27,9 +27,14 @@ export interface PipelineStage {
   updated_at: string;
 }
 
+function prefKey(clerkUserId: string | undefined, orgId: string | undefined) {
+  return `pipeline_pref_${clerkUserId || ''}_${orgId || ''}`;
+}
+
 export function usePipelines() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
+  const [preferredPipelineId, setPreferredPipelineIdState] = useState<string | null>(null);
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [loading, setLoading] = useState(true);
   const [ensuring, setEnsuring] = useState(false);
@@ -37,6 +42,20 @@ export function usePipelines() {
   const orgId = profile?.organization_id || authOrgId;
   const clerkUserId = profile?.clerk_user_id || user?.id;
   const { toast } = useToast();
+
+  // Load saved preference from localStorage on mount
+  useEffect(() => {
+    if (!clerkUserId || !orgId) return;
+    const saved = localStorage.getItem(prefKey(clerkUserId, orgId));
+    if (saved) setPreferredPipelineIdState(saved);
+  }, [clerkUserId, orgId]);
+
+  const setPreferredPipeline = useCallback((pipelineId: string) => {
+    if (!clerkUserId || !orgId) return;
+    localStorage.setItem(prefKey(clerkUserId, orgId), pipelineId);
+    setPreferredPipelineIdState(pipelineId);
+    toast({ title: 'Pipeline padrão definido', description: 'Esta pipeline será carregada ao abrir Oportunidades.' });
+  }, [clerkUserId, orgId, toast]);
 
   // Ensure default pipeline exists for the org
   const ensureDefaultPipeline = useCallback(async () => {
@@ -89,10 +108,12 @@ export function usePipelines() {
       }
 
       setPipelines(pipelineList);
-      
-      // Auto-select the default pipeline or first pipeline
+
+      // Auto-select: user preference → org default → first
       if (pipelineList.length > 0) {
-        const defaultPipeline = pipelineList.find(p => p.is_default) || pipelineList[0];
+        const savedId = localStorage.getItem(prefKey(clerkUserId, orgId));
+        const preferred = savedId ? pipelineList.find(p => p.id === savedId) : null;
+        const defaultPipeline = preferred || pipelineList.find(p => p.is_default) || pipelineList[0];
         setSelectedPipeline(defaultPipeline);
       }
     } catch (error: any) {
@@ -337,6 +358,8 @@ export function usePipelines() {
     pipelines,
     selectedPipeline,
     setSelectedPipeline,
+    preferredPipelineId,
+    setPreferredPipeline,
     stages,
     loading,
     ensuring,

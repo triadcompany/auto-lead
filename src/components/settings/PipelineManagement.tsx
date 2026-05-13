@@ -8,16 +8,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Trash2, 
-  Edit, 
-  Plus, 
-  GripVertical, 
-  GitBranch, 
+import {
+  Trash2,
+  Edit,
+  Plus,
+  GripVertical,
+  GitBranch,
   Target,
   Settings,
   Eye,
-  Shield
+  Shield,
+  Star,
 } from 'lucide-react';
 import { usePipelines, Pipeline, PipelineStage } from '@/hooks/usePipelines';
 import { PipelineVisualization } from '@/components/pipelines/PipelineVisualization';
@@ -320,6 +321,8 @@ export function PipelineManagement() {
     pipelines,
     selectedPipeline,
     setSelectedPipeline,
+    preferredPipelineId,
+    setPreferredPipeline,
     stages,
     loading,
     createPipeline,
@@ -450,8 +453,11 @@ export function PipelineManagement() {
                       <div className="flex items-center gap-2">
                         <GitBranch className="h-4 w-4" />
                         {pipeline.name}
-                        {pipeline.is_default && (
-                          <Badge variant="outline" className="text-xs">Padrão</Badge>
+                        {pipeline.id === preferredPipelineId && (
+                          <Badge variant="default" className="text-xs">Meu padrão</Badge>
+                        )}
+                        {pipeline.is_default && pipeline.id !== preferredPipelineId && (
+                          <Badge variant="outline" className="text-xs">Padrão org</Badge>
                         )}
                       </div>
                     </SelectItem>
@@ -459,37 +465,50 @@ export function PipelineManagement() {
                 </SelectContent>
               </Select>
               
-              {selectedPipeline && isAdmin && (
+              {selectedPipeline && (
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    variant="outline"
+                    variant={selectedPipeline.id === preferredPipelineId ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => {
-                      setEditingPipeline(selectedPipeline);
-                      setIsPipelineDialogOpen(true);
-                    }}
+                    onClick={() => setPreferredPipeline(selectedPipeline.id)}
+                    disabled={selectedPipeline.id === preferredPipelineId}
                   >
-                    <Edit className="h-4 w-4 mr-1" />
-                    Editar
+                    <Star className="h-4 w-4 mr-1" />
+                    {selectedPipeline.id === preferredPipelineId ? 'Meu padrão' : 'Definir como meu padrão'}
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPermissionsOpen(true)}
-                  >
-                    <Shield className="h-4 w-4 mr-1" />
-                    Permissões
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => deletePipeline(selectedPipeline.id)}
-                    className="text-destructive hover:text-destructive"
-                    disabled={pipelines.length <= 1}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Excluir
-                  </Button>
+                  {isAdmin && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingPipeline(selectedPipeline);
+                          setIsPipelineDialogOpen(true);
+                        }}
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Editar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPermissionsOpen(true)}
+                      >
+                        <Shield className="h-4 w-4 mr-1" />
+                        Permissões
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => deletePipeline(selectedPipeline.id)}
+                        className="text-destructive hover:text-destructive"
+                        disabled={pipelines.length <= 1}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Excluir
+                      </Button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
