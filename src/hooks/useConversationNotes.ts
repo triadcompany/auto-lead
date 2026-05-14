@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
 export interface ConversationNote {
@@ -16,7 +15,6 @@ export interface ConversationNote {
 export function useConversationNotes(conversationId: string | null) {
   const [notes, setNotes] = useState<ConversationNote[]>([]);
   const [loading, setLoading] = useState(false);
-  const { profile } = useAuth();
 
   const fetchNotes = useCallback(async () => {
     if (!conversationId) return;
@@ -41,19 +39,17 @@ export function useConversationNotes(conversationId: string | null) {
   }, [conversationId]);
 
   const createNote = useCallback(async (content: string) => {
-    if (!conversationId || !profile?.organization_id) return;
+    if (!conversationId) return;
     try {
-      const { error } = await supabase.from('conversation_notes').insert({
-        conversation_id: conversationId,
-        organization_id: profile.organization_id,
-        content,
-        created_by: profile.id ?? null,
+      const { error } = await supabase.rpc('create_conversation_note', {
+        p_conversation_id: conversationId,
+        p_content: content,
       });
       if (error) throw error;
     } catch (err: any) {
       toast({ title: 'Erro ao salvar nota', description: err.message, variant: 'destructive' });
     }
-  }, [conversationId, profile]);
+  }, [conversationId]);
 
   useEffect(() => {
     fetchNotes();
