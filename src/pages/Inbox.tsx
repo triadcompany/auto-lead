@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useInbox, InboxThread, InboxMessage, ConversationStatus } from '@/hooks/useInbox';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOrgSettings } from '@/hooks/useOrgSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { format, isToday, isYesterday, parseISO, isSameDay } from 'date-fns';
@@ -60,8 +60,13 @@ import { CreateLeadFromInboxModal } from '@/components/inbox/CreateLeadFromInbox
 import { AiSuggestionPanel } from '@/components/inbox/AiSuggestionPanel';
 import { ConversationIntelligenceBadge } from '@/components/inbox/ConversationIntelligenceBadge';
 import { AudioPlayer } from '@/components/inbox/AudioPlayer';
-import { MessageComposer } from '@/components/inbox/MessageComposer';
 import { ImageLightbox } from '@/components/inbox/ImageLightbox';
+import { InboxComposer } from '@/components/inbox/InboxComposer';
+import { NoteCard } from '@/components/inbox/NoteCard';
+import { InboxTaskCard } from '@/components/inbox/InboxTaskCard';
+import { AppointmentCard } from '@/components/inbox/AppointmentCard';
+import { useConversationNotes } from '@/hooks/useConversationNotes';
+import { useConversationTimeline, TimelineItem } from '@/hooks/useConversationTimeline';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -546,9 +551,17 @@ function EmptyChat() {
   );
 }
 
-// ── Messages with date groups ──
+// ── Messages with date groups + timeline items ──
 
-function MessagesList({ messages, isGroup }: { messages: InboxMessage[]; isGroup?: boolean }) {
+function MessagesList({
+  messages,
+  isGroup,
+  timelineItems = [],
+}: {
+  messages: InboxMessage[];
+  isGroup?: boolean;
+  timelineItems?: TimelineItem[];
+}) {
   // Build participants map (phone digits -> display name) from message history
   const participants = useMemo(() => {
     const map = new Map<string, string>();
@@ -562,54 +575,72 @@ function MessagesList({ messages, isGroup }: { messages: InboxMessage[]; isGroup
   }, [messages]);
 
   const grouped = useMemo(() => {
-    const result: {
-      type: 'date' | 'message';
-      date?: string;
-      message?: InboxMessage;
-      showSender?: boolean;
-    }[] = [];
+    type Entry =
+      | { type: 'date'; date: string }
+      | { type: 'message'; message: InboxMessage; showSender?: boolean }
+      | { type: 'timeline'; item: TimelineItem };
+
+    // Merge messages and timeline items sorted by created_at
+    const allEntries: { ts: string; entry: Entry }[] = [
+      ...messages.map((m) => ({ ts: m.created_at, entry: { type: 'message' as const, message: m } })),
+      ...timelineItems.map((t) => ({ ts: t.created_at, entry: { type: 'timeline' as const, item: t } })),
+    ].sort((a, b) => a.ts.localeCompare(b.ts));
+
+    const result: Entry[] = [];
     let lastDate: string | null = null;
     let lastSenderKey: string | null = null;
 
-    for (const msg of messages) {
-      const msgDate = msg.created_at;
-      const isNewDay =
-        !lastDate || !isSameDay(parseISO(lastDate), parseISO(msgDate));
+    for (const { ts, entry } of allEntries) {
+      const isNewDay = !lastDate || !isSameDay(parseISO(lastDate), parseISO(ts));
       if (isNewDay) {
-        result.push({ type: 'date', date: msgDate });
-        lastDate = msgDate;
+        result.push({ type: 'date', date: ts });
+        lastDate = ts;
         lastSenderKey = null;
       }
 
-      const senderKey =
-        msg.direction === 'outbound'
-          ? '__me__'
-          : msg.sender_phone || msg.sender_name || '__unknown__';
+      if (entry.type === 'message') {
+        const senderKey =
+          entry.message.direction === 'outbound'
+            ? '__me__'
+            : entry.message.sender_phone || entry.message.sender_name || '__unknown__';
 
-      const showSender =
-        !!isGroup && msg.direction !== 'outbound' && senderKey !== lastSenderKey;
+        const showSender =
+          !!isGroup && entry.message.direction !== 'outbound' && senderKey !== lastSenderKey;
 
-      result.push({ type: 'message', message: msg, showSender });
-      lastSenderKey = senderKey;
+        result.push({ type: 'message', message: entry.message, showSender });
+        lastSenderKey = senderKey;
+      } else {
+        result.push(entry);
+        lastSenderKey = null;
+      }
     }
+
     return result;
-  }, [messages, isGroup]);
+  }, [messages, isGroup, timelineItems]);
 
   return (
     <>
-      {grouped.map((item, i) =>
-        item.type === 'date' ? (
-          <DateSeparator key={`date-${i}`} date={item.date!} />
-        ) : (
+      {grouped.map((item, i) => {
+        if (item.type === 'date') {
+          return <DateSeparator key={`date-${i}`} date={item.date} />;
+        }
+        if (item.type === 'timeline') {
+          const t = item.item;
+          if (t._type === 'note') return <NoteCard key={t.id} note={t.data} />;
+          if (t._type === 'task') return <InboxTaskCard key={t.id} task={t.data} />;
+          if (t._type === 'appointment') return <AppointmentCard key={t.id} appointment={t.data} />;
+          return null;
+        }
+        return (
           <MessageBubble
-            key={item.message!.id}
-            message={item.message!}
+            key={item.message.id}
+            message={item.message}
             showSender={item.showSender}
             isGroup={isGroup}
             participants={participants}
           />
-        )
-      )}
+        );
+      })}
     </>
   );
 }
@@ -733,6 +764,81 @@ export default function InboxPage() {
   const isAtBottomRef = useRef(true);
 
   const canSend = canSendMessage(selectedThread);
+
+  // ── Conversation timeline: notes, tasks, appointments ──
+  const { notes, createNote } = useConversationNotes(selectedThreadId ?? null);
+
+  const { data: conversationTasks = [] } = useQuery({
+    queryKey: ['conversation-tasks', selectedThreadId],
+    queryFn: async () => {
+      if (!selectedThreadId) return [];
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*, lead:leads(id, name, phone)')
+        .eq('conversation_id', selectedThreadId)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+    enabled: !!selectedThreadId,
+  });
+
+  const { data: conversationAppointments = [] } = useQuery({
+    queryKey: ['conversation-appointments', selectedThreadId],
+    queryFn: async () => {
+      if (!selectedThreadId) return [];
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('id, datetime, tipo, duration_minutes, anotacoes, created_at')
+        .eq('conversation_id', selectedThreadId)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+    enabled: !!selectedThreadId,
+  });
+
+  const timelineItems = useConversationTimeline(notes, conversationTasks, conversationAppointments);
+
+  const queryClient = useQueryClient();
+
+  const handleSaveNote = useCallback(async (content: string) => {
+    await createNote(content);
+  }, [createNote]);
+
+  const handleSaveTask = useCallback(async (taskData: {
+    titulo: string;
+    data_hora: string;
+    descricao?: string;
+    prioridade?: 'baixa' | 'media' | 'alta';
+    responsavel_id?: string;
+    organization_id: string;
+  }) => {
+    if (!selectedThreadId) return;
+    const { error } = await supabase.from('tasks').insert({
+      ...taskData,
+      conversation_id: selectedThreadId,
+      status: 'pendente',
+    } as any);
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ['conversation-tasks', selectedThreadId] });
+  }, [selectedThreadId, queryClient]);
+
+  const handleSaveAppointment = useCallback(async (apptData: {
+    datetime: string;
+    tipo: string;
+    duration_minutes?: number;
+    anotacoes?: string;
+    organization_id: string;
+  }) => {
+    if (!selectedThreadId) return;
+    const { error } = await supabase.from('appointments').insert({
+      ...apptData,
+      conversation_id: selectedThreadId,
+    } as any);
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ['conversation-appointments', selectedThreadId] });
+  }, [selectedThreadId, queryClient]);
 
   // Query latest AI block reason for the selected conversation
   const { data: lastBlockedJob } = useQuery({
@@ -1346,13 +1452,13 @@ export default function InboxPage() {
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-              ) : messages.length === 0 ? (
+              ) : messages.length === 0 && timelineItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
                   <MessageSquare className="h-8 w-8 mb-2 opacity-30" />
                   <p className="text-sm">Nenhuma mensagem nesta conversa</p>
                 </div>
               ) : (
-                <MessagesList messages={messages} isGroup={selectedThread.is_group} />
+                <MessagesList messages={messages} isGroup={selectedThread.is_group} timelineItems={timelineItems} />
               )}
 
               {/* AI Thinking Indicator */}
@@ -1390,7 +1496,10 @@ export default function InboxPage() {
 
             {/* Send Bar */}
             {canSend ? (
-              <MessageComposer
+              <InboxComposer
+                conversationId={selectedThread.id}
+                organizationId={profile?.organization_id ?? ''}
+                orgMembers={orgMembers}
                 value={messageText}
                 onChange={setMessageText}
                 sending={sending}
@@ -1398,6 +1507,9 @@ export default function InboxPage() {
                 onSendMedia={async (payload) => {
                   await sendMedia(payload);
                 }}
+                onSaveNote={handleSaveNote}
+                onSaveTask={handleSaveTask}
+                onSaveAppointment={handleSaveAppointment}
               />
             ) : (
               <div className="p-3 border-t border-border bg-card/30">
