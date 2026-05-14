@@ -39,7 +39,7 @@ export function Oportunidades() {
   const [isEditObservationsOpen, setIsEditObservationsOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   
-  const { pipelines, selectedPipeline, setSelectedPipeline, ensuring } = usePipelines();
+  const { pipelines, selectedPipeline, setSelectedPipeline, selectPipeline, ensuring } = usePipelines();
   const { kanbanColumns, moveLead, updateLead, addLead, deleteLead, loading, searchTerm, setSearchTerm, leads } = useSupabaseLeads(selectedPipeline?.id);
   const { isAdmin, profile } = useAuth();
   
@@ -110,7 +110,7 @@ export function Oportunidades() {
                   key={pipeline.id}
                   variant={selectedPipeline?.id === pipeline.id ? "default" : "outline"}
                   className="w-full justify-start"
-                  onClick={() => setSelectedPipeline(pipeline)}
+                  onClick={() => selectPipeline(pipeline)}
                 >
                   <Workflow className="h-4 w-4 mr-2" />
                   {pipeline.name}
@@ -269,7 +269,7 @@ export function Oportunidades() {
                   value={selectedPipeline?.id || ''} 
                   onValueChange={(value) => {
                     const pipeline = pipelines.find(p => p.id === value);
-                    setSelectedPipeline(pipeline || null);
+                    selectPipeline(pipeline || null);
                   }}
                 >
                   <SelectTrigger className="w-52 border-0 bg-muted/50 focus:ring-2 focus:ring-primary/20">

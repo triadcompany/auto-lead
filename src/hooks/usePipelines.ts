@@ -57,6 +57,16 @@ export function usePipelines() {
     toast({ title: 'Pipeline padrão definido', description: 'Esta pipeline será carregada ao abrir Oportunidades.' });
   }, [clerkUserId, orgId, toast]);
 
+  // Silent version: auto-saves last selected pipeline without showing a toast.
+  // Used in Oportunidades so the last opened kanban is restored on next visit.
+  const selectPipeline = useCallback((pipeline: Pipeline | null) => {
+    setSelectedPipeline(pipeline);
+    if (pipeline && clerkUserId && orgId) {
+      localStorage.setItem(prefKey(clerkUserId, orgId), pipeline.id);
+      setPreferredPipelineIdState(pipeline.id);
+    }
+  }, [clerkUserId, orgId]);
+
   // Ensure default pipeline exists for the org
   const ensureDefaultPipeline = useCallback(async () => {
     if (!orgId) return false;
@@ -358,6 +368,7 @@ export function usePipelines() {
     pipelines,
     selectedPipeline,
     setSelectedPipeline,
+    selectPipeline,
     preferredPipelineId,
     setPreferredPipeline,
     stages,
