@@ -20,17 +20,11 @@ export function useConversationNotes(conversationId: string | null) {
     if (!conversationId) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('conversation_notes')
-        .select('*, profiles(name)')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true });
+      const { data, error } = await (supabase as any).rpc('get_conversation_notes', {
+        p_conversation_id: conversationId,
+      });
       if (error) throw error;
-      const mapped = (data || []).map((n: any) => ({
-        ...n,
-        author_name: n.profiles?.name ?? null,
-      }));
-      setNotes(mapped);
+      setNotes((data ?? []) as unknown as ConversationNote[]);
     } catch (err: any) {
       console.error('Error fetching notes:', err);
     } finally {
@@ -41,15 +35,16 @@ export function useConversationNotes(conversationId: string | null) {
   const createNote = useCallback(async (content: string) => {
     if (!conversationId) return;
     try {
-      const { error } = await supabase.rpc('create_conversation_note', {
+      const { error } = await (supabase as any).rpc('create_conversation_note', {
         p_conversation_id: conversationId,
         p_content: content,
       });
       if (error) throw error;
+      await fetchNotes();
     } catch (err: any) {
       toast({ title: 'Erro ao salvar nota', description: err.message, variant: 'destructive' });
     }
-  }, [conversationId]);
+  }, [conversationId, fetchNotes]);
 
   useEffect(() => {
     fetchNotes();
