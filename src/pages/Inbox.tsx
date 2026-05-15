@@ -816,20 +816,21 @@ export default function InboxPage() {
   }) => {
     if (!selectedThreadId) return;
     try {
-      const { error } = await supabase.from('tasks').insert({
-        ...taskData,
-        // responsavel_id is NOT NULL in DB; default to current user if not selected
-        responsavel_id: taskData.responsavel_id || profile?.id || '',
-        conversation_id: selectedThreadId,
-        status: 'pendente',
-      } as any);
+      const { error } = await (supabase as any).rpc('create_conversation_task', {
+        p_conversation_id: selectedThreadId,
+        p_titulo: taskData.titulo,
+        p_data_hora: taskData.data_hora,
+        p_descricao: taskData.descricao ?? null,
+        p_prioridade: taskData.prioridade ?? null,
+        p_responsavel_id: taskData.responsavel_id ?? null,
+      });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['conversation-tasks', selectedThreadId] });
     } catch (err: any) {
       toast.error('Erro ao criar tarefa', { description: err.message });
       throw err;
     }
-  }, [selectedThreadId, queryClient, profile]);
+  }, [selectedThreadId, queryClient]);
 
   const handleSaveAppointment = useCallback(async (apptData: {
     datetime: string;
@@ -840,10 +841,13 @@ export default function InboxPage() {
   }) => {
     if (!selectedThreadId) return;
     try {
-      const { error } = await supabase.from('appointments').insert({
-        ...apptData,
-        conversation_id: selectedThreadId,
-      } as any);
+      const { error } = await (supabase as any).rpc('create_conversation_appointment', {
+        p_conversation_id: selectedThreadId,
+        p_datetime: apptData.datetime,
+        p_tipo: apptData.tipo,
+        p_duration_minutes: apptData.duration_minutes ?? null,
+        p_anotacoes: apptData.anotacoes ?? null,
+      });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['conversation-appointments', selectedThreadId] });
     } catch (err: any) {
