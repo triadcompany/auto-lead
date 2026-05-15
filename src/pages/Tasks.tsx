@@ -336,9 +336,9 @@ export default function Tasks() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
             {/* Overdue Tasks */}
             {overdueTasks.length > 0 && (
-              <Card className="border-red-200">
-                <CardHeader className="bg-red-50/50">
-                  <CardTitle className="text-base flex items-center gap-2 text-red-600">
+              <Card className="border-red-500/40 dark:border-red-500/40">
+                <CardHeader className="bg-red-500/10 dark:bg-red-500/15">
+                  <CardTitle className="text-base flex items-center gap-2 text-red-500 dark:text-red-400">
                     <AlertCircle className="h-5 w-5" />
                     Tarefas Atrasadas
                     <Badge variant="destructive">{overdueTasks.length}</Badge>
@@ -349,7 +349,7 @@ export default function Tasks() {
                     {overdueTasks.slice(0, 3).map((task) => (
                       <div
                         key={task.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-red-50/50 border border-red-100"
+                        className="flex items-center justify-between p-3 rounded-lg bg-red-500/10 dark:bg-red-500/15 border border-red-500/30"
                       >
                         <div>
                           <span className="font-medium text-sm">{task.titulo}</span>
