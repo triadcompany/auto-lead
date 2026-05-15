@@ -1,3 +1,4 @@
+import { DevBanner } from "@/components/DevBanner";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -90,6 +91,7 @@ const App = () => {
   return (
     // Nível 1: captura erros fora do Router (providers, contextos globais)
     <ErrorBoundary>
+      <DevBanner />
       <ClerkProvider>
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
