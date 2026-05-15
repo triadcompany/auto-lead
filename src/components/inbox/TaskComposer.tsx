@@ -101,18 +101,22 @@ export function TaskComposer({ orgMembers, organizationId, onSave }: TaskCompose
                 <SelectItem value="alta">Alta</SelectItem>
               </SelectContent>
             </Select>
-            {orgMembers.length > 0 && (
-              <Select value={responsavelId} onValueChange={setResponsavelId} disabled={saving}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Responsável" />
-                </SelectTrigger>
+            <Select
+              value={responsavelId}
+              onValueChange={setResponsavelId}
+              disabled={saving || orgMembers.length === 0}
+            >
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder={orgMembers.length === 0 ? 'Atribuído a você' : 'Responsável'} />
+              </SelectTrigger>
+              {orgMembers.length > 0 && (
                 <SelectContent>
                   {orgMembers.map((m) => (
                     <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
                   ))}
                 </SelectContent>
-              </Select>
-            )}
+              )}
+            </Select>
           </div>
         </div>
       )}

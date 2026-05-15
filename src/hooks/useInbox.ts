@@ -42,11 +42,9 @@ export function useInbox() {
   const fetchOrgMembers = useCallback(async () => {
     if (!orgId) return;
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, name')
-        .eq('organization_id', orgId)
-        .order('name');
+      const { data, error } = await (supabase as any).rpc('get_org_profiles', {
+        p_org_id: orgId,
+      });
       if (error) throw error;
       setOrgMembers((data as OrgMember[]) || []);
     } catch {
