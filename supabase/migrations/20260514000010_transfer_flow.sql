@@ -27,7 +27,7 @@ CREATE POLICY "org members can view transfers"
     EXISTS (
       SELECT 1 FROM public.conversations c
       JOIN public.org_members om
-        ON om.org_id = c.organization_id
+        ON om.organization_id = c.organization_id
         AND om.clerk_user_id = get_clerk_user_id()
       WHERE c.id = conversation_id
     )
@@ -56,11 +56,11 @@ DECLARE
   v_caller_org uuid;
 BEGIN
   -- Verify caller belongs to the requested org
-  SELECT om.org_id INTO v_caller_org
+  SELECT om.organization_id INTO v_caller_org
   FROM org_members om
   JOIN profiles p ON p.clerk_user_id = om.clerk_user_id
   WHERE om.clerk_user_id = get_clerk_user_id()
-    AND om.org_id = p_org_id
+    AND om.organization_id = p_org_id
   LIMIT 1;
 
   IF v_caller_org IS NULL THEN
@@ -79,7 +79,7 @@ BEGIN
     ON c.assigned_to = pr.id
     AND c.organization_id = p_org_id
     AND c.status NOT IN ('closed')
-  WHERE om.org_id = p_org_id
+  WHERE om.organization_id = p_org_id
     AND (p_role IS NULL OR om.role = p_role)
   GROUP BY pr.id, pr.name, om.role
   ORDER BY pr.name;
