@@ -15,7 +15,7 @@ import { useConversationActions } from './inbox/useConversationActions';
 export type { ConversationStatus, InboxThread, InboxMessage, OrgMember, AssignmentFilter, StatusFilter };
 
 export function useInbox() {
-  const { user, profile, isAdmin, orgId } = useAuth();
+  const { user, profile, isAdmin, orgId, role } = useAuth();
   const clerkUserId = user?.id || '';
   const myProfileId = profile?.id;
 
@@ -255,6 +255,7 @@ export function useInbox() {
     loadingMessages,
     sending,
     isAdmin,
+    role,
     orgMembers,
     profile,
     myProfileId,

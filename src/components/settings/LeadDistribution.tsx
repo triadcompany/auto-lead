@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -58,6 +59,7 @@ const LeadDistribution: React.FC = () => {
   const [resetting, setResetting] = useState<'traffic' | 'non_traffic' | null>(null);
   const [globalEnabled, setGlobalEnabled] = useState(false);
   const [globalSettingsId, setGlobalSettingsId] = useState<string | undefined>();
+  const [transferIntroMessage, setTransferIntroMessage] = useState('');
   const [trafficSettings, setTrafficSettings] = useState<BucketSettings>(DEFAULT_BUCKET('traffic', orgId));
   const [nonTrafficSettings, setNonTrafficSettings] = useState<BucketSettings>(DEFAULT_BUCKET('non_traffic', orgId));
   const [routingStates, setRoutingStates] = useState<RoutingState[]>([]);
@@ -68,13 +70,14 @@ const LeadDistribution: React.FC = () => {
     try {
       const { data: globalData } = await supabase
         .from('whatsapp_routing_settings')
-        .select('id, enabled')
+        .select('id, enabled, transfer_intro_message')
         .eq('organization_id', orgId)
         .maybeSingle();
 
       if (globalData) {
         setGlobalEnabled(globalData.enabled);
         setGlobalSettingsId(globalData.id);
+        setTransferIntroMessage((globalData as any).transfer_intro_message ?? '');
       }
 
       const { data: bucketData } = await supabase
@@ -117,17 +120,17 @@ const LeadDistribution: React.FC = () => {
     if (!orgId || !isAdmin) return;
     setSaving(true);
     try {
-      // Save global toggle
+      // Save global toggle + transfer_intro_message
       if (globalSettingsId) {
         const { error } = await supabase
           .from('whatsapp_routing_settings')
-          .update({ enabled: globalEnabled, updated_at: new Date().toISOString() })
+          .update({ enabled: globalEnabled, transfer_intro_message: transferIntroMessage || null, updated_at: new Date().toISOString() } as any)
           .eq('id', globalSettingsId);
         if (error) { toast.error('Erro ao salvar: ' + error.message); setSaving(false); return; }
       } else {
         const { data, error } = await supabase
           .from('whatsapp_routing_settings')
-          .insert({ organization_id: orgId, enabled: globalEnabled })
+          .insert({ organization_id: orgId, enabled: globalEnabled, transfer_intro_message: transferIntroMessage || null } as any)
           .select('id')
           .single();
         if (error) { toast.error('Erro ao inserir: ' + error.message); setSaving(false); return; }
@@ -514,6 +517,44 @@ const LeadDistribution: React.FC = () => {
           <p>5. Leads já atribuídos, clientes ou oportunidades ganhas <strong>não são redistribuídos</strong>.</p>
         </div>
       )}
+
+      {/* Transfer intro message */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            Mensagem de Apresentação na Transferência
+          </CardTitle>
+          <CardDescription>
+            Enviada automaticamente ao lead quando uma conversa é transferida para um vendedor.
+            Use as variáveis disponíveis para personalizar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            placeholder="Olá {nome_lead}! Vou te conectar com {nome_vendedor}, nosso consultor especialista. Ele dará continuidade ao seu atendimento."
+            value={transferIntroMessage}
+            onChange={(e) => setTransferIntroMessage(e.target.value)}
+            disabled={readOnly}
+            className="min-h-[80px] resize-none text-sm"
+          />
+          <div className="flex flex-wrap gap-2">
+            {['{nome_lead}', '{nome_vendedor}', '{nome_empresa}'].map((v) => (
+              <button
+                key={v}
+                type="button"
+                disabled={readOnly}
+                onClick={() => setTransferIntroMessage((prev) => prev + v)}
+                className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Deixe em branco para usar a mensagem padrão do sistema.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Save button */}
       {isAdmin && (

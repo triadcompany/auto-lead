@@ -26,7 +26,7 @@ interface AuthContextType {
   user: CompatUser | null;
   session: any | null;
   profile: Profile | null;
-  role: 'admin' | 'seller' | null;
+  role: 'admin' | 'seller' | 'pre_sales' | null;
   error: Error | null;
   loading: boolean;
   needsOnboarding: boolean;
@@ -35,7 +35,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   retryBootstrap: () => Promise<void>;
-  switchActiveOrg: (next: { org_id: string; clerk_org_id: string; role: 'admin' | 'seller' }) => void;
+  switchActiveOrg: (next: { org_id: string; clerk_org_id: string; role: 'admin' | 'seller' | 'pre_sales' }) => void;
   isAdmin: boolean;
   orgId: string | null;
   clerkOrgId: string | null;

@@ -62,6 +62,8 @@ import { ConversationIntelligenceBadge } from '@/components/inbox/ConversationIn
 import { AudioPlayer } from '@/components/inbox/AudioPlayer';
 import { ImageLightbox } from '@/components/inbox/ImageLightbox';
 import { InboxComposer } from '@/components/inbox/InboxComposer';
+import { TransferModal } from '@/components/inbox/TransferModal';
+import { ArrowRightLeft } from 'lucide-react';
 import { NoteCard } from '@/components/inbox/NoteCard';
 import { InboxTaskCard } from '@/components/inbox/InboxTaskCard';
 import { AppointmentCard } from '@/components/inbox/AppointmentCard';
@@ -703,6 +705,7 @@ export default function InboxPage() {
     loadingMessages,
     sending,
     isAdmin,
+    role,
     orgMembers,
     profile,
     myProfileId,
@@ -750,6 +753,7 @@ export default function InboxPage() {
     }
   }, [searchParams, threads, loadingThreads, selectThread, setSearchParams]);
   const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [createLeadModalOpen, setCreateLeadModalOpen] = useState(false);
   const [resetFirstTouchOpen, setResetFirstTouchOpen] = useState(false);
   const [resetAlsoDeleteLead, setResetAlsoDeleteLead] = useState(false);
@@ -1011,11 +1015,21 @@ export default function InboxPage() {
     }
   };
 
-  const assignmentOptions: { key: 'all' | 'mine' | 'unassigned'; label: string }[] = [
-    { key: 'all', label: 'Todas' },
-    { key: 'mine', label: 'Minhas' },
-    { key: 'unassigned', label: 'Não atribuídas' },
-  ];
+  // Tabs available per role
+  const isSeller = role === 'seller';
+  const isPreSales = role === 'pre_sales';
+  const canTransfer = isAdmin || isPreSales;
+
+  const assignmentOptions: { key: 'all' | 'mine' | 'unassigned'; label: string; locked?: boolean }[] =
+    isSeller
+      ? [{ key: 'mine', label: 'Minhas' }, { key: 'all', label: 'Todas', locked: true }]
+      : isPreSales
+      ? [{ key: 'unassigned', label: 'Não atribuídas' }, { key: 'all', label: 'Todas' }, { key: 'mine', label: 'Minhas' }]
+      : [
+          { key: 'all', label: 'Todas' },
+          { key: 'mine', label: 'Minhas' },
+          { key: 'unassigned', label: 'Não atribuídas' },
+        ];
 
   const statusOptions: { key: 'all' | 'open' | 'in_progress' | 'waiting_customer' | 'closed'; label: string }[] = [
     { key: 'all', label: 'Todas' },
@@ -1072,6 +1086,17 @@ export default function InboxPage() {
           <div className="flex flex-wrap gap-1.5">
             {assignmentOptions.map((f) => {
               const active = assignmentFilter === f.key;
+              if (f.locked) {
+                return (
+                  <span
+                    key={f.key}
+                    title="Somente administradores e pré-vendas visualizam todas as conversas"
+                    className="h-7 px-3 text-xs font-medium rounded-full border border-transparent bg-muted/20 text-muted-foreground/40 whitespace-nowrap cursor-not-allowed flex items-center gap-1"
+                  >
+                    {f.label} 🔒
+                  </span>
+                );
+              }
               return (
                 <button
                   key={f.key}
@@ -1279,6 +1304,18 @@ export default function InboxPage() {
               {/* ── RIGHT: Actions ── */}
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 {/* Primary CTA */}
+                {canTransfer && selectedThread.status !== 'closed' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1 border-orange-500/50 text-orange-400 hover:bg-orange-500/10"
+                    onClick={() => setTransferModalOpen(true)}
+                  >
+                    <ArrowRightLeft className="h-3 w-3" />
+                    Transferir
+                  </Button>
+                )}
+
                 {selectedThread.assigned_to !== myProfileId ? (
                   <Button
                     size="sm"
@@ -1666,6 +1703,16 @@ export default function InboxPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {selectedThread && (
+        <TransferModal
+          open={transferModalOpen}
+          onOpenChange={setTransferModalOpen}
+          conversationId={selectedThread.id}
+          orgId={profile?.organization_id ?? ''}
+          leadName={selectedThread.contact_name ?? undefined}
+        />
+      )}
     </div>
   );
 }
