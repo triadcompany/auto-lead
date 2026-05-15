@@ -146,11 +146,11 @@ export function Settings() {
 
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserName, setNewUserName] = useState("");
-  const [newUserRole, setNewUserRole] = useState<"admin" | "seller">("seller");
+  const [newUserRole, setNewUserRole] = useState<"admin" | "seller" | "pre_sales">("seller");
   const [editingProfile, setEditingProfile] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const handleRoleUpdate = async (profileId: string, newRole: "admin" | "seller") => {
+  const handleRoleUpdate = async (profileId: string, newRole: "admin" | "seller" | "pre_sales") => {
     await updateProfile(profileId, { role: newRole });
     setEditingProfile(null);
   };
@@ -249,12 +249,13 @@ export function Settings() {
                 </div>
                 <div>
                   <Label htmlFor="userRole" className="font-poppins">Função</Label>
-                  <Select value={newUserRole} onValueChange={(value: "admin" | "seller") => setNewUserRole(value)}>
+                  <Select value={newUserRole} onValueChange={(value: "admin" | "seller" | "pre_sales") => setNewUserRole(value)}>
                     <SelectTrigger className="font-poppins">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="seller">Vendedor</SelectItem>
+                      <SelectItem value="pre_sales">Pré-vendas</SelectItem>
                       <SelectItem value="admin">Administrador</SelectItem>
                     </SelectContent>
                   </Select>
@@ -384,19 +385,20 @@ export function Settings() {
                           variant={userProfile.role === 'admin' ? 'default' : 'secondary'}
                           className="font-poppins"
                         >
-                          {userProfile.role === 'admin' ? 'Administrador' : 'Vendedor'}
+                          {userProfile.role === 'admin' ? 'Administrador' : userProfile.role === 'pre_sales' ? 'Pré-vendas' : 'Vendedor'}
                         </Badge>
                         {editingProfile === userProfile.id ? (
                           <div className="flex items-center space-x-1">
                             <Select
                               value={userProfile.role}
-                              onValueChange={(value: "admin" | "seller") => handleRoleUpdate(userProfile.id, value)}
+                              onValueChange={(value: "admin" | "seller" | "pre_sales") => handleRoleUpdate(userProfile.id, value)}
                             >
                               <SelectTrigger className="w-32 h-8 text-xs">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="seller">Vendedor</SelectItem>
+                                <SelectItem value="pre_sales">Pré-vendas</SelectItem>
                                 <SelectItem value="admin">Admin</SelectItem>
                               </SelectContent>
                             </Select>
