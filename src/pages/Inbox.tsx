@@ -772,11 +772,9 @@ export default function InboxPage() {
     queryKey: ['conversation-tasks', selectedThreadId],
     queryFn: async () => {
       if (!selectedThreadId) return [];
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('*, lead:leads(id, name, phone)')
-        .eq('conversation_id', selectedThreadId)
-        .order('created_at', { ascending: true });
+      const { data, error } = await (supabase as any).rpc('get_conversation_tasks', {
+        p_conversation_id: selectedThreadId,
+      });
       if (error) throw error;
       return (data ?? []) as any[];
     },
@@ -787,11 +785,9 @@ export default function InboxPage() {
     queryKey: ['conversation-appointments', selectedThreadId],
     queryFn: async () => {
       if (!selectedThreadId) return [];
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('id, datetime, tipo, duration_minutes, anotacoes, created_at')
-        .eq('conversation_id', selectedThreadId)
-        .order('created_at', { ascending: true });
+      const { data, error } = await (supabase as any).rpc('get_conversation_appointments', {
+        p_conversation_id: selectedThreadId,
+      });
       if (error) throw error;
       return (data ?? []) as any[];
     },
@@ -804,6 +800,7 @@ export default function InboxPage() {
 
   const handleSaveNote = useCallback(async (content: string) => {
     await createNote(content);
+    toast.success('Nota salva');
   }, [createNote]);
 
   const handleSaveTask = useCallback(async (taskData: {
@@ -826,6 +823,8 @@ export default function InboxPage() {
       });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['conversation-tasks', selectedThreadId] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Tarefa criada');
     } catch (err: any) {
       toast.error('Erro ao criar tarefa', { description: err.message });
       throw err;
@@ -850,6 +849,7 @@ export default function InboxPage() {
       });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['conversation-appointments', selectedThreadId] });
+      toast.success('Agendamento criado');
     } catch (err: any) {
       toast.error('Erro ao criar agendamento', { description: err.message });
       throw err;
