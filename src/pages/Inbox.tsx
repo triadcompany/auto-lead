@@ -1253,52 +1253,6 @@ export default function InboxPage() {
                     </TooltipProvider>
                   );
                 })()}
-                {isAdmin && (
-                  <Popover open={assignPopoverOpen} onOpenChange={setAssignPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-6 text-[11px] gap-1 px-2">
-                        <User className="h-3 w-3" />
-                        Responsável
-                        <ChevronDown className="h-2.5 w-2.5" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-52 p-1" align="center">
-                      <div className="text-xs font-medium text-muted-foreground px-2 py-1.5">Atribuir para</div>
-                      {orgMembers.map((member) => (
-                        <button
-                          key={member.id}
-                          className={cn(
-                            'w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent transition-colors flex items-center gap-2',
-                            selectedThread.assigned_to === member.id && 'bg-accent font-medium'
-                          )}
-                          onClick={() => handleAssign(member.id)}
-                        >
-                          <Avatar className="h-5 w-5">
-                            <AvatarFallback className="text-[9px] bg-muted">
-                              {getInitials(member.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          {member.name}
-                          {member.id === myProfileId && (
-                            <span className="text-[10px] text-muted-foreground ml-auto">(você)</span>
-                          )}
-                        </button>
-                      ))}
-                      {selectedThread.assigned_to && (
-                        <>
-                          <div className="border-t border-border my-1" />
-                          <button
-                            className="w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-destructive/10 text-destructive transition-colors flex items-center gap-2"
-                            onClick={() => handleAssign(null)}
-                          >
-                            <UserMinus className="h-3.5 w-3.5" />
-                            Remover atribuição
-                          </button>
-                        </>
-                      )}
-                    </PopoverContent>
-                  </Popover>
-                )}
               </div>
 
               {/* ── RIGHT: Actions ── */}
