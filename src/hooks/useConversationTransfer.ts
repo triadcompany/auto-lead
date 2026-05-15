@@ -22,10 +22,14 @@ export function useConversationTransfer(orgId: string | null) {
     try {
       const { data, error } = await (supabase as any).rpc('get_org_profiles', {
         p_org_id: orgId,
-        p_role: 'seller',
+        p_role: null,
       });
       if (error) throw error;
-      setSellers((data ?? []) as TransferSeller[]);
+      // Exclude pre_sales — only sellers and admins can receive transfers
+      const eligible = ((data ?? []) as TransferSeller[]).filter(
+        (u) => u.role === 'seller' || u.role === 'admin',
+      );
+      setSellers(eligible);
     } catch (err: any) {
       toast.error('Erro ao carregar vendedores: ' + (err.message ?? ''));
     } finally {
