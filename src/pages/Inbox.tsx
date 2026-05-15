@@ -815,14 +815,21 @@ export default function InboxPage() {
     organization_id: string;
   }) => {
     if (!selectedThreadId) return;
-    const { error } = await supabase.from('tasks').insert({
-      ...taskData,
-      conversation_id: selectedThreadId,
-      status: 'pendente',
-    } as any);
-    if (error) throw error;
-    queryClient.invalidateQueries({ queryKey: ['conversation-tasks', selectedThreadId] });
-  }, [selectedThreadId, queryClient]);
+    try {
+      const { error } = await supabase.from('tasks').insert({
+        ...taskData,
+        // responsavel_id is NOT NULL in DB; default to current user if not selected
+        responsavel_id: taskData.responsavel_id || profile?.id || '',
+        conversation_id: selectedThreadId,
+        status: 'pendente',
+      } as any);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['conversation-tasks', selectedThreadId] });
+    } catch (err: any) {
+      toast.error('Erro ao criar tarefa', { description: err.message });
+      throw err;
+    }
+  }, [selectedThreadId, queryClient, profile]);
 
   const handleSaveAppointment = useCallback(async (apptData: {
     datetime: string;
@@ -832,12 +839,17 @@ export default function InboxPage() {
     organization_id: string;
   }) => {
     if (!selectedThreadId) return;
-    const { error } = await supabase.from('appointments').insert({
-      ...apptData,
-      conversation_id: selectedThreadId,
-    } as any);
-    if (error) throw error;
-    queryClient.invalidateQueries({ queryKey: ['conversation-appointments', selectedThreadId] });
+    try {
+      const { error } = await supabase.from('appointments').insert({
+        ...apptData,
+        conversation_id: selectedThreadId,
+      } as any);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['conversation-appointments', selectedThreadId] });
+    } catch (err: any) {
+      toast.error('Erro ao criar agendamento', { description: err.message });
+      throw err;
+    }
   }, [selectedThreadId, queryClient]);
 
   // Query latest AI block reason for the selected conversation
