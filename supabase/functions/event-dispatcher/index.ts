@@ -289,6 +289,24 @@ async function processEvent(supabase: any, event: any) {
 
       // Keyword match
       if (triggerConfig.useKeyword) {
+        // Per-automation dedup: if this automation already fired for this contact, skip.
+        // (Global whatsapp_first_touch is only used for non-keyword automations.)
+        const { data: alreadyFired } = await supabase
+          .from("automation_first_contacts")
+          .select("automation_id")
+          .eq("automation_id", automation.id)
+          .eq("organization_id", orgId)
+          .eq("phone", phone)
+          .maybeSingle();
+
+        if (alreadyFired) {
+          const reason = `FIRST_CONTACT_ALREADY_FIRED: automation already ran for ${phone}`;
+          await logEventRun(supabase, event.id, automation.id, orgId, "skipped", reason);
+          console.log(`[AUTOMATION_FILTER] trace_id=${traceId} automation_id=${automation.id.substring(0,8)} final_match=false fail_reason=already_fired_for_contact`);
+          skippedCount++;
+          continue;
+        }
+
         const keyword = (triggerConfig.keyword || "").trim();
         const matchType = triggerConfig.matchType || "contains";
         // Default true for ignore_accents_case (backwards-compatible)
@@ -318,6 +336,15 @@ async function processEvent(supabase: any, event: any) {
           continue;
         }
 
+        // Keyword matched — record per-automation dedup so this automation doesn't fire again.
+        // upsert with ignoreDuplicates handles the PRIMARY KEY conflict gracefully.
+        await supabase
+          .from("automation_first_contacts")
+          .upsert(
+            { automation_id: automation.id, organization_id: orgId, phone },
+            { ignoreDuplicates: true, onConflict: "automation_id,organization_id,phone" },
+          );
+
         // Log successful match debug info
         await upsertExecution(supabase, orgId, traceId, eventName, "keyword_matched", null, {
           automation_id: automation.id,
@@ -336,7 +363,7 @@ async function processEvent(supabase: any, event: any) {
         console.log(`[AUTOMATION_FILTER] trace_id=${traceId} automation_id=${automation.id.substring(0,8)} channel_expected=${triggerChannel} channel_got=${eventChannel} keyword_filter_enabled=false final_match=true`);
       }
 
-      console.log(`[event-dispatcher] First-touch already handled by webhook for ${phone} — proceeding with automation ${automation.name}`);
+      console.log(`[event-dispatcher] Processing first_message automation: ${automation.name} for ${phone}`);
     }
 
     // ── Anti-conflict: block message-sending automations when human_active ──

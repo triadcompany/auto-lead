@@ -165,6 +165,24 @@ export function useAutomations() {
   };
 
   const toggleActive = async (id: string, isActive: boolean): Promise<boolean> => {
+    // When activating, validate that the trigger node has at least one connected action
+    if (!isActive) {
+      const flow = await getFlow(id);
+      if (flow) {
+        const triggerNode = (flow.nodes || []).find((n: any) => n.type === "trigger");
+        if (triggerNode) {
+          const hasOutgoing = (flow.edges || []).some((e: any) => e.source === triggerNode.id);
+          if (!hasOutgoing) {
+            toast({
+              title: "Gatilho sem ação",
+              description: "Conecte o gatilho a pelo menos uma ação antes de ativar a automação.",
+              variant: "destructive",
+            });
+            return false;
+          }
+        }
+      }
+    }
     return updateAutomation(id, { is_active: !isActive });
   };
 
@@ -183,6 +201,21 @@ export function useAutomations() {
       toast({ title: "Erro", description: "Só pode haver 1 nó de gatilho por automação.", variant: "destructive" });
       return null;
     }
+
+    // Warn if trigger node exists but has no outgoing edges (automation will never fire)
+    if (triggers.length === 1) {
+      const triggerId = triggers[0].id;
+      const hasOutgoing = edges.some((e) => e.source === triggerId);
+      if (!hasOutgoing) {
+        toast({
+          title: "Aviso: gatilho sem ação",
+          description: "O gatilho não está conectado a nenhuma ação. A automação não vai disparar até você conectá-lo.",
+          variant: "destructive",
+        });
+        // Non-blocking: save anyway so user doesn't lose work, but warn clearly
+      }
+    }
+
     const result = await apiCall("save_flow", {
       automation_id: automationId, organization_id: orgId, nodes, edges,
     });

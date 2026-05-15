@@ -278,6 +278,10 @@ serve(async (req) => {
             triggerUpdates.allow_ai_triggers = false;
             triggerUpdates.allow_human_triggers = true;
             triggerUpdates.throttle_seconds = 0;
+            // For first_message triggers: track whether keyword filtering is active so the
+            // webhook can choose global vs per-automation dedup without loading full flow configs.
+            triggerUpdates.has_keyword_trigger =
+              triggerConfig.triggerType === "first_message" && triggerConfig.useKeyword === true;
           }
 
           await supabase

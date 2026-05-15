@@ -997,7 +997,14 @@ async function fetchAndSaveGroupName(
     console.error(`[evolution-webhook] fetchAndSaveGroupName error for ${groupJid}:`, err);
   }
 }
-// Returns true if event was published (= active first_message automations exist + first-touch didn't exist)
+// Returns true if event was published (= eligible first_message automations exist).
+//
+// Dedup strategy (two-tier):
+//   • Non-keyword automations (has_keyword_trigger=false): global whatsapp_first_touch.
+//     Inserted here BEFORE publishing to prevent race conditions on rapid messages.
+//   • Keyword automations (has_keyword_trigger=true): per-automation automation_first_contacts.
+//     NOT inserted here — the event-dispatcher inserts it only after keyword match,
+//     so contacts whose first message misses the keyword can still trigger the automation later.
 async function publishFirstMessageEvent(
   supabase: any,
   orgId: string,
@@ -1009,25 +1016,10 @@ async function publishFirstMessageEvent(
   traceId: string,
 ): Promise<boolean> {
   try {
-    // First-touch dedup check
-    const { data: existing } = await supabase
-      .from("whatsapp_first_touch")
-      .select("id")
-      .eq("organization_id", orgId)
-      .eq("phone", phone)
-      .maybeSingle();
-
-    console.log(`[FIRST_TOUCH_CHECK] trace_id=${traceId} org_id=${orgId} phone_normalized=${phone} exists_before=${!!existing}`);
-
-    if (existing) {
-      // Not a first message — skip event publishing
-      return false;
-    }
-
-    // Check if any active automation uses the first_message trigger
+    // ── Load all active first_message automations (with dedup-strategy flag) ──
     const { data: automations } = await supabase
       .from("automations")
-      .select("id")
+      .select("id, has_keyword_trigger")
       .eq("organization_id", orgId)
       .eq("is_active", true)
       .eq("trigger_type", "first_message");
@@ -1037,27 +1029,72 @@ async function publishFirstMessageEvent(
       return false;
     }
 
-    console.log(`[FIRST_TOUCH_DECISION] trace_id=${traceId} will_fire_first_message_event=true active_automations=${automations.length}`);
+    const noKeywordAutomations = automations.filter((a: any) => !a.has_keyword_trigger);
+    const keywordAutomations   = automations.filter((a: any) =>  a.has_keyword_trigger);
 
-    // ── Insert first-touch record NOW (before publishing event) ──
-    // This prevents the race condition where handleAdKeywordLead could insert it first
-    const { error: ftInsertErr } = await supabase.from("whatsapp_first_touch").insert({
-      organization_id: orgId,
-      phone,
-      first_message_id: traceId,
-    });
+    // ── Dedup: non-keyword automations use global whatsapp_first_touch ──
+    let noKeywordEligible = noKeywordAutomations.length > 0;
+    if (noKeywordEligible) {
+      const { data: existing } = await supabase
+        .from("whatsapp_first_touch")
+        .select("id")
+        .eq("organization_id", orgId)
+        .eq("phone", phone)
+        .maybeSingle();
 
-    if (ftInsertErr) {
-      if (ftInsertErr.code === "23505") {
-        console.log(`[FIRST_TOUCH_DECISION] trace_id=${traceId} first_touch_race_condition=true — skipping`);
-        return false;
+      console.log(`[FIRST_TOUCH_CHECK] trace_id=${traceId} org_id=${orgId} phone_normalized=${phone} exists_before=${!!existing}`);
+
+      if (existing) {
+        noKeywordEligible = false; // global dedup already fired for this contact
+      } else {
+        // Pre-insert now to prevent race condition on rapid successive messages
+        const { error: ftInsertErr } = await supabase.from("whatsapp_first_touch").insert({
+          organization_id: orgId,
+          phone,
+          first_message_id: traceId,
+        });
+        if (ftInsertErr) {
+          if (ftInsertErr.code === "23505") {
+            console.log(`[FIRST_TOUCH_DECISION] trace_id=${traceId} first_touch_race_condition=true — no-keyword automations excluded`);
+            noKeywordEligible = false;
+          } else {
+            console.error(`[evolution-webhook] First-touch insert error:`, ftInsertErr);
+            // Continue — event-dispatcher has fallback dedup
+          }
+        }
       }
-      console.error(`[evolution-webhook] First-touch insert error:`, ftInsertErr);
-      // Continue anyway — event dispatcher has its own dedup
     }
 
+    // ── Dedup: keyword automations use per-automation automation_first_contacts ──
+    // We only exclude automations that have ALREADY fired for this phone.
+    // If none have fired yet, all keyword automations are eligible — the
+    // event-dispatcher will do the actual keyword match and insert the record.
+    let keywordEligibleCount = 0;
+    if (keywordAutomations.length > 0) {
+      const automationIds = keywordAutomations.map((a: any) => a.id);
+      const { data: alreadyFired } = await supabase
+        .from("automation_first_contacts")
+        .select("automation_id")
+        .eq("organization_id", orgId)
+        .eq("phone", phone)
+        .in("automation_id", automationIds);
+
+      const firedIds = new Set((alreadyFired || []).map((r: any) => r.automation_id));
+      keywordEligibleCount = keywordAutomations.filter((a: any) => !firedIds.has(a.id)).length;
+
+      console.log(`[FIRST_TOUCH_CHECK] trace_id=${traceId} keyword_automations=${keywordAutomations.length} already_fired=${firedIds.size} eligible=${keywordEligibleCount}`);
+    }
+
+    if (!noKeywordEligible && keywordEligibleCount === 0) {
+      console.log(`[FIRST_TOUCH_DECISION] trace_id=${traceId} will_fire_first_message_event=false reason=all_automations_already_deduped`);
+      return false;
+    }
+
+    console.log(`[FIRST_TOUCH_DECISION] trace_id=${traceId} will_fire_first_message_event=true no_keyword_eligible=${noKeywordEligible} keyword_eligible=${keywordEligibleCount}`);
+
     // Publish event to Event Bus
-    const idempotencyKey = `${orgId}:inbound.first_message:${phone}:${new Date().toISOString().split('T')[0]}`;
+    // Use per-message idempotency key so keyword automations can re-evaluate on each message.
+    const idempotencyKey = `${orgId}:inbound.first_message:${phone}:${traceId}`;
 
     const { data: eventData, error: eventErr } = await supabase
       .from("automation_events")
