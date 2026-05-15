@@ -36,37 +36,34 @@ export const useTasks = (filters?: {
   const { data: tasks, isLoading } = useQuery({
     queryKey: ["tasks", filters],
     queryFn: async () => {
-      let query = supabase
-        .from("tasks")
-        .select(`
-          *,
-          lead:leads(id, name, phone)
-        `)
-        .order("data_hora", { ascending: true });
-
-      if (filters?.status) {
-        query = query.eq("status", filters.status);
-      }
-      if (filters?.prioridade) {
-        query = query.eq("prioridade", filters.prioridade);
-      }
-      if (filters?.responsavelId) {
-        query = query.eq("responsavel_id", filters.responsavelId);
-      }
-      if (filters?.leadId) {
-        query = query.eq("lead_id", filters.leadId);
-      }
-      if (filters?.startDate) {
-        query = query.gte("data_hora", filters.startDate.toISOString());
-      }
-      if (filters?.endDate) {
-        query = query.lte("data_hora", filters.endDate.toISOString());
-      }
-
-      const { data, error } = await query;
+      const { data, error } = await (supabase as any).rpc("get_org_tasks", {
+        p_status: filters?.status || null,
+        p_prioridade: filters?.prioridade || null,
+        p_responsavel_id: filters?.responsavelId || null,
+        p_lead_id: filters?.leadId || null,
+        p_start_date: filters?.startDate?.toISOString() || null,
+        p_end_date: filters?.endDate?.toISOString() || null,
+      });
 
       if (error) throw error;
-      return (data as unknown) as TaskWithDetails[];
+
+      // Map RPC flat response to TaskWithDetails shape
+      return ((data ?? []) as any[]).map((row: any): TaskWithDetails => ({
+        id: row.id,
+        titulo: row.titulo,
+        data_hora: row.data_hora,
+        descricao: row.descricao,
+        prioridade: row.prioridade,
+        status: row.status,
+        responsavel_id: row.responsavel_id,
+        lead_id: row.lead_id,
+        organization_id: row.organization_id,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        completed_at: row.completed_at,
+        notificado: row.notificado,
+        lead: row.lead_name ? { id: row.lead_id, name: row.lead_name, phone: row.lead_phone } : undefined,
+      }));
     },
   });
 
