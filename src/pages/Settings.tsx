@@ -40,6 +40,7 @@ import { N8nIntegration } from "@/components/settings/N8nIntegration";
 import { WebhookIntegration } from "@/components/settings/WebhookIntegration";
 import BillingSettings from "@/components/settings/BillingSettings";
 import { MetaAdsSettings } from "@/components/settings/MetaAdsSettings";
+import { MetaLeadAdsIntegration } from "@/components/settings/MetaLeadAdsIntegration";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { ClerkSyncPanel } from "@/components/settings/ClerkSyncPanel";
 
@@ -101,6 +102,7 @@ export function Settings() {
             { id: "webhooks", icon: Webhook, label: "Webhooks" },
             { id: "sources", icon: MapPin, label: "Origens de Leads" },
             { id: "meta-ads", icon: Zap, label: "Meta Ads (CAPI)" },
+            { id: "meta-lead-ads", icon: Zap, label: "Meta Lead Ads" },
           ],
         },
         {
@@ -189,6 +191,8 @@ export function Settings() {
         return <LeadSourcesManagement />;
       case "meta-ads":
         return <MetaAdsSettings />;
+      case "meta-lead-ads":
+        return <MetaLeadAdsIntegration />;
       case "notifications":
         return <NotificationSettings />;
       default:
