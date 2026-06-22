@@ -1,1 +1,0 @@
-ALTER TABLE public.whatsapp_threads ADD COLUMN IF NOT EXISTS unread_count integer NOT NULL DEFAULT 0;

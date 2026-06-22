@@ -1,1 +1,0 @@
-UPDATE public.profiles SET onboarding_completed = true WHERE organization_id IS NOT NULL AND onboarding_completed = false;
