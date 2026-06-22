@@ -10,15 +10,17 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.701.0",
+    "@aws-sdk/s3-request-presigner": "^3.1074.0",
     "@clerk/fastify": "^2.0.0",
     "@fastify/cors": "^10.0.0",
-    "@fastify/multipart": "^9.0.0",
+    "@fastify/multipart": "^9.4.0",
     "@prisma/client": "^5.22.0",
     "dotenv": "^16.4.5",
     "fastify": "^5.2.1",
     "fastify-plugin": "^6.0.0",
     "socket.io": "^4.8.1",
-    "stripe": "^17.3.1"
+    "stripe": "^17.3.1",
+    "@clerk/backend": "^2.33.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

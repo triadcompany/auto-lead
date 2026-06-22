@@ -16,8 +16,6 @@ const PUBLIC_PREFIXES = [
   "/leads/webhook",
   "/whatsapp/webhook",
   "/instagram/webhook",
-  "/whatsapp/webhook",
-  "/instagram/webhook",
   "/meta/webhook",
   "/meta/oauth/callback",
   "/meta/leads/ingest",
@@ -37,9 +35,10 @@ async function authPlugin(fastify: FastifyInstance) {
     const token = authHeader.slice(7)
 
     try {
-      const { createClerkClient } = await import("@clerk/fastify")
-      const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
-      const payload = await clerk.verifyToken(token)
+      const { verifyToken } = await import("@clerk/backend")
+      const payload = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY,
+      })
 
       const orgId = payload.org_id as string | undefined
       const userId = payload.sub

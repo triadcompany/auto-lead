@@ -26,9 +26,8 @@ async function socketPlugin(fastify: FastifyInstance) {
     if (!token) return next(new Error("Missing token"))
 
     try {
-      const { createClerkClient } = await import("@clerk/fastify")
-      const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
-      const payload = await clerk.verifyToken(token)
+      const { verifyToken } = await import("@clerk/backend")
+      const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY })
 
       const orgId = payload.org_id as string | undefined
       if (!orgId) return next(new Error("No organization in token"))
