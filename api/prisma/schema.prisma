@@ -1,0 +1,1695 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum AppRole {
+  admin
+  seller
+
+  @@map("app_role")
+}
+
+enum TaskPriority {
+  baixa
+  media
+  alta
+
+  @@map("task_priority")
+}
+
+enum TaskStatus {
+  pendente
+  em_andamento
+  concluida
+  atrasada
+
+  @@map("task_status")
+}
+
+enum FollowupStatus {
+  PENDENTE
+  ENVIADO
+  PULADO
+  FALHOU
+  CANCELADO
+
+  @@map("followup_status")
+}
+
+enum FollowupSentBy {
+  AUTO
+  MANUAL
+
+  @@map("followup_sent_by")
+}
+
+enum MessageDirection {
+  outbound
+  inbound
+
+  @@map("message_direction")
+}
+
+enum MessageChannel {
+  whatsapp
+  email
+  sms
+
+  @@map("message_channel")
+}
+
+// ─── CLERK AUTH TABLES ────────────────────────────────────────────────────────
+
+/// Mirror of Clerk organization (synced via webhook)
+model ClerkOrganization {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clerkOrgId  String    @unique @map("clerk_org_id")
+  name        String
+  slug        String?
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  orgMembers OrgMember[]
+
+  @@map("clerk_organizations")
+}
+
+/// Clerk org membership (synced via webhook)
+model OrgMember {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  clerkOrgId     String           @map("clerk_org_id")
+  clerkUserId    String           @map("clerk_user_id")
+  role           String           // 'admin' | 'seller' | 'pre_sales'
+  status         String?          @default("active")
+  orgId          String?          @map("org_id")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime         @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization ClerkOrganization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, clerkUserId])
+  @@unique([clerkOrgId, clerkUserId])
+  @@map("org_members")
+}
+
+/// Clerk user profile mirror (synced via webhook)
+model UsersProfile {
+  clerkUserId String   @id @map("clerk_user_id")
+  email       String?
+  fullName    String?  @map("full_name")
+  imageUrl    String?  @map("image_url")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  @@map("users_profile")
+}
+
+// ─── CORE ─────────────────────────────────────────────────────────────────────
+
+model Organization {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                      String
+  cnpj                      String?   @unique
+  phone                     String?
+  email                     String?
+  address                   String?
+  city                      String?
+  state                     String?
+  zipCode                   String?   @map("zip_code")
+  isActive                  Boolean   @default(true) @map("is_active")
+  ownerProfileId            String?   @map("owner_profile_id") @db.Uuid
+  logoUrl                   String?   @map("logo_url")
+  aiSystemPrompt            String?   @map("ai_system_prompt")
+  aiAutoReplyThrottleSeconds Int      @default(20) @map("ai_auto_reply_throttle_seconds")
+  aiAutoMaxWithoutReply     Int       @default(2) @map("ai_auto_max_without_reply")
+  aiAutoDebounceSeconds     Int       @default(4) @map("ai_auto_debounce_seconds")
+  createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                 DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  ownerProfile              Profile?  @relation("OrgOwner", fields: [ownerProfileId], references: [id], onDelete: SetNull)
+
+  profiles                  Profile[]  @relation("ProfileOrg")
+  pipelines                 Pipeline[]
+  leads                     Lead[]
+  leadSources               LeadSource[]
+  tasks                     Task[]
+  vehicles                  Vehicle[]
+  whatsappIntegrations      WhatsappIntegration[]
+  conversations             Conversation[]
+  messages                  Message[]
+  followupTemplates         FollowupTemplate[]
+  followupCadences          FollowupCadence[]
+  followups                 Followup[]
+  messageLogs               MessageLog[]
+  whatsappConfig            WhatsappConfig[]
+  automations               Automation[]
+  automationFlows           AutomationFlow[]
+  automationRuns            AutomationRun[]
+  automationJobs            AutomationJob[]
+  automationLogs            AutomationLog[]
+  automationEvents          AutomationEvent[]
+  automationKeywordRules    AutomationKeywordRule[]
+  organizationAutomationSettings OrganizationAutomationSettings?
+  whatsappFirstTouch        WhatsappFirstTouch[]
+  whatsappRoutingSettings   WhatsappRoutingSettings[]
+  whatsappRoutingState      WhatsappRoutingState[]
+  whatsappRoutingBucketSettings WhatsappRoutingBucketSettings[]
+  whatsappThreads           WhatsappThread[]
+  whatsappMessages          WhatsappMessage[]
+  opportunities             Opportunity[]
+  metaCapiEvents            MetaCapiEvent[]
+  metaCapiSettings          MetaCapiSettings[]
+  metaCapiMappings          MetaCapiMapping[]
+  metaCapiLogs              MetaCapiLog[]
+  capiEventDefinitions      CapiEventDefinition[]
+  metaIntegrations          MetaIntegration[]
+  metaAccounts              MetaAccount[]
+  aiAgentProfiles           AiAgentProfile[]
+  socialIntegrations        SocialIntegration[]
+  conversationEvents        ConversationEvent[]
+  conversationNotes         ConversationNote[]
+  instagramConnections      InstagramConnection[]
+  instagramConversations    InstagramConversation[]
+  instagramQuickReplies     InstagramQuickReply[]
+  instagramConversationTags InstagramConversationTag[]
+  instagramMetrics          InstagramMetrics[]
+  instagramDistributionConfig InstagramDistributionConfig[]
+  instagramDistributionState  InstagramDistributionState[]
+  leadDistributionSettings  LeadDistributionSettings[]
+  aiAutoReplyJobs           AiAutoReplyJob[]
+  automationExecutions      AutomationExecution[]
+  automationFirstContacts   AutomationFirstContact[]
+  distributionSchedules     DistributionSchedule[]
+
+  @@map("organizations")
+}
+
+model Profile {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String?   @unique @map("user_id") @db.Uuid   // legacy Supabase auth
+  clerkUserId          String?   @unique @map("clerk_user_id")
+  name                 String
+  email                String
+  role                 AppRole   @default(seller)
+  organizationId       String?   @map("organization_id") @db.Uuid
+  avatarUrl            String?   @map("avatar_url")
+  whatsappE164         String?   @map("whatsapp_e164")
+  onboardingCompleted  Boolean   @default(false) @map("onboarding_completed")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization    Organization?  @relation("ProfileOrg", fields: [organizationId], references: [id])
+  ownedOrgs       Organization[] @relation("OrgOwner")
+
+  createdLeads         Lead[]         @relation("LeadCreator")
+  assignedLeads        Lead[]         @relation("LeadSeller")
+  createdPipelines     Pipeline[]     @relation("PipelineCreator")
+  createdStages        PipelineStage[] @relation("StageCreator")
+  tasks                Task[]         @relation("TaskAssignee")
+  createdTasks         Task[]         @relation("TaskCreator")
+  vehicles             Vehicle[]      @relation("VehicleCreator")
+  assignedConversations Conversation[] @relation("ConvAssignee")
+  lockedConversations  Conversation[] @relation("ConvLocker")
+  conversationNotes    ConversationNote[]
+  pipelinePermissions  PipelinePermission[] @relation("ProfilePermissions")
+  createdPermissions   PipelinePermission[] @relation("PermCreator")
+  appliedAiStageActions AiStageAction[]  @relation("AppliedBy")
+  assignedOpportunities Opportunity[]   @relation("OppAssignee")
+  metaIntegrations     MetaIntegration[] @relation("SellerMeta")
+  fromTransfers        ConversationTransfer[] @relation("TransferFrom")
+  toTransfers          ConversationTransfer[] @relation("TransferTo")
+  conversationEvents   ConversationEvent[] @relation("EventPerformer")
+
+  @@map("profiles")
+}
+
+// ─── USER ROLES (legacy) ─────────────────────────────────────────────────────
+
+model UserRole {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String?   @map("user_id") @db.Uuid
+  clerkUserId    String?   @map("clerk_user_id")
+  role           AppRole
+  organizationId String    @map("organization_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  @@map("user_roles")
+}
+
+model UserInvitation {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  email          String
+  name           String
+  role           AppRole   @default(seller)
+  status         String    @default("pending")
+  invitedBy      String?   @map("invited_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  @@map("user_invitations")
+}
+
+// ─── CRM CORE ─────────────────────────────────────────────────────────────────
+
+model Pipeline {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  isDefault      Boolean   @default(false) @map("is_default")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdBy      String?   @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  creator      Profile?      @relation("PipelineCreator", fields: [createdBy], references: [id])
+  stages       PipelineStage[]
+  leads        Lead[]
+  opportunities Opportunity[]
+  permissions  PipelinePermission[]
+  metaIntegrations MetaIntegration[] @relation("PipelineMeta")
+
+  @@map("pipelines")
+}
+
+model PipelineStage {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pipelineId  String    @map("pipeline_id") @db.Uuid
+  name        String
+  position    Int
+  color       String    @default("#3B82F6")
+  isActive    Boolean   @default(true) @map("is_active")
+  sensitive   Boolean   @default(false)
+  createdBy   String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  pipeline    Pipeline  @relation(fields: [pipelineId], references: [id])
+  creator     Profile?  @relation("StageCreator", fields: [createdBy], references: [id])
+  leads       Lead[]
+  opportunities Opportunity[]
+  metaIntegrations MetaIntegration[] @relation("StageMeta")
+
+  @@map("pipeline_stages")
+}
+
+model PipelinePermission {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pipelineId String    @map("pipeline_id") @db.Uuid
+  profileId  String    @map("profile_id") @db.Uuid
+  createdBy  String?   @map("created_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  pipeline   Pipeline  @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  profile    Profile   @relation("ProfilePermissions", fields: [profileId], references: [id], onDelete: Cascade)
+  creator    Profile?  @relation("PermCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([pipelineId, profileId])
+  @@map("pipeline_permissions")
+}
+
+model LeadSource {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  isActive       Boolean   @default(true) @map("is_active")
+  sortOrder      Int       @default(0) @map("sort_order")
+  createdBy      String?   @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime? @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  leads        Lead[]
+
+  @@map("lead_sources")
+}
+
+model Lead {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
+  name                 String
+  phone                String
+  email                String?
+  sellerId             String?   @map("seller_id") @db.Uuid
+  source               String?
+  leadSource           String?   @map("lead_source")
+  leadSourceId         String?   @map("lead_source_id") @db.Uuid
+  interest             String?
+  observations         String?
+  stageId              String?   @map("stage_id") @db.Uuid
+  pipelineId           String?   @map("pipeline_id") @db.Uuid
+  servico              String?
+  cidade               String?
+  estado               String?
+  valorNegocio         Float?    @map("valor_negocio")
+  lastReplyAt          DateTime? @map("last_reply_at") @db.Timestamptz
+  lastInboundMessageAt DateTime? @map("last_inbound_message_at") @db.Timestamptz
+  lastInboundMessageText String? @map("last_inbound_message_text")
+  createdBy            String?   @map("created_by") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization  Organization  @relation(fields: [organizationId], references: [id])
+  seller        Profile?      @relation("LeadSeller", fields: [sellerId], references: [id])
+  creator       Profile?      @relation("LeadCreator", fields: [createdBy], references: [id])
+  stage         PipelineStage? @relation(fields: [stageId], references: [id])
+  pipeline      Pipeline?     @relation(fields: [pipelineId], references: [id])
+  leadSourceRef LeadSource?   @relation(fields: [leadSourceId], references: [id])
+
+  tasks         Task[]
+  followups     Followup[]
+  messageLogs   MessageLog[]
+  whatsappMessages WhatsappMessage[]
+  conversations Conversation[]
+  opportunities Opportunity[] @relation("OpportunityLead")
+  metaCapiEvents MetaCapiEvent[]
+  aiStageActions AiStageAction[]
+
+  leadInboxes         LeadInbox[]         @relation("LeadInboxLead")
+  leadAssignments     LeadAssignment[]    @relation("LeadAssignmentLead")
+  automationRuns      AutomationRun[]     @relation("AutomationRunLead")
+
+  @@map("leads")
+}
+
+model Task {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String      @map("organization_id") @db.Uuid
+  leadId          String      @map("lead_id") @db.Uuid
+  conversationId  String?     @map("conversation_id") @db.Uuid
+  assignedTo      String?     @map("assigned_to") @db.Uuid
+  titulo          String
+  descricao       String?
+  priority        TaskPriority @default(media)
+  status          TaskStatus  @default(pendente)
+  dueDate         DateTime?   @map("due_date") @db.Timestamptz
+  createdBy       String?     @map("created_by") @db.Uuid
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime    @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization  Organization  @relation(fields: [organizationId], references: [id])
+  lead          Lead          @relation(fields: [leadId], references: [id])
+  conversation  Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  assignee      Profile?      @relation("TaskAssignee", fields: [assignedTo], references: [id])
+  creator       Profile?      @relation("TaskCreator", fields: [createdBy], references: [id])
+
+  @@map("tasks")
+}
+
+model Vehicle {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  brand          String
+  model          String
+  year           Int
+  fuelType       String?   @map("fuel_type")
+  transmission   String?
+  mileage        Int?
+  color          String?
+  price          Decimal?  @db.Decimal
+  status         String    @default("available")
+  description    String?
+  images         String[]
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  creator       Profile      @relation("VehicleCreator", fields: [createdBy], references: [id])
+
+  @@map("vehicles")
+}
+
+model Prospect {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  phone          String?
+  email          String?
+  source         String?
+  notes          String?
+  status         String    @default("new")
+  createdBy      String?   @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  @@map("prospects")
+}
+
+model Opportunity {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  leadId         String?   @map("lead_id") @db.Uuid
+  pipelineId     String?   @map("pipeline_id") @db.Uuid
+  stageId        String?   @map("stage_id") @db.Uuid
+  priority       String?
+  assignedTo     String?   @map("assigned_to") @db.Uuid
+  source         String?
+  sourceDetail   String?   @map("source_detail")
+  status         String?
+  value          Decimal?  @db.Decimal
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization  Organization  @relation(fields: [organizationId], references: [id])
+  lead          Lead?         @relation("OpportunityLead", fields: [leadId], references: [id])
+  pipeline      Pipeline?     @relation(fields: [pipelineId], references: [id])
+  stage         PipelineStage? @relation(fields: [stageId], references: [id])
+  assignee      Profile?      @relation("OppAssignee", fields: [assignedTo], references: [id])
+
+  @@map("opportunities")
+}
+
+// ─── LEAD DISTRIBUTION ────────────────────────────────────────────────────────
+
+model LeadDistributionSettings {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId            String    @unique @map("organization_id") @db.Uuid
+  isAutoDistributionEnabled Boolean   @default(false) @map("is_auto_distribution_enabled")
+  distributionType          String    @default("round_robin") @map("distribution_type")
+  mode                      String    @default("manual")
+  manualReceiverId          String?   @map("manual_receiver_id") @db.Uuid
+  rrCursor                  Int       @default(0) @map("rr_cursor")
+  createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                 DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  users         LeadDistributionUser[]
+  rules         LeadDistributionRule[]
+  state         LeadDistributionState[]
+
+  @@map("lead_distribution_settings")
+}
+
+model LeadDistributionUser {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  distributionSettingId  String    @map("distribution_setting_id") @db.Uuid
+  userId                 String    @map("user_id") @db.Uuid
+  orderPosition          Int       @default(0) @map("order_position")
+  isActive               Boolean   @default(true) @map("is_active")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  distributionSetting LeadDistributionSettings @relation(fields: [distributionSettingId], references: [id])
+
+  @@map("lead_distribution_users")
+}
+
+model LeadDistributionRule {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  distributionSettingId  String    @map("distribution_setting_id") @db.Uuid
+  name                   String
+  conditions             Json      @default("{}")
+  actions                Json      @default("{}")
+  priority               Int       @default(0)
+  isActive               Boolean   @default(true) @map("is_active")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  distributionSetting LeadDistributionSettings @relation(fields: [distributionSettingId], references: [id])
+
+  @@map("lead_distribution_rules")
+}
+
+model LeadDistributionState {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  distributionSettingId  String    @unique @map("distribution_setting_id") @db.Uuid
+  lastAssignedUserId     String?   @map("last_assigned_user_id") @db.Uuid
+  lastAssignmentAt       DateTime? @map("last_assignment_at") @db.Timestamptz
+  assignmentCount        Int       @default(0) @map("assignment_count")
+  updatedAt              DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  distributionSetting LeadDistributionSettings @relation(fields: [distributionSettingId], references: [id])
+
+  @@map("lead_distribution_state")
+}
+
+model LeadDistributionAudit {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event     String
+  data      Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("lead_distribution_audit")
+}
+
+model LeadInbox {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  externalId String    @unique @map("external_id")
+  payload    Json?
+  leadId     String?   @map("lead_id") @db.Uuid
+  status     String    @default("novo")
+  receivedAt DateTime  @default(now()) @map("received_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  lead Lead? @relation("LeadInboxLead", fields: [leadId], references: [id])
+
+  @@map("lead_inbox")
+}
+
+model LeadAssignment {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  leadId         String   @unique @map("lead_id") @db.Uuid
+  assignedUserId String   @map("assigned_user_id") @db.Uuid
+  assignedAt     DateTime @default(now()) @map("assigned_at") @db.Timestamptz
+
+  lead Lead @relation("LeadAssignmentLead", fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@map("lead_assignment")
+}
+
+model DistributionSchedule {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  bucket          String    // 'traffic' | 'non_traffic' | 'all'
+  name            String
+  daysOfWeek      Int[]     @map("days_of_week")
+  startTime       String    @map("start_time")
+  endTime         String    @map("end_time")
+  assignedUserIds String[]  @map("assigned_user_ids")
+  isActive        Boolean   @default(true) @map("is_active")
+  priority        Int       @default(0)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("distribution_schedules")
+}
+
+// ─── FOLLOW-UP / CADENCE ──────────────────────────────────────────────────────
+
+model FollowupTemplate {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  category       String    @default("geral")
+  content        String
+  variables      String[]  @default([])
+  isActive       Boolean   @default(true) @map("is_active")
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  followups    Followup[]
+
+  @@map("followup_templates")
+}
+
+model FollowupCadence {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  steps          Json      @default("[]")
+  isDefault      Boolean   @default(false) @map("is_default")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  followups    Followup[]
+
+  @@map("followup_cadences")
+}
+
+model Followup {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  leadId         String         @map("lead_id") @db.Uuid
+  assignedTo     String         @map("assigned_to") @db.Uuid
+  scheduledFor   DateTime       @map("scheduled_for") @db.Timestamptz
+  channel        MessageChannel @default(whatsapp)
+  status         FollowupStatus @default(PENDENTE)
+  templateId     String?        @map("template_id") @db.Uuid
+  messageCustom  String?        @map("message_custom")
+  sentAt         DateTime?      @map("sent_at") @db.Timestamptz
+  sentBy         FollowupSentBy? @map("sent_by")
+  resultTag      String?        @map("result_tag")
+  notes          String?
+  cadenceId      String?        @map("cadence_id") @db.Uuid
+  cadenceStep    Int?           @map("cadence_step")
+  createdBy      String         @map("created_by") @db.Uuid
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime       @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  template     FollowupTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  cadence      FollowupCadence?  @relation(fields: [cadenceId], references: [id], onDelete: SetNull)
+  messageLogs  MessageLog[]
+
+  @@map("followups")
+}
+
+model MessageLog {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String           @map("organization_id") @db.Uuid
+  leadId            String           @map("lead_id") @db.Uuid
+  followupId        String?          @map("followup_id") @db.Uuid
+  direction         MessageDirection
+  channel           MessageChannel
+  content           String
+  providerMessageId String?          @map("provider_message_id")
+  status            String           @default("sent")
+  errorMessage      String?          @map("error_message")
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead          Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  followup      Followup?    @relation(fields: [followupId], references: [id], onDelete: SetNull)
+
+  @@map("message_logs")
+}
+
+model WhatsappConfig {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @unique @map("organization_id") @db.Uuid
+  apiUrl         String    @map("api_url")
+  apiKey         String    @map("api_key")
+  instanceName   String    @map("instance_name")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("whatsapp_config")
+}
+
+// ─── WHATSAPP / MESSAGING ─────────────────────────────────────────────────────
+
+model WhatsappIntegration {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String    @unique @map("organization_id") @db.Uuid
+  provider             String    @default("evolution")
+  instanceName         String    @map("instance_name")
+  status               String    @default("disconnected")
+  isActive             Boolean   @default(true) @map("is_active")
+  webhookToken         String?   @map("webhook_token")
+  qrCodeData           String?   @map("qr_code_data")
+  connectedAt          DateTime? @map("connected_at") @db.Timestamptz
+  lastWebhookEventAt   DateTime? @map("last_webhook_event_at") @db.Timestamptz
+  lastWebhookError     String?   @map("last_webhook_error")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("whatsapp_integrations")
+}
+
+model WhatsappMessage {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  leadId           String?   @map("lead_id") @db.Uuid
+  automationRunId  String?   @map("automation_run_id") @db.Uuid
+  direction        String    @default("outbound")
+  phone            String
+  messageText      String?   @map("message_text")
+  status           String    @default("pending")
+  externalMessageId String?  @map("external_message_id")
+  instanceName     String?   @map("instance_name")
+  metadata         Json?
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  lead         Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  automationRun AutomationRun? @relation(fields: [automationRunId], references: [id], onDelete: SetNull)
+
+  @@map("whatsapp_messages")
+}
+
+model WhatsappThread {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  instanceName        String    @map("instance_name")
+  contactPhoneE164    String    @map("contact_phone_e164")
+  contactName         String?   @map("contact_name")
+  status              String    @default("open")
+  assignedUserId      String?   @map("assigned_user_id") @db.Uuid
+  assignedAt          DateTime? @map("assigned_at") @db.Timestamptz
+  lastMessageAt       DateTime? @map("last_message_at") @db.Timestamptz
+  lastMessagePreview  String?   @map("last_message_preview")
+  routingBucket       String    @default("non_traffic") @map("routing_bucket")
+  firstMessageText    String?   @map("first_message_text")
+  firstMessageAt      DateTime? @map("first_message_at") @db.Timestamptz
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("whatsapp_threads")
+}
+
+model WhatsappRoutingSettings {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId        String    @unique @map("organization_id") @db.Uuid
+  enabled               Boolean   @default(false)
+  mode                  String    @default("round_robin")
+  assignOn              String?   @map("assign_on")
+  onlyRoles             Json?     @map("only_roles")
+  businessHoursEnabled  Boolean   @default(false) @map("business_hours_enabled")
+  businessHours         Json?     @map("business_hours")
+  trafficEnabled        Boolean   @default(true) @map("traffic_enabled")
+  nonTrafficEnabled     Boolean   @default(true) @map("non_traffic_enabled")
+  trafficRoles          Json      @default("[\"seller\",\"admin\"]") @map("traffic_roles")
+  nonTrafficRoles       Json      @default("[\"seller\",\"admin\"]") @map("non_traffic_roles")
+  transferIntroMessage  String?   @map("transfer_intro_message")
+  updatedAt             DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("whatsapp_routing_settings")
+}
+
+model WhatsappRoutingState {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  lastAssignedUserId  String?   @map("last_assigned_user_id")
+  bucket              String    @default("non_traffic")
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, bucket])
+  @@map("whatsapp_routing_state")
+}
+
+model WhatsappRoutingBucketSettings {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  bucket              String
+  enabled             Boolean   @default(true)
+  mode                String    @default("round_robin")
+  autoAssignUserIds   Json?     @map("auto_assign_user_ids")
+  fixedUserId         String?   @map("fixed_user_id")
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("whatsapp_routing_bucket_settings")
+}
+
+model WhatsappFirstTouch {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  phone          String
+  firstMessageAt DateTime @map("first_message_at") @db.Timestamptz
+  firstMessageId String?  @map("first_message_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, phone])
+  @@map("whatsapp_first_touch")
+}
+
+model EvolutionWebhookLog {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  instanceName           String    @map("instance_name")
+  eventType              String    @map("event_type")
+  remoteJid              String?   @map("remote_jid")
+  detectedOrganizationId String?   @map("detected_organization_id") @db.Uuid
+  payload                Json?
+  processingResult       String?   @map("processing_result")
+  errorMessage           String?   @map("error_message")
+  authStatus             String?   @map("auth_status")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("evolution_webhook_logs")
+}
+
+// ─── CONVERSATIONS / INBOX ───────────────────────────────────────────────────
+
+model Conversation {
+  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId             String    @map("organization_id") @db.Uuid
+  instanceName               String    @map("instance_name")
+  contactPhone               String    @map("contact_phone")
+  contactName                String?   @map("contact_name")
+  contactNameSource          String?   @map("contact_name_source")
+  profilePictureUrl          String?   @map("profile_picture_url")
+  profilePictureUpdatedAt    DateTime? @map("profile_picture_updated_at") @db.Timestamptz
+  assignedTo                 String?   @map("assigned_to") @db.Uuid
+  assignedAt                 DateTime? @map("assigned_at") @db.Timestamptz
+  lastMessageAt              DateTime? @map("last_message_at") @db.Timestamptz
+  lastMessagePreview         String?   @map("last_message_preview")
+  unreadCount                Int       @default(0) @map("unread_count")
+  leadId                     String?   @map("lead_id") @db.Uuid
+  status                     String?   @default("open")
+  lockedBy                   String?   @map("locked_by") @db.Uuid
+  lockedAt                   DateTime? @map("locked_at") @db.Timestamptz
+  lastStatusChangeAt         DateTime? @map("last_status_change_at") @db.Timestamptz
+  channel                    String    @default("whatsapp")
+  aiMode                     String    @default("off") @map("ai_mode")
+  aiState                    String?   @map("ai_state")
+  lastAiReplyAt              DateTime? @map("last_ai_reply_at") @db.Timestamptz
+  aiReplyCountSinceLastLead  Int       @default(0) @map("ai_reply_count_since_last_lead")
+  aiPending                  Boolean   @default(false) @map("ai_pending")
+  aiPendingStartedAt         DateTime? @map("ai_pending_started_at") @db.Timestamptz
+  isGroup                    Boolean   @default(false) @map("is_group")
+  groupName                  String?   @map("group_name")
+  groupParticipantsCount     Int?      @map("group_participants_count")
+  createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  assignee      Profile?     @relation("ConvAssignee", fields: [assignedTo], references: [id])
+  locker        Profile?     @relation("ConvLocker", fields: [lockedBy], references: [id])
+  lead          Lead?        @relation(fields: [leadId], references: [id])
+
+  messages      Message[]
+  tasks         Task[]
+  notes         ConversationNote[]
+  transfers     ConversationTransfer[]
+  events        ConversationEvent[]
+  aiAutoReplyJobs AiAutoReplyJob[]
+  intelligence  ConversationIntelligence?
+
+  @@map("conversations")
+}
+
+model Message {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  conversationId    String    @map("conversation_id") @db.Uuid
+  direction         String    // 'inbound' | 'outbound'
+  body              String?
+  externalMessageId String?   @map("external_message_id")
+  aiGenerated       Boolean   @default(false) @map("ai_generated")
+  aiInteractionId   String?   @map("ai_interaction_id") @db.Uuid
+  messageType       String    @default("text") @map("message_type")
+  mediaUrl          String?   @map("media_url")
+  mimeType          String?   @map("mime_type")
+  durationMs        Int?      @map("duration_ms")
+  channel           String    @default("whatsapp")
+  senderName        String?   @map("sender_name")
+  senderPhone       String?   @map("sender_phone")
+  senderAvatarUrl   String?   @map("sender_avatar_url")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  conversation  Conversation @relation(fields: [conversationId], references: [id])
+
+  @@map("messages")
+}
+
+model ConversationNote {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String    @map("conversation_id") @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  content        String
+  createdBy      String?   @map("created_by") @db.Uuid
+  authorId       String?   @map("author_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  conversation  Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator       Profile?     @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@map("conversation_notes")
+}
+
+model ConversationTransfer {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String    @map("conversation_id") @db.Uuid
+  fromUserId     String?   @map("from_user_id") @db.Uuid
+  toUserId       String    @map("to_user_id") @db.Uuid
+  note           String?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  fromUser     Profile?     @relation("TransferFrom", fields: [fromUserId], references: [id], onDelete: SetNull)
+  toUser       Profile      @relation("TransferTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@map("conversation_transfers")
+}
+
+model ConversationEvent {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  conversationId String    @map("conversation_id") @db.Uuid
+  eventType      String    @map("event_type")
+  performedBy    String?   @map("performed_by") @db.Uuid
+  metadata       Json?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  conversation  Conversation @relation(fields: [conversationId], references: [id])
+  performer     Profile?     @relation("EventPerformer", fields: [performedBy], references: [id])
+
+  @@map("conversation_events")
+}
+
+model ConversationIntelligence {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
+  conversationId       String    @unique @map("conversation_id") @db.Uuid
+  lastDetectedIntent   String?   @map("last_detected_intent")
+  intentLabel          String?   @map("intent_label")
+  confidence           Decimal?  @db.Decimal
+  sentiment            String?
+  urgencyLevel         String?   @map("urgency_level")
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@map("conversation_intelligence")
+}
+
+// ─── AUTOMATIONS ─────────────────────────────────────────────────────────────
+
+model Automation {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
+  name                 String
+  description          String?
+  channel              String    @default("whatsapp")
+  isActive             Boolean   @default(false) @map("is_active")
+  triggerType          String?   @map("trigger_type")
+  triggerEventName     String?   @map("trigger_event_name")
+  allowAiTriggers      Boolean   @default(true) @map("allow_ai_triggers")
+  allowHumanTriggers   Boolean   @default(true) @map("allow_human_triggers")
+  throttleSeconds      Int?      @map("throttle_seconds")
+  hasKeywordTrigger    Boolean   @default(false) @map("has_keyword_trigger")
+  createdBy            String?   @map("created_by")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  flows          AutomationFlow[]
+  runs           AutomationRun[]
+  jobs           AutomationJob[]
+  logs           AutomationLog[]
+  keywordRules   AutomationKeywordRule[]
+  firstContacts  AutomationFirstContact[]
+
+  @@map("automations")
+}
+
+model AutomationFlow {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  automationId   String    @map("automation_id") @db.Uuid
+  nodes          Json      @default("[]")
+  edges          Json      @default("[]")
+  entryNodeId    String?   @map("entry_node_id")
+  version        Int       @default(1)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  automation   Automation   @relation(fields: [automationId], references: [id])
+
+  @@map("automation_flows")
+}
+
+model AutomationRun {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  automationId  String    @map("automation_id") @db.Uuid
+  leadId        String?   @map("lead_id") @db.Uuid
+  entityType    String?   @map("entity_type")
+  entityId      String?   @map("entity_id")
+  status        String    @default("running")
+  currentNodeId String?   @map("current_node_id")
+  nextRunAt     DateTime? @map("next_run_at") @db.Timestamptz
+  context       Json?
+  startedAt     DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz
+  finishedAt    DateTime? @map("finished_at") @db.Timestamptz
+  lastError     String?   @map("last_error")
+  errorMessage  String?   @map("error_message")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization  Organization  @relation(fields: [organizationId], references: [id])
+  automation    Automation    @relation(fields: [automationId], references: [id])
+  lead          Lead?         @relation("AutomationRunLead", fields: [leadId], references: [id])
+  steps         AutomationRunStep[]
+  whatsappMessages WhatsappMessage[]
+
+  @@map("automation_runs")
+}
+
+model AutomationRunStep {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  runId        String    @map("run_id") @db.Uuid
+  nodeId       String    @map("node_id")
+  nodeType     String?   @map("node_type")
+  status       String    @default("pending")
+  inputData    Json?     @map("input_data")
+  outputData   Json?     @map("output_data")
+  errorMessage String?   @map("error_message")
+  startedAt    DateTime? @map("started_at") @db.Timestamptz
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  run AutomationRun @relation(fields: [runId], references: [id])
+
+  @@map("automation_run_steps")
+}
+
+model AutomationJob {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  runId          String?   @map("run_id") @db.Uuid
+  automationId   String    @map("automation_id") @db.Uuid
+  nodeId         String    @map("node_id")
+  jobType        String    @map("job_type")
+  payload        Json?
+  scheduledFor   DateTime  @map("scheduled_for") @db.Timestamptz
+  status         String    @default("pending")
+  attempts       Int       @default(0)
+  lastError      String?   @map("last_error")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  automation   Automation   @relation(fields: [automationId], references: [id])
+
+  @@map("automation_jobs")
+}
+
+model AutomationLog {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  runId          String?   @map("run_id") @db.Uuid
+  automationId   String?   @map("automation_id") @db.Uuid
+  nodeId         String?   @map("node_id")
+  nodeType       String?   @map("node_type")
+  level          String?
+  status         String?
+  message        String?
+  metadata       Json?
+  data           Json?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  automation   Automation?  @relation(fields: [automationId], references: [id])
+
+  @@map("automation_logs")
+}
+
+model AutomationEvent {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId         String    @map("organization_id") @db.Uuid
+  eventName              String    @map("event_name")
+  entityType             String?   @map("entity_type")
+  entityId               String?   @map("entity_id") @db.Uuid
+  conversationId         String?   @map("conversation_id") @db.Uuid
+  leadId                 String?   @map("lead_id") @db.Uuid
+  opportunityId          String?   @map("opportunity_id") @db.Uuid
+  payload                Json?
+  source                 String?
+  sourceAiInteractionId  String?   @map("source_ai_interaction_id")
+  idempotencyKey         String?   @unique @map("idempotency_key")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  processedAt            DateTime? @map("processed_at") @db.Timestamptz
+  status                 String?
+  error                  String?
+
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  eventRuns     AutomationEventRun[]
+
+  @@map("automation_events")
+}
+
+model AutomationEventRun {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  automationEventId String    @map("automation_event_id") @db.Uuid
+  automationId      String    @map("automation_id") @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  status            String?
+  startedAt         DateTime? @map("started_at") @db.Timestamptz
+  finishedAt        DateTime? @map("finished_at") @db.Timestamptz
+  output            Json?
+  error             String?
+  skippedReason     String?   @map("skipped_reason")
+
+  automationEvent AutomationEvent @relation(fields: [automationEventId], references: [id])
+
+  @@map("automation_event_runs")
+}
+
+model AutomationKeywordRule {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  keyword        String
+  matchType      String    @map("match_type")
+  createLead     Boolean   @default(false) @map("create_lead")
+  leadSource     String?   @map("lead_source")
+  pipelineId     String?   @map("pipeline_id") @db.Uuid
+  stageId        String?   @map("stage_id") @db.Uuid
+  tags           Json?
+  priority       Int       @default(0)
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  automation   Automation?  @relation(fields: [pipelineId], references: [id])
+
+  @@map("automation_keyword_rules")
+}
+
+model AutomationExecution {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  traceId           String    @map("trace_id")
+  eventName         String    @map("event_name")
+  automationEventId String?   @map("automation_event_id") @db.Uuid
+  automationId      String?   @map("automation_id") @db.Uuid
+  phone             String?
+  channel           String?
+  messageText       String?   @map("message_text")
+  status            String    @default("received")
+  failReason        String?   @map("fail_reason")
+  debugJson         Json      @default("{}") @map("debug_json")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("automation_executions")
+}
+
+model AutomationFirstContact {
+  automationId   String   @map("automation_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  phone          String
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  automation   Automation   @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([automationId, organizationId, phone])
+  @@map("automation_first_contacts")
+}
+
+model OrganizationAutomationSettings {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId         String    @unique @map("organization_id") @db.Uuid
+  metaAdsKeywordEnabled  Boolean   @default(false) @map("meta_ads_keyword_enabled")
+  metaAdsPipelineId      String?   @map("meta_ads_pipeline_id") @db.Uuid
+  metaAdsStageId         String?   @map("meta_ads_stage_id") @db.Uuid
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("organization_automation_settings")
+}
+
+model IntentDefinition {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scopeType  String    @map("scope_type")
+  scopeId    String?   @map("scope_id")
+  intentKey  String    @map("intent_key")
+  intentLabel String   @map("intent_label")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("intent_definitions")
+}
+
+model WorkerHeartbeat {
+  workerName      String   @id @map("worker_name")
+  lastRunAt       DateTime @default(now()) @map("last_run_at") @db.Timestamptz
+  processedCount  Int      @default(0) @map("processed_count")
+  errorCount      Int      @default(0) @map("error_count")
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  @@map("worker_heartbeats")
+}
+
+model AiAutoReplyJob {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  conversationId   String    @map("conversation_id") @db.Uuid
+  inboundMessageId String    @map("inbound_message_id") @db.Uuid
+  idempotencyKey   String    @unique @map("idempotency_key")
+  status           String    @default("pending")
+  result           Json?
+  error            String?
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  processedAt      DateTime? @map("processed_at") @db.Timestamptz
+
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  conversation  Conversation @relation(fields: [conversationId], references: [id])
+
+  @@map("ai_auto_reply_jobs")
+}
+
+// ─── AI ──────────────────────────────────────────────────────────────────────
+
+model AiAgentProfile {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  niche               String    @default("personalizado")
+  agentName           String    @default("Assistente IA") @map("agent_name")
+  agentRole           String    @default("pre-vendas") @map("agent_role")
+  personality         String    @default("equilibrada")
+  tone                String    @default("profissional")
+  businessDescription String?   @map("business_description")
+  productsServices    Json      @default("[]") @map("products_services")
+  rules               Json      @default("{}")
+  funnelRules         Json      @default("{}") @map("funnel_rules")
+  examples            Json      @default("[]")
+  responseTime        String    @default("20-40") @map("response_time")
+  questionsPerMessage Int       @default(1) @map("questions_per_message")
+  responseLength      String    @default("media") @map("response_length")
+  isActive            Boolean   @default(true) @map("is_active")
+  version             Int       @default(1)
+  createdBy           String?   @map("created_by")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("ai_agent_profiles")
+}
+
+model AiStageAction {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
+  conversationId       String?   @map("conversation_id") @db.Uuid
+  leadId               String?   @map("lead_id") @db.Uuid
+  fromStageId          String?   @map("from_stage_id") @db.Uuid
+  fromStageName        String?   @map("from_stage_name")
+  toStageId            String?   @map("to_stage_id") @db.Uuid
+  toStageName          String?   @map("to_stage_name")
+  suggestedPipelineId  String?   @map("suggested_pipeline_id") @db.Uuid
+  suggestedReason      String?   @map("suggested_reason")
+  suggestedActionType  String?   @map("suggested_action_type")
+  aiInteractionId      String?   @map("ai_interaction_id") @db.Uuid
+  appliedBy            String?   @map("applied_by") @db.Uuid
+  appliedAt            DateTime? @map("applied_at") @db.Timestamptz
+  status               String?
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  lead    Lead?    @relation(fields: [leadId], references: [id])
+  applier Profile? @relation("AppliedBy", fields: [appliedBy], references: [id])
+
+  @@map("ai_stage_actions")
+}
+
+// ─── META / CAPI ──────────────────────────────────────────────────────────────
+
+model MetaCapiSettings {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @unique @map("organization_id") @db.Uuid
+  pixelId        String    @map("pixel_id")
+  accessToken    String    @map("access_token")
+  testEventCode  String?   @map("test_event_code")
+  enabled        Boolean   @default(false)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("meta_capi_settings")
+}
+
+model MetaCapiMapping {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  pipelineId     String?   @map("pipeline_id") @db.Uuid
+  stageId        String    @map("stage_id") @db.Uuid
+  metaEvent      String    @map("meta_event")
+  enabled        Boolean   @default(true)
+  priority       Int       @default(0)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("meta_capi_mappings")
+}
+
+model MetaCapiLog {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  leadId         String?   @map("lead_id") @db.Uuid
+  pipelineId     String?   @map("pipeline_id") @db.Uuid
+  stageId        String?   @map("stage_id") @db.Uuid
+  metaEvent      String    @map("meta_event")
+  status         String    @default("pending")
+  httpStatus     Int?      @map("http_status")
+  requestJson    Json?     @map("request_json")
+  responseJson   Json?     @map("response_json")
+  failReason     String?   @map("fail_reason")
+  traceId        String?   @map("trace_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("meta_capi_logs")
+}
+
+model MetaCapiEvent {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  leadId         String?   @map("lead_id") @db.Uuid
+  dealId         String?   @map("deal_id") @db.Uuid
+  phone          String?
+  eventName      String    @map("event_name")
+  eventTime      DateTime  @map("event_time") @db.Timestamptz
+  eventId        String    @map("event_id")
+  payloadJson    Json      @map("payload_json")
+  status         String    @default("pending")
+  responseJson   Json?     @map("response_json")
+  failReason     String?   @map("fail_reason")
+  attempts       Int       @default(0)
+  traceId        String?   @map("trace_id")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  lead         Lead?        @relation(fields: [leadId], references: [id])
+
+  @@unique([organizationId, eventId])
+  @@map("meta_capi_events")
+}
+
+model CapiEventDefinition {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  metaEventName  String    @map("meta_event_name")
+  defaultCurrency String?  @map("default_currency")
+  sendValue      Boolean   @default(false) @map("send_value")
+  sendUserData   Boolean   @default(false) @map("send_user_data")
+  sendLocation   Boolean   @default(false) @map("send_location")
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("capi_event_definitions")
+}
+
+model MetaAccount {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  metaUserId     String    @map("meta_user_id")
+  metaUserName   String?   @map("meta_user_name")
+  accessToken    String    @map("access_token")
+  tokenExpiresAt DateTime? @map("token_expires_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  metaIntegrations MetaIntegration[]
+
+  @@map("meta_accounts")
+}
+
+model MetaIntegration {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  metaAccountId  String    @map("meta_account_id") @db.Uuid
+  campaignName   String    @map("campaign_name")
+  metaPageId     String    @map("meta_page_id")
+  metaPageName   String?   @map("meta_page_name")
+  metaFormId     String    @map("meta_form_id")
+  metaFormName   String?   @map("meta_form_name")
+  n8nWorkflowId  String?   @map("n8n_workflow_id")
+  n8nFolderId    String?   @map("n8n_folder_id")
+  n8nCredentialId String?  @map("n8n_credential_id")
+  pipelineId     String?   @map("pipeline_id") @db.Uuid
+  stageId        String?   @map("stage_id") @db.Uuid
+  sellerId       String?   @map("seller_id") @db.Uuid
+  fieldMapping   Json      @default("{}") @map("field_mapping")
+  status         String    @default("inactive")
+  lastLeadAt     DateTime? @map("last_lead_at") @db.Timestamptz
+  errorMessage   String?   @map("error_message")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  metaAccount   MetaAccount   @relation(fields: [metaAccountId], references: [id], onDelete: Cascade)
+  pipeline      Pipeline?     @relation("PipelineMeta", fields: [pipelineId], references: [id], onDelete: SetNull)
+  stage         PipelineStage? @relation("StageMeta", fields: [stageId], references: [id], onDelete: SetNull)
+  seller        Profile?      @relation("SellerMeta", fields: [sellerId], references: [id], onDelete: SetNull)
+
+  @@map("meta_integrations")
+}
+
+// ─── INSTAGRAM ────────────────────────────────────────────────────────────────
+
+model InstagramConnection {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  pageId         String    @map("page_id")
+  igBusinessAccountId String @map("ig_business_account_id")
+  igUsername     String?   @map("ig_username")
+  igProfilePictureUrl String? @map("ig_profile_picture_url")
+  pageName       String?   @map("page_name")
+  pageAccessToken String   @map("page_access_token")
+  tokenExpiresAt DateTime? @map("token_expires_at") @db.Timestamptz
+  status         String    @default("active")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization           Organization @relation(fields: [organizationId], references: [id])
+  conversations          InstagramConversation[]
+  userPermissions        InstagramUserPermission[]
+  distributionConfig     InstagramDistributionConfig?
+  distributionState      InstagramDistributionState?
+  metrics                InstagramMetrics?
+
+  @@map("instagram_connections")
+}
+
+model InstagramUserPermission {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  connectionId    String    @map("connection_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  canView         Boolean   @default(true) @map("can_view")
+  canRespond      Boolean   @default(false) @map("can_respond")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  connection InstagramConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@map("instagram_user_permissions")
+}
+
+model InstagramConversation {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  connectionId      String    @map("connection_id") @db.Uuid
+  igUserId          String    @map("ig_user_id")
+  igUsername        String?   @map("ig_username")
+  profilePicture    String?   @map("profile_picture")
+  assignedUserId    String?   @map("assigned_user_id") @db.Uuid
+  status            String    @default("open")
+  lastMessageAt     DateTime? @map("last_message_at") @db.Timestamptz
+  lastMessagePreview String?  @map("last_message_preview")
+  unreadCount       Int       @default(0) @map("unread_count")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  connection   InstagramConnection @relation(fields: [connectionId], references: [id])
+  messages     InstagramMessage[]
+  tagAssignments InstagramConversationTagAssignment[]
+
+  @@map("instagram_conversations")
+}
+
+model InstagramMessage {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String    @map("conversation_id") @db.Uuid
+  igMessageId    String    @unique @map("ig_message_id")
+  direction      String    // 'inbound' | 'outbound'
+  messageType    String    @default("text") @map("message_type")
+  content        String?
+  mediaUrl       String?   @map("media_url")
+  isRead         Boolean   @default(false) @map("is_read")
+  sentByUserId   String?   @map("sent_by_user_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  conversation InstagramConversation @relation(fields: [conversationId], references: [id])
+
+  @@map("instagram_messages")
+}
+
+model InstagramQuickReply {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  title          String
+  content        String
+  shortcut       String?
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("instagram_quick_replies")
+}
+
+model InstagramConversationTag {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  color          String    @default("#3B82F6")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  assignments    InstagramConversationTagAssignment[]
+
+  @@map("instagram_conversation_tags")
+}
+
+model InstagramConversationTagAssignment {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  tagId          String   @map("tag_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  conversation InstagramConversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tag          InstagramConversationTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, tagId])
+  @@map("instagram_conversation_tag_assignments")
+}
+
+model InstagramMetrics {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  connectionId   String    @unique @map("connection_id") @db.Uuid
+  totalConversations Int   @default(0) @map("total_conversations")
+  openConversations  Int   @default(0) @map("open_conversations")
+  avgResponseTimeSeconds Float? @map("avg_response_time_seconds")
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  connection   InstagramConnection @relation(fields: [connectionId], references: [id])
+
+  @@map("instagram_metrics")
+}
+
+model InstagramDistributionConfig {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  connectionId   String    @unique @map("connection_id") @db.Uuid
+  mode           String    @default("round_robin")
+  assignedUserIds String[] @map("assigned_user_ids")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  connection   InstagramConnection @relation(fields: [connectionId], references: [id])
+
+  @@map("instagram_distribution_config")
+}
+
+model InstagramDistributionState {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String    @map("organization_id") @db.Uuid
+  connectionId       String    @unique @map("connection_id") @db.Uuid
+  lastAssignedUserId String?   @map("last_assigned_user_id") @db.Uuid
+  updatedAt          DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  connection   InstagramConnection @relation(fields: [connectionId], references: [id])
+
+  @@map("instagram_distribution_state")
+}
+
+// ─── SOCIAL ───────────────────────────────────────────────────────────────────
+
+model SocialIntegration {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId          String    @map("organization_id") @db.Uuid
+  platform                String    @default("instagram")
+  pageId                  String    @map("page_id")
+  igBusinessAccountId     String    @map("ig_business_account_id")
+  igUsername              String?   @map("ig_username")
+  igProfilePictureUrl     String?   @map("ig_profile_picture_url")
+  pageName                String?   @map("page_name")
+  pageAccessToken         String    @map("page_access_token")
+  tokenExpiresAt          DateTime? @map("token_expires_at") @db.Timestamptz
+  status                  String    @default("active")
+  connectedBy             String?   @map("connected_by") @db.Uuid
+  connectedAt             DateTime? @default(now()) @map("connected_at") @db.Timestamptz
+  updatedAt               DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, platform])
+  @@map("social_integrations")
+}
+
+model SocialWebhookLog {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  platform       String?   @default("instagram")
+  pageId         String?   @map("page_id")
+  eventType      String?   @map("event_type")
+  payload        Json?
+  authStatus     String?   @default("ok") @map("auth_status")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("social_webhook_logs")
+}
+
+// ─── BROADCAST CAMPAIGNS ─────────────────────────────────────────────────────
+
+/// Note: broadcast_campaigns table is created in SQL_MIGRATION_CAMPAIGN_MEDIA.sql
+/// with ALTER TABLE additions from SQL_MIGRATION_BROADCASTS_V2.sql
+// ─── SUBSCRIPTIONS ───────────────────────────────────────────────────────────
+
+model Subscription {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clerkOrganizationId  String    @unique @map("clerk_organization_id")
+  clerkUserId          String    @map("clerk_user_id")
+  stripeCustomerId     String?   @map("stripe_customer_id")
+  stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
+  plan                 String?
+  billingCycle         String?   @map("billing_cycle") // monthly | yearly
+  status               String    @default("inactive") // active | inactive | past_due | canceled | trialing
+  currentPeriodStart   DateTime? @map("current_period_start") @db.Timestamptz
+  currentPeriodEnd     DateTime? @map("current_period_end") @db.Timestamptz
+  cancelAtPeriodEnd    Boolean   @default(false) @map("cancel_at_period_end")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  @@map("subscriptions")
+}
+
+// ─── BROADCAST CAMPAIGNS ─────────────────────────────────────────────────────
+
+model BroadcastCampaign {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  status         String    @default("draft") // draft | sending | sent | scheduled | cancelled
+  sourceType     String?   @map("source_type")
+  sourceFilters  Json?     @map("source_filters")
+  scheduledAt    DateTime? @map("scheduled_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  @@map("broadcast_campaigns")
+}

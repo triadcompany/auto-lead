@@ -1,0 +1,15 @@
+{
+  "name": "auto-lead",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix web\" \"npm run dev --prefix api\"",
+    "dev:web": "npm run dev --prefix web",
+    "dev:api": "npm run dev --prefix api",
+    "build": "npm run build --prefix web && npm run build --prefix api",
+    "install:all": "npm install --prefix web && npm install --prefix api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
