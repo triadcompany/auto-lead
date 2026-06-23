@@ -332,7 +332,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
   // POST /whatsapp/send-audio — envia áudio gravado pelo usuário
   fastify.post<{
     Body: { conversation_id: string; audio_base64: string; mime_type?: string }
-  }>("/whatsapp/send-audio", async (req, reply) => {
+  }>("/whatsapp/send-audio", { bodyLimit: 30 * 1024 * 1024 } as any, async (req, reply) => {
     const { conversation_id, audio_base64, mime_type = "audio/webm" } = req.body
     const orgId = req.auth.orgId
 
