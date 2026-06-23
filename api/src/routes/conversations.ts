@@ -4,6 +4,17 @@ import { orgScope } from "../lib/auth.js"
 import { emit } from "../plugins/socket.js"
 import { evolutionFetch } from "../lib/evolution.js"
 
+// Cache em memória para buffers de áudio (evita re-buscar no Evolution a cada abertura)
+const audioCache = new Map<string, { buf: Buffer; mime: string }>()
+const AUDIO_CACHE_MAX = 200
+
+function cacheAudio(msgId: string, buf: Buffer, mime: string) {
+  if (audioCache.size >= AUDIO_CACHE_MAX) {
+    audioCache.delete(audioCache.keys().next().value as string)
+  }
+  audioCache.set(msgId, { buf, mime })
+}
+
 export default async function conversationsRoutes(fastify: FastifyInstance) {
   // GET /conversations
   fastify.get<{
@@ -85,13 +96,25 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: { id: string; msgId: string } }>(
     "/conversations/:id/messages/:msgId/audio",
     async (req, reply) => {
+      const msgId = req.params.msgId
+
+      // 1. Cache em memória (sobrevive enquanto o processo rodar)
+      const cached = audioCache.get(msgId)
+      if (cached) {
+        reply.header("Content-Type", cached.mime)
+        reply.header("Cache-Control", "public, max-age=86400")
+        return reply.send(cached.buf)
+      }
+
       const msg = await prisma.message.findFirst({
-        where: { id: req.params.msgId, conversationId: req.params.id, organizationId: req.auth.orgId },
+        where: { id: msgId, conversationId: req.params.id, organizationId: req.auth.orgId },
       })
       if (!msg) return reply.code(404).send({ error: "Not found" })
 
-      // Se já temos URL, redireciona
-      if (msg.mediaUrl) return reply.redirect(msg.mediaUrl)
+      // 2. Se já temos URL HTTP, redireciona
+      if (msg.mediaUrl && msg.mediaUrl.startsWith("http")) {
+        return reply.redirect(msg.mediaUrl)
+      }
 
       if (!msg.externalMessageId) return reply.code(404).send({ error: "No external ID" })
 
@@ -101,7 +124,7 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
       })
       if (!conv?.instanceName) return reply.code(404).send({ error: "No instance" })
 
-      // Busca o áudio no Evolution via getBase64FromMediaMessage
+      // 3. Busca o áudio no Evolution via getBase64FromMediaMessage
       const remoteJid = `${conv.contactPhone}@s.whatsapp.net`
       const evRes = await evolutionFetch(
         `/chat/getBase64FromMediaMessage/${conv.instanceName}`,
@@ -125,16 +148,12 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
       if (!data?.base64) return reply.code(404).send({ error: "No base64" })
 
       const buffer = Buffer.from(data.base64, "base64")
-      const mimeType = data.mimetype || msg.mimeType || "audio/ogg"
+      const mimeType = (data.mimetype || msg.mimeType || "audio/ogg").split(";")[0]
 
-      // Cache: salva media_url como data URI para evitar re-buscar
-      prisma.message.update({
-        where: { id: msg.id },
-        data: { mimeType },
-      }).catch(() => null)
+      // 4. Guarda no cache em memória
+      cacheAudio(msgId, buffer, mimeType)
 
       reply.header("Content-Type", mimeType)
-      reply.header("Content-Length", buffer.length)
       reply.header("Cache-Control", "public, max-age=86400")
       return reply.send(buffer)
     }
