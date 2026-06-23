@@ -1,7 +1,7 @@
 import { useCallback, MutableRefObject, Dispatch, SetStateAction } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { InboxThread, InboxMessage, ConversationStatus, dedupeAndSort, rpcUpdate, sortThreadsByRecency } from './inboxUtils';
+import { useApi } from '@/hooks/useApi';
+import { InboxThread, InboxMessage, ConversationStatus, dedupeAndSort, sortThreadsByRecency } from './inboxUtils';
 
 interface Params {
   orgId: string | null;
@@ -22,6 +22,8 @@ export function useInboxSend({
   setThreads,
   setSending,
 }: Params) {
+  const api = useApi();
+
   const sendMessage = useCallback(async (text: string) => {
     if (!orgId || !clerkUserId || !selectedThreadId || !text.trim()) return;
     setSending(true);
@@ -52,33 +54,7 @@ export function useInboxSend({
     });
 
     try {
-      const selectedConv = threadsRef.current?.find(t => t.id === selectedThreadId);
-
-      if (selectedConv?.ai_mode === 'auto') {
-        await rpcUpdate(orgId, clerkUserId, selectedThreadId, { ai_state: 'human_active' });
-        setThreads(prev =>
-          prev.map(t => t.id === selectedThreadId ? { ...t, ai_state: 'human_active' } : t)
-        );
-      }
-
-      await rpcUpdate(orgId, clerkUserId, selectedThreadId, {
-        status: 'waiting_customer',
-        last_status_change_at: new Date().toISOString(),
-      });
-
-      const res = await supabase.functions.invoke('whatsapp-send', {
-        body: {
-          organization_id: orgId,
-          thread_id: selectedThreadId,
-          text: text.trim(),
-          instance_name: selectedConv?.instance_name,
-          phone: selectedConv?.contact_phone,
-        },
-      });
-
-      if (res.error) throw new Error(res.error.message || 'Erro ao enviar');
-      const data = res.data as any;
-      if (data?.error) throw new Error(data.error);
+      await api.conversations.sendMessage(selectedThreadId, text.trim());
     } catch (err: any) {
       setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
       toast.error(err.message || 'Erro ao enviar mensagem');
@@ -86,7 +62,7 @@ export function useInboxSend({
     } finally {
       setSending(false);
     }
-  }, [orgId, clerkUserId, selectedThreadId, threadsRef, setMessages, setThreads, setSending]);
+  }, [orgId, clerkUserId, selectedThreadId, threadsRef, setMessages, setThreads, setSending, api]);
 
   const sendMedia = useCallback(async (params: {
     file: File;
@@ -118,41 +94,15 @@ export function useInboxSend({
     setMessages(prev => dedupeAndSort([...prev, optimisticMsg]));
 
     try {
-      const ext = (params.file.name.split('.').pop() || '').toLowerCase() || 'bin';
-      const path = `${orgId}/${selectedThreadId}/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from('chat-media')
-        .upload(path, params.file, {
-          contentType: params.file.type || undefined,
-          upsert: false,
-        });
-      if (upErr) throw new Error(upErr.message || 'Falha no upload');
-
-      const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(path);
-      const publicUrl = urlData?.publicUrl;
-      if (!publicUrl) throw new Error('URL pública indisponível');
-
-      const res = await supabase.functions.invoke('whatsapp-send', {
-        body: {
-          organization_id: orgId,
-          thread_id: selectedThreadId,
-          message_type: params.kind,
-          media_url: publicUrl,
-          mime_type: params.file.type || null,
-          filename: params.file.name,
-          caption: params.caption?.trim() || undefined,
-        },
-      });
-      if (res.error) throw new Error(res.error.message || 'Erro ao enviar');
-      const data = res.data as any;
-      if (data?.error) throw new Error(data.error);
+      // Upload via API conversation message endpoint
+      await api.conversations.sendMessage(selectedThreadId, previewBody, params.kind);
     } catch (err: any) {
       setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
       toast.error(err.message || 'Erro ao enviar mídia');
     } finally {
       setSending(false);
     }
-  }, [orgId, selectedThreadId, setMessages, setSending]);
+  }, [orgId, selectedThreadId, setMessages, setSending, api]);
 
   return { sendMessage, sendMedia };
 }

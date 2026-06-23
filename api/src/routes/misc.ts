@@ -110,11 +110,43 @@ export default async function miscRoutes(fastify: FastifyInstance) {
   })
 
   // POST /lead-sources
-  fastify.post<{ Body: { name: string } }>("/lead-sources", async (req, reply) => {
+  fastify.post<{ Body: { name: string; sort_order?: number } }>("/lead-sources", async (req, reply) => {
     const source = await prisma.leadSource.create({
-      data: { organizationId: req.auth.orgId, name: req.body.name },
+      data: {
+        organizationId: req.auth.orgId,
+        name: req.body.name,
+        ...(req.body.sort_order !== undefined && { sortOrder: req.body.sort_order }),
+      },
     })
     return reply.code(201).send(source)
+  })
+
+  // PATCH /lead-sources/:id
+  fastify.patch<{
+    Params: { id: string }
+    Body: { name?: string; is_active?: boolean; sort_order?: number }
+  }>("/lead-sources/:id", async (req, reply) => {
+    const { is_active, sort_order, name } = req.body
+    const updated = await prisma.leadSource.updateMany({
+      where: { id: req.params.id, ...orgScope(req) },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(is_active !== undefined && { isActive: is_active }),
+        ...(sort_order !== undefined && { sortOrder: sort_order }),
+      },
+    })
+    if (updated.count === 0) return reply.code(404).send({ error: "Not found" })
+    return { success: true }
+  })
+
+  // DELETE /lead-sources/:id (soft delete via isActive)
+  fastify.delete<{ Params: { id: string } }>("/lead-sources/:id", async (req, reply) => {
+    const deleted = await prisma.leadSource.updateMany({
+      where: { id: req.params.id, ...orgScope(req) },
+      data: { isActive: false },
+    })
+    if (deleted.count === 0) return reply.code(404).send({ error: "Not found" })
+    return { success: true }
   })
 
   // GET /prospects — lista prospects

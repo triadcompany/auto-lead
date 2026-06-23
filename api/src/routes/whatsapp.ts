@@ -17,6 +17,120 @@ async function evolutionFetch(path: string, options: RequestInit = {}) {
 }
 
 export default async function whatsappRoutes(fastify: FastifyInstance) {
+  // GET /whatsapp/me — status da instância da org autenticada
+  fastify.get("/whatsapp/me", async (req, reply) => {
+    const integration = await (prisma as any).whatsappIntegration?.findFirst?.({
+      where: { organizationId: req.auth.orgId },
+      orderBy: { createdAt: "desc" },
+    }).catch(() => null)
+
+    if (!integration) return { ok: false, status: "not_configured", connection: null }
+
+    const instanceName = integration.instanceName as string
+    let evolutionData: any = null
+    let qrCode: string | null = null
+
+    try {
+      const res = await evolutionFetch(`/instance/connectionState/${instanceName}`)
+      evolutionData = await res.json()
+    } catch {
+      // Evolution API unreachable — return last known status from DB
+    }
+
+    const evStatus = evolutionData?.instance?.state || integration.status || "disconnected"
+    const isConnecting = evStatus === "connecting" || evStatus === "qr"
+
+    if (isConnecting) {
+      try {
+        const qrRes = await evolutionFetch(`/instance/connect/${instanceName}`)
+        const qrData = await qrRes.json()
+        qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null
+      } catch { /* non-critical */ }
+    }
+
+    return {
+      ok: true,
+      status: evStatus,
+      connection: {
+        instance_name: instanceName,
+        phone_number: integration.phoneNumber || null,
+        status: evStatus,
+        qr_code: qrCode,
+        connected_at: integration.connectedAt || null,
+        last_connected_at: integration.lastConnectedAt || null,
+        last_disconnected_at: integration.lastDisconnectedAt || null,
+        mirror_enabled: integration.mirrorEnabled || false,
+        mirror_enabled_at: integration.mirrorEnabledAt || null,
+      },
+    }
+  })
+
+  // POST /whatsapp/me/connect — conecta org autenticada (cria ou reutiliza instância)
+  fastify.post("/whatsapp/me/connect", async (req, reply) => {
+    const orgId = req.auth.orgId
+    const instanceName = `org-${orgId}`
+    const webhookUrl = `${process.env.API_URL || ""}/whatsapp/webhook`
+
+    // Reuse existing integration if it exists
+    const existing = await (prisma as any).whatsappIntegration?.findFirst?.({
+      where: { organizationId: orgId },
+    }).catch(() => null)
+
+    if (existing?.instanceName) {
+      // Check if instance already running in Evolution
+      try {
+        const stateRes = await evolutionFetch(`/instance/connectionState/${existing.instanceName}`)
+        const stateData = await stateRes.json()
+        if (stateData?.instance?.state === "open") {
+          return { ok: true, already_connected: true }
+        }
+      } catch { /* continue */ }
+    }
+
+    const targetInstance = existing?.instanceName || instanceName
+
+    const res = await evolutionFetch("/instance/create", {
+      method: "POST",
+      body: JSON.stringify({
+        instanceName: targetInstance,
+        webhook: { enabled: true, url: webhookUrl, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] },
+      }),
+    })
+    const data = await res.json()
+
+    await (prisma as any).whatsappIntegration?.upsert?.({
+      where: { organizationId: orgId } as any,
+      update: { instanceName: targetInstance, status: "connecting" },
+      create: { organizationId: orgId, instanceName: targetInstance, status: "connecting" },
+    }).catch(() => null)
+
+    // Get QR code
+    let qrCode: string | null = null
+    try {
+      const qrRes = await evolutionFetch(`/instance/connect/${targetInstance}`)
+      const qrData = await qrRes.json()
+      qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null
+    } catch { /* non-critical */ }
+
+    return reply.code(201).send({ ok: true, instance_name: targetInstance, qr_code: qrCode, ...data })
+  })
+
+  // DELETE /whatsapp/me/disconnect — desconecta org autenticada
+  fastify.delete("/whatsapp/me/disconnect", async (req) => {
+    const integration = await (prisma as any).whatsappIntegration?.findFirst?.({
+      where: { organizationId: req.auth.orgId },
+    }).catch(() => null)
+
+    if (integration?.instanceName) {
+      await evolutionFetch(`/instance/delete/${integration.instanceName}`, { method: "DELETE" }).catch(() => null)
+      await (prisma as any).whatsappIntegration?.deleteMany?.({
+        where: { organizationId: req.auth.orgId },
+      }).catch(() => null)
+    }
+
+    return { success: true, ok: true }
+  })
+
   // GET /whatsapp/status/:instance
   fastify.get<{ Params: { instance: string } }>("/whatsapp/status/:instance", async (req, reply) => {
     const res = await evolutionFetch(`/instance/connectionState/${req.params.instance}`)

@@ -178,6 +178,9 @@ export function createApi(getToken: () => Promise<string | null>) {
 
     // ── WhatsApp ─────────────────────────────────────────────────────────────
     whatsapp: {
+      me: () => get<any>("/whatsapp/me"),
+      meConnect: () => post<any>("/whatsapp/me/connect", {}),
+      meDisconnect: () => del("/whatsapp/me/disconnect"),
       status: (instance: string) => get<any>(`/whatsapp/status/${instance}`),
       qr: (instance: string) => get<any>(`/whatsapp/qr/${instance}`),
       connect: (instance_name: string) => post<any>("/whatsapp/connect", { instance_name }),
@@ -261,7 +264,10 @@ export function createApi(getToken: () => Promise<string | null>) {
     },
     leadSources: {
       list: () => get<any[]>("/lead-sources"),
-      create: (data: { name: string; color?: string }) => post<any>("/lead-sources", data),
+      create: (data: { name: string; sort_order?: number }) => post<any>("/lead-sources", data),
+      update: (id: string, data: { name?: string; is_active?: boolean; sort_order?: number }) =>
+        patch(`/lead-sources/${id}`, data),
+      delete: (id: string) => del(`/lead-sources/${id}`),
     },
     prospects: {
       list: (q?: { status?: string }) => get<any[]>("/prospects", q as any),

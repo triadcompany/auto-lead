@@ -2,7 +2,6 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Mic, Square, Send, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface AudioRecorderProps {
@@ -85,22 +84,26 @@ export function AudioRecorder({ organizationId, conversationId, onAudioSent, dis
     setSending(true);
 
     try {
-      // Convert blob to base64 and send everything to the edge function
+      // Convert blob to base64 and send to API
       const arrayBuffer = await audioBlob.arrayBuffer();
       const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
-      const res = await supabase.functions.invoke('whatsapp-send-audio', {
-        body: {
+      const apiUrl = (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000';
+      const res = await fetch(`${apiUrl}/whatsapp/send-audio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           organization_id: organizationId,
           conversation_id: conversationId,
           audio_base64: base64,
           mime_type: 'audio/webm',
-        },
+        }),
       });
 
-      if (res.error) throw new Error(res.error.message);
-      const data = res.data as any;
-      if (data?.error) throw new Error(data.error);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || res.statusText);
+      }
 
       toast.success('Áudio enviado');
       onAudioSent();

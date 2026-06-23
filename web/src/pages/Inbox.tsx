@@ -3,7 +3,7 @@ import { useInbox, InboxThread, InboxMessage, ConversationStatus } from '@/hooks
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOrgSettings } from '@/hooks/useOrgSettings';
-import { supabase } from '@/integrations/supabase/client';
+import { useApi } from '@/hooks/useApi';
 import { format, isToday, isYesterday, parseISO, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -732,6 +732,7 @@ export default function InboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [messageText, setMessageText] = useState('');
   const { settings: orgSettings, loading: orgSettingsLoading } = useOrgSettings();
+  const api = useApi();
 
   // Redirect if inbox is disabled
   useEffect(() => {
@@ -950,39 +951,18 @@ export default function InboxPage() {
     if (!selectedThread || !profile?.organization_id) return;
     setResettingFirstTouch(true);
     try {
-      const res = await supabase.functions.invoke('reset-first-touch', {
-        body: {
-          organization_id: profile.organization_id,
-          phone: selectedThread.contact_phone,
-          channel: 'whatsapp',
-        },
-      });
-
-      if (res.error) throw new Error(res.error.message || 'Erro ao resetar');
-      const data = res.data as any;
-      if (!data?.ok) throw new Error(data?.error || 'Erro desconhecido');
-
       if (resetAlsoDeleteLead && selectedThread.lead_id) {
-        await supabase
-          .from('conversations')
-          .update({ lead_id: null } as any)
-          .eq('id', selectedThread.id)
-          .eq('organization_id', profile.organization_id);
-
-        await supabase
-          .from('leads')
-          .delete()
-          .eq('id', selectedThread.lead_id)
-          .eq('organization_id', profile.organization_id);
+        await api.conversations.update(selectedThread.id, { lead_id: null });
+        await api.leads.delete(selectedThread.lead_id).catch(() => {});
       }
 
-      if (data.deleted_count > 0) {
-        toast.success(`Reset feito. ${data.deleted_count} registro(s) removido(s). A próxima mensagem pode disparar a automação.`);
-        setFirstTouchResetDone(true);
-        setTimeout(() => setFirstTouchResetDone(false), 15000);
-      } else {
-        toast.warning('Nada para resetar. O first-touch já foi removido ou o telefone não corresponde.');
+      if (selectedThread.lead_id) {
+        await api.leads.resetFirstTouch(selectedThread.lead_id);
       }
+
+      toast.success('Reset feito. A próxima mensagem pode disparar a automação.');
+      setFirstTouchResetDone(true);
+      setTimeout(() => setFirstTouchResetDone(false), 15000);
       refreshThreads();
     } catch (err: any) {
       console.error('Error resetting first touch:', err);
@@ -1000,14 +980,14 @@ export default function InboxPage() {
     setFtStatusData(null);
     setFtStatusOpen(true);
     try {
-      const res = await supabase.functions.invoke('reset-first-touch', {
-        body: {
-          organization_id: profile.organization_id,
-          phone: selectedThread.contact_phone,
-          status_only: true,
-        },
-      });
-      setFtStatusData(res.data ?? { ok: false, error: res.error?.message });
+      // Check first touch status via lead
+      const leadId = selectedThread.lead_id;
+      if (!leadId) {
+        setFtStatusData({ ok: true, has_first_touch: false, deleted_count: 0 });
+      } else {
+        const lead = await api.leads.get(leadId) as any;
+        setFtStatusData({ ok: true, has_first_touch: !!lead?.firstTouchAt, lead });
+      }
     } catch (err: any) {
       setFtStatusData({ ok: false, error: err.message });
     } finally {

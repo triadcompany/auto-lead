@@ -22,7 +22,7 @@ import { Lead } from "@/hooks/useSupabaseLeads";
 import { useSupabaseProfiles } from "@/hooks/useSupabaseProfiles";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLeadSources } from "@/hooks/useLeadSources";
-import { supabase } from "@/integrations/supabase/client";
+import { useApi } from "@/hooks/useApi";
 import { BRAZILIAN_STATES } from "@/lib/brazilian-states";
 
 interface AddLeadModalProps {
@@ -82,33 +82,30 @@ export function AddLeadModal({ open, onOpenChange, onSave }: AddLeadModalProps) 
   const [selectedStageId, setSelectedStageId] = useState("");
   const [loadingStages, setLoadingStages] = useState(false);
   
+  const api = useApi();
   const { profiles } = useSupabaseProfiles();
   const { leadSources } = useLeadSources();
 
   // Fetch pipelines on mount
   const fetchPipelines = useCallback(async () => {
-    const targetOrgId = orgId || profile?.organization_id;
-    if (!targetOrgId) return;
-    const { data, error } = await supabase.rpc('get_org_pipelines', {
-      p_org_id: targetOrgId,
-    });
-    if (error) {
-      console.error('[AddLeadModal] get_org_pipelines error:', error);
-      return;
-    }
-    const list = ((data || []) as any[]).map(p => ({
-      id: p.id,
-      name: p.name,
-      is_default: p.is_default,
-    }));
-    setPipelines(list);
+    if (!orgId && !profile?.organization_id) return;
+    try {
+      const data = await api.pipelines.list() as any[];
+      const list = (data || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        is_default: p.isDefault || p.is_default,
+      }));
+      setPipelines(list);
 
-    // Auto-select default pipeline
-    const defaultPipeline = list.find(p => p.is_default) || list[0];
-    if (defaultPipeline) {
-      setSelectedPipelineId(defaultPipeline.id);
+      const defaultPipeline = list.find((p: any) => p.is_default) || list[0];
+      if (defaultPipeline) {
+        setSelectedPipelineId(defaultPipeline.id);
+      }
+    } catch (err) {
+      console.error('[AddLeadModal] fetch pipelines error:', err);
     }
-  }, [orgId, profile?.organization_id]);
+  }, [orgId, profile?.organization_id, api]);
 
   // Fetch stages when pipeline changes
   const fetchStages = useCallback(async (pipelineId: string) => {
@@ -118,20 +115,22 @@ export function AddLeadModal({ open, onOpenChange, onSave }: AddLeadModalProps) 
       return;
     }
     setLoadingStages(true);
-    const { data } = await supabase.rpc('get_pipeline_stages', {
-      p_pipeline_id: pipelineId,
-    });
-    const stageList = ((data || []) as any[])
-      .filter(s => s.is_active !== false)
-      .map(s => ({ id: s.id, name: s.name, position: s.position }))
-      .sort((a, b) => a.position - b.position);
-    setStages(stageList);
+    try {
+      const data = await api.pipelines.stages(pipelineId) as any[];
+      const stageList = (data || [])
+        .filter((s: any) => s.isActive !== false && s.is_active !== false)
+        .map((s: any) => ({ id: s.id, name: s.name, position: s.position }))
+        .sort((a: any, b: any) => a.position - b.position);
+      setStages(stageList);
 
-    // Auto-select "Andamento" stage or first stage
-    const andamentoStage = stageList.find(s => s.name.toLowerCase() === 'andamento');
-    setSelectedStageId(andamentoStage?.id || stageList[0]?.id || "");
-    setLoadingStages(false);
-  }, []);
+      const andamentoStage = stageList.find((s: any) => s.name.toLowerCase() === 'andamento');
+      setSelectedStageId(andamentoStage?.id || stageList[0]?.id || "");
+    } catch (err) {
+      console.error('[AddLeadModal] fetch stages error:', err);
+    } finally {
+      setLoadingStages(false);
+    }
+  }, [api]);
 
   useEffect(() => {
     if (open) {

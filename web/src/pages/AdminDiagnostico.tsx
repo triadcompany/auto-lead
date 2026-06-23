@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOrgRole } from '@/hooks/useOrgRole';
 import { useOrganization } from '@/hooks/useOrganization';
-import { supabase } from '@/integrations/supabase/client';
+import { useApi } from '@/hooks/useApi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -48,6 +48,7 @@ export default function AdminDiagnostico() {
   const { user, profile } = useAuth();
   const { orgId, role, isAdmin, isSeller, loading } = useOrgRole();
   const { organization } = useOrganization();
+  const api = useApi();
 
   /* WhatsApp state */
   const [waStatus, setWaStatus] = useState<{ instance?: string; status?: string; updated?: string } | null>(null);
@@ -111,8 +112,10 @@ export default function AdminDiagnostico() {
             .single();
           succeeded = !error && !!data;
           if (error) updateTest(idx, { message: error.message });
-          // cleanup
-          if (data?.id) await supabase.from('automations').delete().eq('id', data.id);
+          // cleanup (best-effort)
+          if (data?.id) {
+            try { await api.automations.delete(data.id); } catch {}
+          }
           break;
         }
         case 2: { // update sale value
@@ -134,16 +137,9 @@ export default function AdminDiagnostico() {
           if (error) updateTest(idx, { message: error.message });
           break;
         }
-        case 3: { // create CAPI event
-          const { data, error } = await supabase
-            .from('capi_event_definitions')
-            .insert({ name: 'TesteDiagnostico', meta_event_name: 'Lead', organization_id: orgId! })
-            .select('id')
-            .single();
-          succeeded = !error && !!data;
-          if (error) updateTest(idx, { message: error.message });
-          // cleanup
-          if (data?.id) await supabase.from('capi_event_definitions').delete().eq('id', data.id);
+        case 3: { // create CAPI event — table not in new schema, no-op
+          succeeded = false;
+          updateTest(idx, { message: 'capi_event_definitions não disponível na nova arquitetura' });
           break;
         }
       }

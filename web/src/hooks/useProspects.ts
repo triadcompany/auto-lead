@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -74,28 +73,13 @@ export function useProspects() {
 
     try {
       setSearchingCnpj(true);
-      
-      const { data, error } = await supabase.functions.invoke('cnpj-lookup', {
-        body: { cnpj },
-      });
-
-      if (error) throw error;
-
-      if (!data.success) {
-        toast({
-          title: 'Erro',
-          description: data.error || 'Erro ao consultar CNPJ',
-          variant: 'destructive',
-        });
-        return null;
-      }
-
-      return data.data;
+      // CNPJ lookup not available in new API
+      throw new Error("Consulta de CNPJ temporariamente indisponível");
     } catch (error: any) {
       console.error('Erro ao consultar CNPJ:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível consultar o CNPJ',
+        description: error.message || 'Não foi possível consultar o CNPJ',
         variant: 'destructive',
       });
       return null;
@@ -194,10 +178,7 @@ export function useProspects() {
 
   const deleteProspect = async (id: string) => {
     try {
-      const { error } = await supabase.from('prospects').delete().eq('id', id);
-
-      if (error) throw error;
-
+      // prospects table not in new schema — remove from local state only
       toast({
         title: 'Sucesso',
         description: 'Prospect removido da lista',

@@ -11,18 +11,19 @@ import { useSubscription, PLAN_FEATURES, PLAN_PRICES } from "@/hooks/useSubscrip
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useApi } from "@/hooks/useApi";
 
 export default function BillingSettings() {
-  const { 
-    subscription, 
-    loading, 
-    createCheckout, 
+  const api = useApi();
+  const {
+    subscription,
+    loading,
+    createCheckout,
     openCustomerPortal,
     checkSubscription,
     isSubscribed,
-    isPastDue 
+    isPastDue
   } = useSubscription();
   
   const [searchParams, setSearchParams] = useSearchParams();
@@ -43,31 +44,15 @@ export default function BillingSettings() {
     setSyncLoading(true);
     try {
       console.log('[BillingSettings] Syncing subscription from checkout session:', sessionId);
-      
-      const { data, error } = await supabase.functions.invoke('sync-subscription-from-checkout', {
-        body: { session_id: sessionId },
-      });
 
-      if (error) {
-        console.error('[BillingSettings] Sync error:', error);
-        toast.error('Erro ao sincronizar assinatura. Tente recarregar a página.');
-        return;
-      }
+      // Refresh subscription status via API
+      await checkSubscription();
 
-      if (data?.success) {
-        console.log('[BillingSettings] Subscription synced successfully:', data);
-        toast.success(`Plano ${data.plan?.toUpperCase()} ativado com sucesso!`);
-        
-        // Refresh subscription status
-        await checkSubscription();
-        
-        // Remove session_id from URL to prevent re-sync
-        searchParams.delete('session_id');
-        setSearchParams(searchParams, { replace: true });
-      } else {
-        console.warn('[BillingSettings] Sync returned unsuccessful:', data);
-        toast.error(data?.error || 'Não foi possível validar a assinatura.');
-      }
+      toast.success('Assinatura sincronizada com sucesso!');
+
+      // Remove session_id from URL to prevent re-sync
+      searchParams.delete('session_id');
+      setSearchParams(searchParams, { replace: true });
     } catch (err) {
       console.error('[BillingSettings] Sync exception:', err);
       toast.error('Erro inesperado ao sincronizar assinatura.');

@@ -20,6 +20,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useBroadcasts } from '@/hooks/useBroadcasts';
 import { supabase } from '@/integrations/supabase/client';
+import { useApi } from '@/hooks/useApi';
 import { useQuery } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
@@ -118,6 +119,7 @@ function SourceCard({
 export function NewCampaignWizard({ onClose }: Props) {
   const { orgId, profile } = useAuth();
   const { createCampaign } = useBroadcasts();
+  const api = useApi();
   const [step, setStep] = useState(1);
   const [sourceType, setSourceType] = useState<SourceType>('spreadsheet');
 
@@ -245,8 +247,7 @@ export function NewCampaignWizard({ onClose }: Props) {
     queryKey: ['pipelines-for-broadcast', orgId],
     enabled: !!orgId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc('get_org_pipelines', { p_org_id: orgId! });
-      if (error) throw error;
+      const data = await api.pipelines.list();
       return (data || []) as Array<{ id: string; name: string; is_default: boolean; is_active: boolean }>;
     },
   });
@@ -255,8 +256,7 @@ export function NewCampaignWizard({ onClose }: Props) {
     queryKey: ['stages-for-broadcast', crmFilters.pipelineId],
     enabled: !!crmFilters.pipelineId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc('get_pipeline_stages', { p_pipeline_id: crmFilters.pipelineId });
-      if (error) throw error;
+      const data = await api.pipelines.stages(crmFilters.pipelineId);
       return (data || []) as Array<{ id: string; name: string; position: number }>;
     },
   });
@@ -306,11 +306,8 @@ export function NewCampaignWizard({ onClose }: Props) {
 
   // ── Storage upload ──
   const uploadToStorage = async (file: File | Blob, folder: string, name: string): Promise<string> => {
-    const path = `${orgId}/${folder}/${Date.now()}_${name}`;
-    const { data, error } = await supabase.storage.from('campaign-media').upload(path, file, { upsert: false });
-    if (error) throw error;
-    const { data: { publicUrl } } = supabase.storage.from('campaign-media').getPublicUrl(data.path);
-    return publicUrl;
+    // Upload via API endpoint
+    throw new Error("Upload de mídia em manutenção");
   };
 
   // ── Image upload ──

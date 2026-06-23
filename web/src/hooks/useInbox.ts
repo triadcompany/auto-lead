@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { useApi } from '@/hooks/useApi';
+import { useSocket } from '@/hooks/useSocket';
 import {
   InboxThread, InboxMessage, OrgMember,
   FilterMode, AssignmentFilter, StatusFilter, ConversationStatus,
@@ -11,15 +12,36 @@ import { useInboxAI } from './inbox/useInboxAI';
 import { useInboxSend } from './inbox/useInboxSend';
 import { useConversationActions } from './inbox/useConversationActions';
 
-// Re-export types consumed by InboxPage and other components
 export type { ConversationStatus, InboxThread, InboxMessage, OrgMember, AssignmentFilter, StatusFilter };
+
+function normalizeThread(row: any): InboxThread {
+  return {
+    ...row,
+    status: row.status || 'open',
+    locked_by: row.locked_by || row.lockedBy || null,
+    locked_at: row.locked_at || row.lockedAt || null,
+    last_status_change_at: row.last_status_change_at || row.lastStatusChangeAt || null,
+    unread_count: row.unread_count || row.unreadCount || 0,
+    last_message_at: row.last_message_at || row.lastMessageAt || null,
+    last_message_preview: row.last_message_preview || row.lastMessagePreview || null,
+    assigned_to: row.assigned_to || row.assignedTo || null,
+    assigned_at: row.assigned_at || row.assignedAt || null,
+    contact_name: row.contact_name || row.contactName || null,
+    lead_id: row.lead_id || row.leadId || null,
+    ai_mode: row.ai_mode || row.aiMode || 'off',
+    ai_state: row.ai_state ?? row.aiState ?? null,
+    ai_pending: row.ai_pending ?? row.aiPending ?? false,
+    ai_pending_started_at: row.ai_pending_started_at || row.aiPendingStartedAt || null,
+  };
+}
 
 export function useInbox() {
   const { user, profile, isAdmin, orgId, role } = useAuth();
   const clerkUserId = user?.id || '';
   const myProfileId = profile?.id;
+  const api = useApi();
+  const { on } = useSocket();
 
-  // ── Shared state ─────────────────────────────────────────────────────────
   const [threads, setThreads] = useState<InboxThread[]>([]);
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -38,23 +60,25 @@ export function useInbox() {
   const threadsRef = useRef(threads);
   threadsRef.current = threads;
 
-  // ── Fetch org members ────────────────────────────────────────────────────
   const fetchOrgMembers = useCallback(async () => {
     if (!orgId) return;
     try {
-      const { data, error } = await (supabase as any).rpc('get_org_profiles', {
-        p_org_id: orgId,
-      });
-      if (error) throw error;
-      setOrgMembers((data as OrgMember[]) || []);
+      const data = await api.users.list() as any[];
+      setOrgMembers(data.map((u: any) => ({
+        id: u.id,
+        clerk_user_id: u.clerkUserId || u.clerk_user_id,
+        name: u.name,
+        email: u.email,
+        role: u.role || 'seller',
+        avatar_url: u.avatarUrl || u.avatar_url || null,
+      })));
     } catch {
       // non-critical
     }
-  }, [orgId]);
+  }, [orgId, api]);
 
   useEffect(() => { fetchOrgMembers(); }, [fetchOrgMembers]);
 
-  // ── Fetch thread list ────────────────────────────────────────────────────
   const fetchThreads = useCallback(async () => {
     if (!orgId || !clerkUserId) {
       setLoadingThreads(false);
@@ -62,151 +86,91 @@ export function useInbox() {
     }
     setLoadingThreads(true);
     try {
-      const { data, error } = await supabase.rpc('get_org_conversations' as any, {
-        p_clerk_user_id: clerkUserId,
-        p_org_id: orgId,
-        p_is_admin: isAdmin,
-        p_seller_id: myProfileId || null,
-        p_filter: filter,
-        p_search: search.trim(),
-        p_limit: 100,
-        p_assignment_filter: assignmentFilter,
-        p_status_filter: statusFilter,
-      });
-      if (error) throw error;
-      const parsed = (typeof data === 'string' ? JSON.parse(data) : data) || [];
-      setThreads(parsed.map((row: any) => ({
-        ...row,
-        status: row.status || 'open',
-        locked_by: row.locked_by || null,
-        locked_at: row.locked_at || null,
-        last_status_change_at: row.last_status_change_at || null,
-      })));
+      const data = await api.conversations.list({
+        ...(statusFilter !== 'all' && { status: statusFilter }),
+        ...(!isAdmin && myProfileId && { assigned_to: myProfileId }),
+        ...(search.trim() && { search: search.trim() }),
+        limit: 100,
+      }) as any[];
+      setThreads(data.map(normalizeThread));
     } catch {
       toast.error('Erro ao carregar conversas');
     } finally {
       setLoadingThreads(false);
     }
-  }, [orgId, clerkUserId, filter, search, myProfileId, isAdmin, assignmentFilter, statusFilter]);
+  }, [orgId, clerkUserId, filter, search, myProfileId, isAdmin, assignmentFilter, statusFilter, api]);
 
   useEffect(() => { fetchThreads(); }, [fetchThreads]);
 
-  // ── Fetch messages for selected conversation ──────────────────────────────
   const fetchMessages = useCallback(async (conversationId: string) => {
     if (!orgId || !clerkUserId) return;
     setLoadingMessages(true);
     try {
-      const { data, error } = await supabase.rpc('get_conversation_messages' as any, {
-        p_clerk_user_id: clerkUserId,
-        p_org_id: orgId,
-        p_conversation_id: conversationId,
-        p_limit: 200,
-      });
-      if (error) throw error;
-      const parsed = (typeof data === 'string' ? JSON.parse(data) : data) || [];
-      setMessages(dedupeAndSort(parsed));
+      const data = await api.conversations.messages(conversationId, { limit: 200 }) as any[];
+      setMessages(dedupeAndSort(data));
     } catch {
       toast.error('Erro ao carregar mensagens');
     } finally {
       setLoadingMessages(false);
     }
-  }, [orgId, clerkUserId]);
+  }, [orgId, clerkUserId, api]);
 
-  // ── Realtime subscriptions ───────────────────────────────────────────────
+  // Socket.io realtime
   useEffect(() => {
     if (!orgId) return;
 
-    const channel = supabase
-      .channel(`inbox-rt-${orgId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `organization_id=eq.${orgId}` },
-        (payload) => {
-          const newMsg = payload.new as InboxMessage;
-
-          if (newMsg.conversation_id === selectedThreadIdRef.current) {
-            setMessages(prev => {
-              if (prev.some(m => m.id === newMsg.id)) return prev;
-              if (newMsg.external_message_id && prev.some(m => m.external_message_id === newMsg.external_message_id)) {
-                return dedupeAndSort([...prev.filter(m => m.external_message_id !== newMsg.external_message_id), newMsg]);
-              }
-              const withoutOptimistic = prev.filter(m => {
-                if (!m.id.startsWith('temp-')) return true;
-                return !(m.body === newMsg.body && m.direction === newMsg.direction);
-              });
-              return dedupeAndSort([...withoutOptimistic, newMsg]);
+    const unsubs = [
+      on('message:created', (newMsg: any) => {
+        if (newMsg.conversation_id === selectedThreadIdRef.current) {
+          setMessages(prev => {
+            if (prev.some(m => m.id === newMsg.id)) return prev;
+            const withoutOptimistic = prev.filter(m => {
+              if (!m.id.startsWith('temp-')) return true;
+              return !(m.body === newMsg.body && m.direction === newMsg.direction);
             });
-            if (newMsg.direction === 'inbound') setNewMessageFlag(f => f + 1);
-          }
-
-          setThreads(prev => {
-            const updated = prev.map(t => {
-              if (t.id !== newMsg.conversation_id) return t;
-              return {
-                ...t,
-                last_message_at: newMsg.created_at,
-                last_message_preview: (newMsg.body || '').substring(0, 100),
-                unread_count: newMsg.conversation_id === selectedThreadIdRef.current
-                  ? 0
-                  : t.unread_count + (newMsg.direction === 'inbound' ? 1 : 0),
-              };
-            });
-            return sortThreadsByRecency(updated);
+            return dedupeAndSort([...withoutOptimistic, newMsg]);
           });
+          if (newMsg.direction === 'inbound') setNewMessageFlag(f => f + 1);
         }
-      )
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations', filter: `organization_id=eq.${orgId}` },
-        (payload) => {
-          const updated = payload.new as any;
-          setThreads(prev => {
-            const newList = prev.map(t => {
-              if (t.id !== updated.id) return t;
-              return {
-                ...t,
-                last_message_at: updated.last_message_at ?? t.last_message_at,
-                last_message_preview: updated.last_message_preview ?? t.last_message_preview,
-                unread_count: updated.unread_count ?? t.unread_count,
-                assigned_to: updated.assigned_to ?? t.assigned_to,
-                assigned_at: updated.assigned_at ?? t.assigned_at,
-                contact_name: updated.contact_name ?? t.contact_name,
-                lead_id: updated.lead_id ?? t.lead_id,
-                ai_mode: updated.ai_mode ?? t.ai_mode,
-                ai_state: updated.ai_state !== undefined ? updated.ai_state : t.ai_state,
-                ai_pending: updated.ai_pending !== undefined ? updated.ai_pending : t.ai_pending,
-                ai_pending_started_at: updated.ai_pending_started_at !== undefined ? updated.ai_pending_started_at : t.ai_pending_started_at,
-                status: updated.status ?? t.status,
-                locked_by: updated.locked_by !== undefined ? updated.locked_by : t.locked_by,
-                locked_at: updated.locked_at !== undefined ? updated.locked_at : t.locked_at,
-                last_status_change_at: updated.last_status_change_at !== undefined ? updated.last_status_change_at : t.last_status_change_at,
-              };
-            });
-            return sortThreadsByRecency(newList);
+
+        setThreads(prev => {
+          const updated = prev.map(t => {
+            if (t.id !== newMsg.conversation_id) return t;
+            return {
+              ...t,
+              last_message_at: newMsg.created_at,
+              last_message_preview: (newMsg.body || '').substring(0, 100),
+              unread_count: newMsg.conversation_id === selectedThreadIdRef.current
+                ? 0
+                : t.unread_count + (newMsg.direction === 'inbound' ? 1 : 0),
+            };
           });
-        }
-      )
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversations', filter: `organization_id=eq.${orgId}` },
-        () => { fetchThreads(); }
-      )
-      .subscribe();
+          return sortThreadsByRecency(updated);
+        });
+      }),
 
-    return () => { supabase.removeChannel(channel); };
-  }, [orgId, fetchThreads]);
+      on('conversation:updated', (updated: any) => {
+        setThreads(prev => sortThreadsByRecency(prev.map(t => {
+          if (t.id !== updated.id) return t;
+          return { ...t, ...normalizeThread(updated) };
+        })));
+      }),
 
-  // ── Fallback polling ─────────────────────────────────────────────────────
+      on('conversation:created', () => { fetchThreads(); }),
+    ];
+
+    return () => unsubs.forEach(u => u());
+  }, [orgId, fetchThreads, on]);
+
+  // Polling fallback for messages
   useEffect(() => {
     if (!orgId || !selectedThreadId || !clerkUserId) return;
-
     const interval = setInterval(async () => {
       try {
-        const { data, error } = await supabase.rpc('get_conversation_messages' as any, {
-          p_clerk_user_id: clerkUserId,
-          p_org_id: orgId,
-          p_conversation_id: selectedThreadId,
-          p_limit: 200,
-        });
-        if (error || !data) return;
-        const parsed = (typeof data === 'string' ? JSON.parse(data) : data) || [];
-        if (parsed.length === 0) return;
+        const data = await api.conversations.messages(selectedThreadId, { limit: 200 }) as any[];
+        if (data.length === 0) return;
         setMessages(prev => {
-          const newMsgs = dedupeAndSort(parsed);
+          const newMsgs = dedupeAndSort(data);
           if (newMsgs.length === prev.length && newMsgs[newMsgs.length - 1]?.id === prev[prev.length - 1]?.id) return prev;
           return newMsgs;
         });
@@ -214,11 +178,9 @@ export function useInbox() {
         // silent fallback
       }
     }, 7000);
-
     return () => clearInterval(interval);
-  }, [orgId, selectedThreadId, clerkUserId]);
+  }, [orgId, selectedThreadId, clerkUserId, api]);
 
-  // ── Sub-hooks ─────────────────────────────────────────────────────────────
   const conversationActions = useConversationActions({
     orgId, clerkUserId, myProfileId, profile: profile as any,
     isAdmin, orgMembers, threadsRef, setThreads, fetchThreads,
@@ -230,7 +192,6 @@ export function useInbox() {
     orgId, clerkUserId, selectedThreadId, threadsRef, setMessages, setThreads, setSending,
   });
 
-  // ── Select thread ────────────────────────────────────────────────────────
   const selectThread = useCallback((threadId: string) => {
     setSelectedThreadId(threadId);
     if (threadId) {

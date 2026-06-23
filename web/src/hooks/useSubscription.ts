@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useUser } from '@clerk/clerk-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApi } from '@/hooks/useApi';
 import { toast } from 'sonner';
 
 export interface SubscriptionData {
@@ -43,20 +43,20 @@ export const PLAN_FEATURES: Record<'start' | 'scale', PlanFeatures> = {
     leads_auto: true,
     reports_advanced: true,
     permissions: true,
-    automations: false, // Coming soon
-    ai: false, // Coming soon
+    automations: false,
+    ai: false,
   },
 };
 
 export const PLAN_PRICES = {
   start: {
     monthly: 117,
-    yearly: 97, // Price per month when paid yearly
+    yearly: 97,
     yearly_total: 1164,
   },
   scale: {
     monthly: 237,
-    yearly: 197, // Price per month when paid yearly
+    yearly: 197,
     yearly_total: 2364,
   },
 };
@@ -64,6 +64,7 @@ export const PLAN_PRICES = {
 export function useSubscription() {
   const { user, isLoaded: userLoaded } = useUser();
   const { profile, orgId: authOrgId } = useAuth();
+  const api = useApi();
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -72,61 +73,32 @@ export function useSubscription() {
 
   const checkSubscription = useCallback(async () => {
     if (!user?.id || !organizationId) {
-      setSubscription({
-        subscribed: false,
-        plan: null,
-        billing_cycle: null,
-        status: null,
-        current_period_end: null,
-        cancel_at_period_end: false,
-      });
+      setSubscription({ subscribed: false, plan: null, billing_cycle: null, status: null, current_period_end: null, cancel_at_period_end: false });
       setLoading(false);
       return;
     }
-
     try {
       setLoading(true);
-      
-      const { data, error: fnError } = await supabase.functions.invoke('check-subscription', {
-        headers: {
-          'x-clerk-user-id': user.id,
-          'x-clerk-org-id': organizationId,
-        },
-      });
-
-      if (fnError) {
-        throw new Error(fnError.message);
-      }
-
+      const data = await api.billing.subscription() as any;
       setSubscription(data);
       setError(null);
     } catch (err) {
       console.error('Error checking subscription:', err);
       setError(err as Error);
-      setSubscription({
-        subscribed: false,
-        plan: null,
-        billing_cycle: null,
-        status: null,
-        current_period_end: null,
-        cancel_at_period_end: false,
-      });
+      setSubscription({ subscribed: false, plan: null, billing_cycle: null, status: null, current_period_end: null, cancel_at_period_end: false });
     } finally {
       setLoading(false);
     }
-  }, [user?.id, organizationId]);
+  }, [user?.id, organizationId, api]);
 
-  // Check subscription on mount and when org changes
   useEffect(() => {
     if (userLoaded && (profile || organizationId)) {
       checkSubscription();
     }
   }, [userLoaded, profile, organizationId, checkSubscription]);
 
-  // Refresh subscription periodically (every 60 seconds)
   useEffect(() => {
     if (!organizationId) return;
-    
     const interval = setInterval(checkSubscription, 60000);
     return () => clearInterval(interval);
   }, [organizationId, checkSubscription]);
@@ -136,88 +108,39 @@ export function useSubscription() {
       toast.error('Você precisa estar logado para assinar um plano');
       return;
     }
-
     try {
-      // Identity is derived server-side from the Clerk JWT and verified against
-      // org_members. clerk_org_id is only a *requested* org id the server validates.
-      const { data, error: fnError } = await supabase.functions.invoke('create-checkout', {
-        body: {
-          plan,
-          billingCycle,
-          userEmail: user.primaryEmailAddress?.emailAddress,
-          userName: user.fullName || user.firstName || 'Usuário',
-          clerk_org_id: organizationId,
-        },
-      });
-
-      if (fnError) {
-        throw new Error(fnError.message);
-      }
-
-      if (data?.url) {
-        // Open Stripe Checkout in a new tab
-        window.open(data.url, '_blank');
-      }
+      const data = await api.billing.checkout({ plan, billing_cycle: billingCycle, price_id: '' }) as any;
+      if (data?.url) window.open(data.url, '_blank');
     } catch (err) {
       console.error('Error creating checkout:', err);
       toast.error('Erro ao iniciar checkout. Tente novamente.');
     }
-  }, [user, organizationId]);
+  }, [user, organizationId, api]);
 
   const openCustomerPortal = useCallback(async () => {
     if (!user || !organizationId) {
       toast.error('Você precisa estar logado para gerenciar sua assinatura');
       return;
     }
-
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('customer-portal', {
-        headers: {
-          'x-clerk-user-id': user.id,
-          'x-clerk-org-id': organizationId,
-        },
-      });
-
-      if (fnError) {
-        throw new Error(fnError.message);
-      }
-
-      if (data?.url) {
-        window.open(data.url, '_blank');
-      }
+      const data = await api.billing.portal(window.location.href) as any;
+      if (data?.url) window.open(data.url, '_blank');
     } catch (err) {
       console.error('Error opening customer portal:', err);
       toast.error('Erro ao abrir portal de gerenciamento. Tente novamente.');
     }
-  }, [user, organizationId]);
+  }, [user, organizationId, api]);
 
   const hasFeature = useCallback((feature: keyof PlanFeatures): boolean => {
-    if (!subscription?.subscribed || !subscription.plan) {
-      return false;
-    }
-    
-    const planFeatures = PLAN_FEATURES[subscription.plan];
-    const featureValue = planFeatures[feature];
-    
-    // Boolean features
-    if (typeof featureValue === 'boolean') {
-      return featureValue;
-    }
-    
-    // Unlimited features
-    if (featureValue === 'unlimited') {
-      return true;
-    }
-    
-    // Numeric features - always return true if they have any value
-    return featureValue > 0;
+    if (!subscription?.subscribed || !subscription.plan) return false;
+    const featureValue = PLAN_FEATURES[subscription.plan][feature];
+    if (typeof featureValue === 'boolean') return featureValue;
+    if (featureValue === 'unlimited') return true;
+    return (featureValue as number) > 0;
   }, [subscription]);
 
   const getFeatureLimit = useCallback((feature: 'pipelines' | 'users'): number | 'unlimited' => {
-    if (!subscription?.subscribed || !subscription.plan) {
-      return 0;
-    }
-    
+    if (!subscription?.subscribed || !subscription.plan) return 0;
     return PLAN_FEATURES[subscription.plan][feature];
   }, [subscription]);
 

@@ -196,9 +196,8 @@ export function KeywordRulesManagement() {
 
   const deleteRule = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir esta regra?')) return;
-    await supabase.from('automation_keyword_rules' as any).delete().eq('id', id);
-    toast({ title: 'Regra excluída' });
-    loadRules();
+    toast({ title: 'Info', description: 'Exclusão de regras de keyword será disponibilizada em breve' });
+    // Note: automation_keyword_rules not yet in new API
   };
 
   const matchTypeLabel: Record<string, string> = {

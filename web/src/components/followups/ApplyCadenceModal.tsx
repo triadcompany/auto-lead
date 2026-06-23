@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PlayCircle, Clock, MessageCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -47,25 +46,11 @@ export function ApplyCadenceModal({
 
   const fetchCadences = async () => {
     if (!profile?.organization_id) return;
-    
+
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('followup_cadences')
-        .select('*')
-        .eq('organization_id', profile.organization_id)
-        .eq('is_active', true)
-        .order('is_default', { ascending: false });
-
-      if (error) throw error;
-      
-      // Parse steps from JSON
-      const parsedCadences = (data || []).map(c => ({
-        ...c,
-        steps: (c.steps as unknown as FollowupCadenceStep[]) || []
-      }));
-      
-      setCadences(parsedCadences);
+      // followup_cadences not yet in new API — return empty list
+      setCadences([]);
     } catch (error) {
       console.error('Error fetching cadences:', error);
     } finally {
@@ -75,25 +60,14 @@ export function ApplyCadenceModal({
 
   const handleApplyCadence = async (cadence: FollowupCadence) => {
     if (!profile?.organization_id) return;
-    
+
     setApplying(true);
     try {
-      // Use the database function to apply cadence
-      const { error } = await supabase.rpc('apply_cadence_to_lead', {
-        p_lead_id: leadId,
-        p_cadence_id: cadence.id,
-        p_assigned_to: sellerId,
-        p_created_by: profile.user_id
-      });
-
-      if (error) throw error;
-
+      // apply_cadence_to_lead not yet available in new API
       toast({
-        title: "Cadência aplicada",
-        description: `${cadence.steps.length} follow-ups agendados para ${leadName}`,
+        title: "Em breve",
+        description: "Cadência será aplicada em breve",
       });
-
-      queryClient.invalidateQueries({ queryKey: ['followups'] });
       onOpenChange(false);
     } catch (error) {
       console.error('Error applying cadence:', error);

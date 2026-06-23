@@ -18,6 +18,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { supabase } from "@/integrations/supabase/client";
 
 // ─── Types ───
@@ -42,32 +43,30 @@ interface QueueItem {
   updated_at: string;
 }
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string);
+const API_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000';
 
 const META_EVENT_OPTIONS = [
   "Lead", "QualifiedLead", "Schedule", "Contact",
   "SubmitApplication", "InitiateCheckout", "Purchase",
 ];
 
-async function callMetaCapiEndpoint(body: Record<string, unknown>) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token ?? SUPABASE_KEY;
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/meta-capi-settings`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  return { status: res.status, data };
-}
-
 export function MetaCapiAutomations() {
   const { profile, role, orgId: authOrgId, user } = useAuth();
+  const { getToken } = useClerkAuth();
+
+  const callMetaCapiEndpoint = async (body: Record<string, unknown>) => {
+    const token = await getToken();
+    const res = await fetch(`${API_URL}/meta/capi-settings`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    return { status: res.status, data };
+  };
   const orgId = profile?.organization_id || authOrgId;
   const profileId = profile?.id || user?.id || null;
   const isAdmin = role === "admin";

@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useApi } from '@/hooks/useApi';
+import { useSocket } from '@/hooks/useSocket';
 import { triggerN8nWebhook } from '@/services/n8nWebhook';
 import { publishAutomationEvent, AI_EVENTS } from '@/services/automationEventBus';
 
@@ -45,6 +46,40 @@ export interface KanbanColumn {
   position: number;
 }
 
+function normalizeLead(l: any): Lead {
+  return {
+    id: l.id,
+    name: l.name || '',
+    email: l.email || '',
+    phone: l.phone || '',
+    seller_id: l.sellerId || l.seller_id || '',
+    source: l.source || '',
+    interest: l.interest || '',
+    price: l.price,
+    observations: l.observations || '',
+    stage_id: l.stageId || l.stage_id || '',
+    created_at: l.createdAt || l.created_at || '',
+    created_by: l.createdBy || l.created_by || '',
+    valor_negocio: l.valorNegocio ?? l.valor_negocio,
+    servico: l.servico,
+    cidade: l.cidade,
+    estado: l.estado,
+    seller_name: l.sellerName || l.seller_name,
+    stage_name: l.stageName || l.stage_name,
+    stage_position: l.stagePosition ?? l.stage_position,
+  };
+}
+
+function normalizeStage(s: any): PipelineStage {
+  return {
+    id: s.id,
+    name: s.name || '',
+    position: s.position ?? 0,
+    color: s.color || '#6366f1',
+    is_active: s.isActive ?? s.is_active ?? true,
+  };
+}
+
 // ─── query key factories ───────────────────────────────────────────────────
 const stagesKey = (orgId: string | undefined, pipelineId: string | undefined) =>
   ['stages', orgId, pipelineId] as const;
@@ -55,11 +90,11 @@ const leadsKey = (orgId: string | undefined, isAdmin: boolean, sellerId: string 
 // ─── hook ─────────────────────────────────────────────────────────────────
 export function useSupabaseLeads(pipelineId?: string) {
   const { profile, isAdmin, orgId: authOrgId } = useAuth();
-  // Always prefer the ACTIVE org from AuthContext (kept in sync on org switch).
   const orgId = authOrgId || profile?.organization_id;
-  const clerkUserId = profile?.clerk_user_id;
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const api = useApi();
+  const { on } = useSocket();
   const [searchTerm, setSearchTerm] = useState('');
 
   // ── Stages query ─────────────────────────────────────────────────────────
@@ -73,19 +108,16 @@ export function useSupabaseLeads(pipelineId?: string) {
       let activePipelineId = pipelineId;
 
       if (!activePipelineId) {
-        const { data: orgPipelines } = await supabase.rpc('get_org_pipelines', {
-          p_org_id: orgId,
-        });
-        const list = (orgPipelines || []) as any[];
-        const defaultPipeline = list.find((p: any) => p.is_default) || list[0];
+        const pipelines = await api.pipelines.list();
+        const list = Array.isArray(pipelines) ? pipelines : [];
+        const defaultPipeline = list.find((p: any) => p.isDefault || p.is_default) || list[0];
 
         if (!defaultPipeline) {
-          if (clerkUserId) {
-            const { data: seededId } = await supabase.rpc('ensure_default_pipeline', {
-              p_org_id: orgId,
-              p_created_by: clerkUserId,
-            });
-            activePipelineId = seededId;
+          try {
+            const seeded = await api.pipelines.ensureDefault() as any;
+            activePipelineId = seeded?.id;
+          } catch {
+            return [];
           }
         } else {
           activePipelineId = defaultPipeline.id;
@@ -94,12 +126,8 @@ export function useSupabaseLeads(pipelineId?: string) {
 
       if (!activePipelineId) return [];
 
-      const { data, error } = await supabase.rpc('get_pipeline_stages', {
-        p_pipeline_id: activePipelineId,
-      });
-
-      if (error) throw new Error(error.message);
-      return (data || []) as PipelineStage[];
+      const data = await api.pipelines.stages(activePipelineId);
+      return (Array.isArray(data) ? data : []).map(normalizeStage);
     },
     meta: { errorMessage: 'Erro ao carregar etapas do pipeline' },
   });
@@ -107,31 +135,20 @@ export function useSupabaseLeads(pipelineId?: string) {
   // ── Leads query ──────────────────────────────────────────────────────────
   const leadsQuery = useQuery({
     queryKey: leadsKey(orgId, isAdmin, profile?.id),
-    enabled: !!orgId && !!clerkUserId,
+    enabled: !!orgId,
     staleTime: 2 * 60 * 1000,
     queryFn: async (): Promise<Lead[]> => {
-      if (!orgId || !clerkUserId) return [];
+      if (!orgId) return [];
 
-      const { data, error } = await supabase.rpc('get_org_leads', {
-        p_clerk_user_id: clerkUserId,
-        p_org_id: orgId,
-        p_is_admin: isAdmin || false,
-        p_seller_id: (!isAdmin && profile?.id) ? profile.id : null,
-      });
+      const params: Record<string, string> = {};
+      if (!isAdmin && profile?.id) params.seller_id = profile.id;
+      if (pipelineId) params.pipeline_id = pipelineId;
 
-      if (error) throw new Error(error.message);
-      return ((data as unknown) as Lead[]) || [];
+      const data = await api.leads.list(params);
+      return (Array.isArray(data) ? data : []).map(normalizeLead);
     },
     meta: { errorMessage: 'Erro ao carregar leads' },
   });
-
-  // Surface query errors as toasts (single place, not per-mutation)
-  if (stagesQuery.error && !stagesQuery.isFetching) {
-    toast({ title: 'Erro', description: 'Erro ao carregar etapas do pipeline', variant: 'destructive' });
-  }
-  if (leadsQuery.error && !leadsQuery.isFetching) {
-    toast({ title: 'Erro', description: 'Erro ao carregar leads', variant: 'destructive' });
-  }
 
   const leads = leadsQuery.data ?? [];
   const stages = stagesQuery.data ?? [];
@@ -169,17 +186,10 @@ export function useSupabaseLeads(pipelineId?: string) {
   // ── moveLead mutation (optimistic update) ────────────────────────────────
   const moveLeadMutation = useMutation({
     mutationFn: async ({ leadId, newStageId }: { leadId: string; newStageId: string }) => {
-      if (!profile?.clerk_user_id) throw new Error('Not authenticated');
-      const { error } = await supabase.rpc('update_lead_rpc', {
-        p_clerk_user_id: profile.clerk_user_id,
-        p_lead_id: leadId,
-        p_data: { stage_id: newStageId } as any,
-      });
-      if (error) throw new Error(error.message);
+      await api.leads.changeStage(leadId, newStageId);
       return { leadId, newStageId };
     },
     onMutate: async ({ leadId, newStageId }) => {
-      // Optimistic update — update cache immediately so Kanban feels instant
       await queryClient.cancelQueries({ queryKey: leadsKey(orgId, isAdmin, profile?.id) });
       const previous = queryClient.getQueryData<Lead[]>(leadsKey(orgId, isAdmin, profile?.id));
       queryClient.setQueryData<Lead[]>(leadsKey(orgId, isAdmin, profile?.id), old =>
@@ -229,7 +239,6 @@ export function useSupabaseLeads(pipelineId?: string) {
       }
     },
     onError: (err: Error, _, context) => {
-      // Roll back optimistic update
       if (context?.previous) {
         queryClient.setQueryData(leadsKey(orgId, isAdmin, profile?.id), context.previous);
       }
@@ -240,13 +249,7 @@ export function useSupabaseLeads(pipelineId?: string) {
   // ── updateLead mutation ───────────────────────────────────────────────────
   const updateLeadMutation = useMutation({
     mutationFn: async ({ leadId, updatedData }: { leadId: string; updatedData: Partial<Lead> }) => {
-      if (!profile?.clerk_user_id) throw new Error('Not authenticated');
-      const { error } = await supabase.rpc('update_lead_rpc', {
-        p_clerk_user_id: profile.clerk_user_id,
-        p_lead_id: leadId,
-        p_data: updatedData as any,
-      });
-      if (error) throw new Error(error.message);
+      await api.leads.update(leadId, updatedData as Record<string, unknown>);
       return { leadId, updatedData };
     },
     onMutate: async ({ leadId, updatedData }) => {
@@ -271,52 +274,31 @@ export function useSupabaseLeads(pipelineId?: string) {
   // ── addLead mutation ──────────────────────────────────────────────────────
   const addLeadMutation = useMutation({
     mutationFn: async (newLeadData: Omit<Lead, 'id' | 'created_at' | 'created_by' | 'stage_id'> & { stage_id?: string }) => {
-      if (!profile?.clerk_user_id) throw new Error('Sessão não está pronta. Recarregue a página.');
-
       const stageId = (newLeadData as any).stage_id
         || [...stages].sort((a, b) => a.position - b.position)[0]?.id;
 
       if (!stageId) throw new Error('Nenhuma etapa do funil disponível. Selecione uma etapa.');
 
-      const { data, error } = await supabase.rpc('create_lead_rpc', {
-        p_clerk_user_id: profile.clerk_user_id,
-        p_name: newLeadData.name,
-        p_phone: newLeadData.phone || '',
-        p_email: newLeadData.email || '',
-        p_source: newLeadData.source || '',
-        p_interest: newLeadData.interest || '',
-        p_price: (newLeadData as any).price || '',
-        p_observations: newLeadData.observations || '',
-        p_servico: (newLeadData as any).servico || '',
-        p_cidade: (newLeadData as any).cidade || '',
-        p_estado: (newLeadData as any).estado || '',
-        p_seller_id: (newLeadData as any).seller_id || null,
-        p_stage_id: stageId,
-        p_org_id: orgId || null,
-      } as any);
+      const raw = await api.leads.create({
+        name: newLeadData.name,
+        phone: newLeadData.phone || '',
+        email: newLeadData.email || '',
+        source: newLeadData.source || '',
+        interest: newLeadData.interest || '',
+        observations: newLeadData.observations || '',
+        servico: (newLeadData as any).servico || '',
+        cidade: (newLeadData as any).cidade || '',
+        estado: (newLeadData as any).estado || '',
+        seller_id: (newLeadData as any).seller_id || null,
+        stage_id: stageId,
+        created_by: profile?.id || null,
+      }) as any;
 
-      if (error) throw new Error(error.message);
-      return data as any;
+      return normalizeLead(raw);
     },
-    onSuccess: (createdLead) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: leadsKey(orgId, isAdmin, profile?.id) });
       toast({ title: 'Sucesso', description: 'Lead criado com sucesso' });
-
-      if (orgId && createdLead?.id) {
-        supabase.functions.invoke('automation-trigger', {
-          body: {
-            organization_id: orgId, trigger_type: 'lead_created',
-            entity_type: 'lead', entity_id: createdLead.id,
-            context: {
-              lead_name: createdLead.name, lead_phone: createdLead.phone,
-              lead_email: createdLead.email, lead_source: createdLead.source,
-              stage_id: createdLead.stage_id, seller_id: createdLead.seller_id,
-            },
-          },
-        }).then(({ error: fnErr }) => {
-          if (fnErr) console.error('automation-trigger error:', fnErr);
-        });
-      }
     },
     onError: (err: Error) => {
       toast({ title: 'Erro', description: err.message || 'Erro ao criar lead', variant: 'destructive' });
@@ -326,12 +308,7 @@ export function useSupabaseLeads(pipelineId?: string) {
   // ── deleteLead mutation ───────────────────────────────────────────────────
   const deleteLeadMutation = useMutation({
     mutationFn: async (leadId: string) => {
-      if (!profile?.clerk_user_id) throw new Error('Not authenticated');
-      const { error } = await supabase.rpc('delete_lead_rpc', {
-        p_clerk_user_id: profile.clerk_user_id,
-        p_lead_id: leadId,
-      });
-      if (error) throw new Error(error.message);
+      await api.leads.delete(leadId);
       return leadId;
     },
     onMutate: async (leadId) => {
@@ -353,8 +330,7 @@ export function useSupabaseLeads(pipelineId?: string) {
     },
   });
 
-  // ── Supabase Realtime — updates cache without page reload ────────────────
-  // Refs keep the callback closure stable without re-subscribing on every render.
+  // ── Socket.io Realtime updates ────────────────────────────────────────────
   const isAdminRef = useRef(isAdmin);
   const profileIdRef = useRef(profile?.id);
   const stagesRef = useRef(stages);
@@ -367,49 +343,43 @@ export function useSupabaseLeads(pipelineId?: string) {
   useEffect(() => {
     if (!orgId) return;
 
-    const channel = supabase
-      .channel(`leads-rt-${orgId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'leads', filter: `organization_id=eq.${orgId}` },
-        (payload) => {
-          const qc = queryClientRef.current;
-          const key = leadsKey(orgId, isAdminRef.current, profileIdRef.current);
+    const offCreated = on('lead:created', () => {
+      queryClientRef.current.invalidateQueries({
+        queryKey: leadsKey(orgId, isAdminRef.current, profileIdRef.current),
+      });
+    });
 
-          if (payload.eventType === 'DELETE') {
-            // Remove immediately from cache — no refetch needed
-            const deletedId = (payload.old as any).id as string;
-            qc.setQueryData<Lead[]>(key, (old) => (old ?? []).filter((l) => l.id !== deletedId));
-          } else if (payload.eventType === 'UPDATE') {
-            // Patch cache with updated fields + resolve stage_name from local stages
-            const updated = payload.new as any;
-            qc.setQueryData<Lead[]>(key, (old) =>
-              (old ?? []).map((l) =>
-                l.id === updated.id
-                  ? {
-                      ...l,
-                      ...updated,
-                      stage_name:
-                        stagesRef.current.find((s) => s.id === updated.stage_id)?.name ??
-                        l.stage_name,
-                    }
-                  : l
-              )
-            );
-          } else if (payload.eventType === 'INSERT') {
-            // Invalidate so the RPC is re-run with all JOIN fields (stage_name, seller_name…)
-            qc.invalidateQueries({ queryKey: key });
-          }
-        }
-      )
-      .subscribe();
+    const offUpdated = on('lead:updated', (payload: any) => {
+      const qc = queryClientRef.current;
+      const key = leadsKey(orgId, isAdminRef.current, profileIdRef.current);
+      const updated = payload?.lead || payload;
+      if (!updated?.id) { qc.invalidateQueries({ queryKey: key }); return; }
+      qc.setQueryData<Lead[]>(key, old =>
+        (old ?? []).map(l =>
+          l.id === updated.id
+            ? { ...l, ...normalizeLead(updated),
+                stage_name: stagesRef.current.find(s => s.id === (updated.stageId || updated.stage_id))?.name ?? l.stage_name }
+            : l
+        )
+      );
+    });
+
+    const offDeleted = on('lead:deleted', (payload: any) => {
+      const deletedId = payload?.id || payload?.leadId;
+      if (!deletedId) return;
+      const qc = queryClientRef.current;
+      const key = leadsKey(orgId, isAdminRef.current, profileIdRef.current);
+      qc.setQueryData<Lead[]>(key, old => (old ?? []).filter(l => l.id !== deletedId));
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      offCreated?.();
+      offUpdated?.();
+      offDeleted?.();
     };
-  }, [orgId]); // Recreate channel whenever the active org changes
+  }, [orgId, on]);
 
-  // ── Stable wrappers (same signatures as before) ───────────────────────────
+  // ── Stable wrappers ───────────────────────────────────────────────────────
   const moveLead = (leadId: string, newStageId: string) =>
     moveLeadMutation.mutateAsync({ leadId, newStageId });
 

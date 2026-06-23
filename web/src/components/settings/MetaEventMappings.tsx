@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useApi } from "@/hooks/useApi";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, AlertTriangle, Pencil } from "lucide-react";
 
@@ -52,6 +53,7 @@ const META_EVENT_OPTIONS = [
 export function MetaEventMappings() {
   const { profile } = useAuth();
   const orgId = profile?.organization_id;
+  const api = useApi();
 
   const [mappings, setMappings] = useState<Mapping[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
@@ -121,7 +123,7 @@ export function MetaEventMappings() {
 
   const loadPipelines = useCallback(async () => {
     if (!orgId) return;
-    const { data } = await supabase.rpc("get_org_pipelines", { p_org_id: orgId });
+    const data = await api.pipelines.list();
     setPipelines(
       (data || []).filter((p: any) => p.is_active).map((p: any) => ({ id: p.id, name: p.name }))
     );
@@ -129,7 +131,7 @@ export function MetaEventMappings() {
 
   const loadStagesForPipeline = async (pipelineId: string) => {
     setLoadingStages(true);
-    const { data } = await supabase.rpc("get_pipeline_stages", { p_pipeline_id: pipelineId });
+    const data = await api.pipelines.stages(pipelineId);
     setStages(
       (data || [])
         .filter((s: any) => s.is_active)

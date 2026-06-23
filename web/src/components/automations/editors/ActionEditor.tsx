@@ -9,8 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useApi } from "@/hooks/useApi";
 import { CreateEventDefinitionModal } from "./CreateEventDefinitionModal";
 
 interface ActionEditorProps {
@@ -58,6 +58,7 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
   const params = config.params || {};
   const { profile, orgId: authOrgId } = useAuth();
   const orgId = profile?.organization_id || authOrgId;
+  const api = useApi();
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -71,16 +72,15 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
     if (!orgId) return;
 
     const fetchData = async () => {
-      const [pRes, sRes, mRes, eRes] = await Promise.all([
-        supabase.rpc("get_org_pipelines", { p_org_id: orgId }),
-        supabase.rpc("get_org_lead_sources", { p_org_id: orgId }),
-        supabase.rpc("get_org_members", { p_org_id: orgId }),
-        supabase.from("capi_event_definitions" as any).select("id, name, meta_event_name").eq("organization_id", orgId).eq("active", true).order("name"),
+      const [pipelines, sources, members] = await Promise.all([
+        api.pipelines.list(),
+        api.leadSources.list(),
+        api.users.list(),
       ]);
-      if (pRes.data) setPipelines(pRes.data as Pipeline[]);
-      if (sRes.data) setSources(sRes.data as LeadSource[]);
-      if (mRes.data) setMembers((mRes.data as any[]).map((m: any) => ({ id: m.user_id, name: m.full_name || m.clerk_user_id })));
-      if (eRes.data) setEventDefs(eRes.data as any[]);
+      setPipelines(pipelines || []);
+      setSources(sources || []);
+      setMembers((members || []).map((m: any) => ({ id: m.id || m.user_id, name: m.name || m.full_name || m.clerk_user_id })));
+      setEventDefs([]); // capi_event_definitions not available in new API
     };
     fetchData();
   }, [orgId]);
@@ -92,9 +92,7 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
       return;
     }
     const fetchStages = async () => {
-      const { data } = await supabase.rpc("get_pipeline_stages", {
-        p_pipeline_id: params.pipeline_id,
-      });
+      const data = await api.pipelines.stages(params.pipeline_id);
       if (data) setStages(data as Stage[]);
     };
     fetchStages();

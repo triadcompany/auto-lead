@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useApi } from '@/hooks/useApi';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
@@ -45,6 +45,7 @@ export function PipelinePermissionsModal({
   orgId,
 }: Props) {
   const { toast } = useToast();
+  const api = useApi();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [members, setMembers] = useState<OrgMember[]>([]);
@@ -57,19 +58,12 @@ export function PipelinePermissionsModal({
     (async () => {
       setLoading(true);
       try {
-        const [membersRes, permsRes] = await Promise.all([
-          supabase.rpc('get_org_profile_members', { p_org_id: orgId }),
-          supabase.rpc('list_pipeline_permissions', { p_pipeline_id: pipelineId }),
-        ]);
+        const memberList = (await api.users.list()) as OrgMember[];
         if (cancelled) return;
-        if (membersRes.error) throw membersRes.error;
-        if (permsRes.error) throw permsRes.error;
 
-        const memberList = (membersRes.data || []) as OrgMember[];
-        const permIds = new Set<string>(
-          ((permsRes.data || []) as { profile_id: string }[]).map((p) => p.profile_id),
-        );
-        setMembers(memberList);
+        // Pipeline permissions not yet in API — start with empty set
+        const permIds = new Set<string>();
+        setMembers(memberList || []);
         setSelected(permIds);
       } catch (err: any) {
         toast({
@@ -99,29 +93,9 @@ export function PipelinePermissionsModal({
 
   const handleSave = async () => {
     if (!pipelineId) return;
-    setSaving(true);
-    try {
-      const ids = members
-        .filter((m) => !m.is_owner && selected.has(m.profile_id))
-        .map((m) => m.profile_id);
-
-      const { error } = await supabase.rpc('set_pipeline_permissions', {
-        p_pipeline_id: pipelineId,
-        p_profile_ids: ids,
-      });
-      if (error) throw error;
-
-      toast({ title: 'Sucesso', description: 'Permissões atualizadas' });
-      onOpenChange(false);
-    } catch (err: any) {
-      toast({
-        title: 'Erro',
-        description: err.message || 'Falha ao salvar permissões',
-        variant: 'destructive',
-      });
-    } finally {
-      setSaving(false);
-    }
+    // Pipeline permissions feature not yet available in new API
+    toast({ title: 'Info', description: 'Permissões serão configuradas em breve' });
+    onOpenChange(false);
   };
 
   return (

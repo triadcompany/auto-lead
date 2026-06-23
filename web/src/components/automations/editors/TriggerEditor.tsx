@@ -10,8 +10,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { AI_EVENT_OPTIONS } from "@/services/automationEventBus";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useApi } from "@/hooks/useApi";
 import { Loader2 } from "lucide-react";
 
 interface TriggerEditorProps {
@@ -43,6 +43,7 @@ const matchTypes = [
 export function TriggerEditor({ config, onChange }: TriggerEditorProps) {
   const { profile, orgId: authOrgId } = useAuth();
   const orgId = profile?.organization_id || authOrgId;
+  const api = useApi();
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   const [stages, setStages] = useState<{ id: string; name: string; position: number }[]>([]);
   const [loadingPipelines, setLoadingPipelines] = useState(false);
@@ -52,9 +53,8 @@ export function TriggerEditor({ config, onChange }: TriggerEditorProps) {
   useEffect(() => {
     if (!["deal_stage_changed", "lead_stage_changed"].includes(config.triggerType) || !orgId) return;
     setLoadingPipelines(true);
-    Promise.resolve(
-      supabase.rpc("get_org_pipelines", { p_org_id: orgId })
-    ).then(({ data }) => {
+    api.pipelines.list()
+      .then((data) => {
         setPipelines((data || []).filter((p: any) => p.is_active).map((p: any) => ({ id: p.id, name: p.name })));
       })
       .finally(() => setLoadingPipelines(false));
@@ -67,9 +67,8 @@ export function TriggerEditor({ config, onChange }: TriggerEditorProps) {
       return;
     }
     setLoadingStages(true);
-    Promise.resolve(
-      supabase.rpc("get_pipeline_stages", { p_pipeline_id: config.pipeline_id })
-    ).then(({ data }) => {
+    api.pipelines.stages(config.pipeline_id)
+      .then((data) => {
         setStages(
           (data || [])
             .filter((s: any) => s.is_active)

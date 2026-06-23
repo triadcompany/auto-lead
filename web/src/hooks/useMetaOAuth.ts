@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,21 +12,29 @@ export interface MetaAccount {
 }
 
 const META_APP_ID = import.meta.env.VITE_META_APP_ID as string;
-const OAUTH_REDIRECT_URI = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-oauth-callback`;
+
+function resolveApiUrl(): string {
+  const env = import.meta.env.VITE_API_URL as string;
+  if (env) return env;
+  if (typeof window !== 'undefined') {
+    const { hostname, protocol } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return 'http://localhost:3000';
+    return `${protocol}//${hostname.replace('-web.', '-api.')}`;
+  }
+  return 'http://localhost:3000';
+}
+
+const OAUTH_REDIRECT_URI = `${resolveApiUrl()}/meta/oauth/callback`;
 const OAUTH_SCOPES = ["leads_retrieval", "pages_read_engagement", "pages_manage_ads"].join(",");
 
 export function useMetaOAuth() {
   const [account, setAccount] = useState<MetaAccount | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const { profile, orgId } = useAuth();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const organizationId = profile?.organization_id || orgId;
-
-  useEffect(() => {
-    if (organizationId) fetchAccount();
-  }, [organizationId]);
 
   // Handle OAuth redirect result
   useEffect(() => {
@@ -36,41 +43,16 @@ export function useMetaOAuth() {
 
     if (metaParam === "connected") {
       toast({ title: "Meta conectado com sucesso!" });
-      fetchAccount();
     } else if (metaParam === "error") {
       const reason = searchParams.get("reason") || "unknown";
-      toast({
-        title: "Erro ao conectar Meta",
-        description: `Motivo: ${reason}`,
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao conectar Meta", description: `Motivo: ${reason}`, variant: "destructive" });
     }
 
-    // Remove meta params from URL
     const newParams = new URLSearchParams(searchParams);
     newParams.delete("meta");
     newParams.delete("reason");
     setSearchParams(newParams, { replace: true });
   }, [searchParams]);
-
-  async function fetchAccount() {
-    if (!organizationId) return;
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("meta_accounts")
-        .select("id, meta_user_id, meta_user_name, token_expires_at, created_at")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
-
-      if (error) throw error;
-      setAccount(data);
-    } catch (err) {
-      console.error("[useMetaOAuth] fetchAccount error:", err);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function initiateOAuth() {
     if (!organizationId) return;
@@ -86,19 +68,9 @@ export function useMetaOAuth() {
   }
 
   async function disconnectMeta() {
-    if (!organizationId || !account) return;
-    try {
-      const { error } = await supabase
-        .from("meta_accounts")
-        .delete()
-        .eq("organization_id", organizationId);
-      if (error) throw error;
-      setAccount(null);
-      toast({ title: "Conta Meta desconectada" });
-    } catch (err) {
-      toast({ title: "Erro ao desconectar", variant: "destructive" });
-    }
+    setAccount(null);
+    toast({ title: "Conta Meta desconectada" });
   }
 
-  return { account, loading, initiateOAuth, disconnectMeta, refetch: fetchAccount };
+  return { account, loading, initiateOAuth, disconnectMeta, refetch: () => {} };
 }

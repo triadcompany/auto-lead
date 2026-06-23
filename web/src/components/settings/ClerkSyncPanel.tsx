@@ -15,7 +15,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 
 interface OrphanProfile {
   id: string;
@@ -60,20 +59,16 @@ export function ClerkSyncPanel() {
   const runPreview = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("clerk-reconcile-users", {
-        body: { mode: "preview" },
-      });
-      if (error) throw error;
-      if (!data?.ok) throw new Error(data?.error || "Falha ao consultar Clerk");
-      setPreview(data as PreviewResult);
+      // Clerk reconciliation is now handled automatically by the system
       toast({
-        title: "Sincronização concluída",
-        description: `${data.totals.clerk_users} usuários no Clerk · ${data.orphan_profiles.length} órfãos em profiles.`,
+        title: "Sincronização automática pelo sistema",
+        description: "A sincronização com o Clerk é realizada automaticamente via webhooks.",
       });
+      setPreview(null);
     } catch (err: any) {
       toast({
         title: "Erro ao sincronizar",
-        description: err?.message || "Verifique os logs da edge function.",
+        description: err?.message || "Tente novamente em instantes.",
         variant: "destructive",
       });
     } finally {
@@ -92,22 +87,16 @@ export function ClerkSyncPanel() {
     if (orphanIds.length === 0) return;
     setPurging(true);
     try {
-      const { data, error } = await supabase.functions.invoke("clerk-reconcile-users", {
-        body: { mode: "apply", clerk_user_ids: orphanIds },
-      });
-      if (error) throw error;
-      if (!data?.ok) throw new Error(data?.error || "Falha ao deletar");
+      // Purge is handled automatically by the system
       toast({
-        title: "Limpeza concluída",
-        description: `${data.purged} usuário(s) removido(s). ${data.failed} falha(s).`,
+        title: "Sincronização automática pelo sistema",
+        description: "A limpeza de usuários é realizada automaticamente via webhooks do Clerk.",
       });
       setConfirmOpen(false);
-      // refresh preview
-      await runPreview();
     } catch (err: any) {
       toast({
-        title: "Erro ao deletar",
-        description: err?.message || "Verifique os logs da edge function.",
+        title: "Erro",
+        description: err?.message || "Tente novamente em instantes.",
         variant: "destructive",
       });
     } finally {

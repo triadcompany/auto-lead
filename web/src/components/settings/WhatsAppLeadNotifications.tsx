@@ -3,8 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApi } from '@/hooks/useApi';
 import { MessageSquare, Phone, ArrowRight, CheckCircle2, XCircle, Send, Users, ArrowRightLeft, FileText } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
@@ -63,6 +63,7 @@ export function WhatsAppLeadNotifications() {
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
   const { profile, isAdmin } = useAuth();
   const { toast } = useToast();
+  const api = useApi();
 
   useEffect(() => {
     if (profile?.organization_id) {
@@ -146,14 +147,11 @@ export function WhatsAppLeadNotifications() {
 
     setTestingCompany(true);
     try {
-      const { error } = await supabase.functions.invoke('test-whatsapp-notification', {
-        body: {
-          to: integration.phone_number,
-          message: "✅ Mensagem de teste do sistema AutoLead CRM. Sua integração Evolution está funcionando corretamente!"
-        }
-      });
-
-      if (error) throw error;
+      await api.whatsapp.send(
+        integration.evolution_instance_id || '',
+        integration.phone_number,
+        "✅ Mensagem de teste do sistema AutoLead CRM. Sua integração Evolution está funcionando corretamente!"
+      );
 
       toast({
         title: "Sucesso",
@@ -182,14 +180,11 @@ export function WhatsAppLeadNotifications() {
 
     setTestingUsers(prev => ({ ...prev, [userId]: true }));
     try {
-      const { error } = await supabase.functions.invoke('test-whatsapp-notification', {
-        body: {
-          to: whatsappNumber,
-          message: `🚀 Teste de notificação: seu número está corretamente configurado para receber leads, ${userName}!`
-        }
-      });
-
-      if (error) throw error;
+      await api.whatsapp.send(
+        integration?.evolution_instance_id || '',
+        whatsappNumber,
+        `🚀 Teste de notificação: seu número está corretamente configurado para receber leads, ${userName}!`
+      );
 
       setUserStatus(prev => ({ ...prev, [userId]: 'success' }));
       toast({

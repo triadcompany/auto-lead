@@ -22,7 +22,6 @@ import { ConversationList } from '@/components/instagram/ConversationList';
 import { ChatWindow } from '@/components/instagram/ChatWindow';
 import { AddLeadModal } from '@/components/modals/AddLeadModal';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSupabaseLeads } from '@/hooks/useSupabaseLeads';
 
@@ -76,65 +75,22 @@ export default function Mensagens() {
       return;
     }
 
-    setConnecting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('instagram-connect', {
-        body: {
-          action: 'get_oauth_url',
-          redirectUri: `${window.location.origin}/mensagens`,
-        },
-      });
-
-      if (error) throw error;
-
-      if (data?.url) {
-        window.location.href = data.url;
-      }
-    } catch (error: any) {
-      toast({
-        title: "Erro ao conectar",
-        description: error.message || "Não foi possível iniciar a conexão com o Instagram",
-        variant: "destructive",
-      });
-    } finally {
-      setConnecting(false);
-    }
+    toast({
+      title: "Em manutenção",
+      description: "Integração Instagram em manutenção",
+      variant: "destructive",
+    });
   };
 
   const handleOAuthCallback = async (code: string) => {
     setConnecting(true);
     try {
-      // Exchange code for token
-      const { data: exchangeData, error: exchangeError } = await supabase.functions.invoke('instagram-connect', {
-        body: {
-          action: 'exchange_code',
-          code,
-          redirectUri: `${window.location.origin}/mensagens`,
-        },
+      // Instagram OAuth not available in new API
+      toast({
+        title: "Em manutenção",
+        description: "Integração Instagram em manutenção",
+        variant: "destructive",
       });
-
-      if (exchangeError) throw exchangeError;
-
-      if (exchangeData?.pages?.length > 0) {
-        // Save the first page with Instagram
-        const page = exchangeData.pages[0];
-        const { error: saveError } = await supabase.functions.invoke('instagram-connect', {
-          body: {
-            action: 'save_connection',
-            page,
-          },
-        });
-
-        if (saveError) throw saveError;
-
-        toast({
-          title: "Instagram conectado!",
-          description: `Conta @${page.instagram_business_account?.username} conectada com sucesso`,
-        });
-
-        // Refresh connections
-        fetchConnections();
-      }
 
       // Clean URL
       window.history.replaceState({}, document.title, '/mensagens');

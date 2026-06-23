@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Mail, Building2, Loader2, CheckCircle2, XCircle, Clock, ArrowRight } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { createApi } from "@/lib/api";
 
 interface InvitationData {
   id: string;
@@ -36,20 +36,18 @@ export default function Invite() {
     let cancelled = false;
     (async () => {
       try {
-        const { data, error } = await supabase.functions.invoke("validate-invitation", {
-          body: { token },
-        });
-
-        if (cancelled) return;
-
-        if (error) {
-          setState({
-            status: "invalid",
-            code: "ERROR",
-            error: error.message || "Erro ao validar convite.",
-          });
+        const api = createApi(() => Promise.resolve(null));
+        let data: any;
+        try {
+          data = await api.users.validateInvitation(token);
+        } catch (err: any) {
+          if (!cancelled) {
+            setState({ status: "invalid", code: "ERROR", error: err.message || "Erro ao validar convite." });
+          }
           return;
         }
+
+        if (cancelled) return;
 
         if (data?.ok && data?.invitation) {
           setState({ status: "valid", invitation: data.invitation });

@@ -21,7 +21,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLeadSources } from "@/hooks/useLeadSources";
 import { useSupabaseProfiles } from "@/hooks/useSupabaseProfiles";
-import { supabase } from "@/integrations/supabase/client";
+import { useApi } from "@/hooks/useApi";
 import { Loader2 } from "lucide-react";
 
 interface CreateLeadFromInboxModalProps {
@@ -76,6 +76,7 @@ export function CreateLeadFromInboxModal({
   onSave,
 }: CreateLeadFromInboxModalProps) {
   const { profile, role, user } = useAuth();
+  const api = useApi();
   const { profiles } = useSupabaseProfiles();
   const { leadSources } = useLeadSources();
 
@@ -119,32 +120,35 @@ export function CreateLeadFromInboxModal({
 
   const fetchPipelines = useCallback(async () => {
     if (!profile?.organization_id) return;
-    const { data } = await supabase.rpc('get_org_pipelines', {
-      p_org_id: profile.organization_id,
-    });
-    const list = ((data || []) as any[]).map(p => ({
-      id: p.id, name: p.name, is_default: p.is_default,
-    }));
-    setPipelines(list);
-    const def = list.find(p => p.is_default) || list[0];
-    if (def) setSelectedPipelineId(def.id);
-  }, [profile?.organization_id]);
+    try {
+      const data = await api.pipelines.list() as any[];
+      const list = (data || []).map((p: any) => ({
+        id: p.id, name: p.name, is_default: p.isDefault || p.is_default,
+      }));
+      setPipelines(list);
+      const def = list.find((p: any) => p.is_default) || list[0];
+      if (def) setSelectedPipelineId(def.id);
+    } catch (err) {
+      console.error('[CreateLeadModal] fetch pipelines error:', err);
+    }
+  }, [profile?.organization_id, api]);
 
   useEffect(() => {
     if (!selectedPipelineId) return;
     setLoadingStages(true);
-    supabase.rpc('get_pipeline_stages', { p_pipeline_id: selectedPipelineId })
-      .then(({ data }) => {
+    api.pipelines.stages(selectedPipelineId)
+      .then((data: any) => {
         const stageList = ((data || []) as any[])
-          .filter(s => s.is_active !== false)
-          .map(s => ({ id: s.id, name: s.name, position: s.position }))
-          .sort((a, b) => a.position - b.position);
+          .filter((s: any) => s.isActive !== false && s.is_active !== false)
+          .map((s: any) => ({ id: s.id, name: s.name, position: s.position }))
+          .sort((a: any, b: any) => a.position - b.position);
         setStages(stageList);
-        const andamento = stageList.find(s => s.name.toLowerCase() === 'andamento');
+        const andamento = stageList.find((s: any) => s.name.toLowerCase() === 'andamento');
         setSelectedStageId(andamento?.id || stageList[0]?.id || "");
         setLoadingStages(false);
-      });
-  }, [selectedPipelineId]);
+      })
+      .catch(() => setLoadingStages(false));
+  }, [selectedPipelineId, api]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

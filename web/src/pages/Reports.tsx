@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,7 @@ export function Reports() {
   const { salesStageIds } = useSalesStageIds();
   const { profile, orgId: authOrgId } = useAuth();
   const orgId = authOrgId || profile?.organization_id;
+  const api = useApi();
   
   const [selectedPeriod, setSelectedPeriod] = useState("este_mes");
   const [selectedSource, setSelectedSource] = useState("todas");
@@ -96,15 +97,15 @@ export function Reports() {
     let cancelled = false;
     (async () => {
       try {
-        const { data: pipelineList } = await supabase.rpc('get_org_pipelines', { p_org_id: orgId });
-        const list = (pipelineList || []) as Array<{ id: string; name: string }>;
+        const pipelineList = await api.pipelines.list() as any[];
+        const list = (pipelineList || []).map((p: any) => ({ id: p.id, name: p.name }));
         if (cancelled) return;
         setPipelines(list);
 
         const map: Record<string, string> = {};
         await Promise.all(
-          list.map(async (p) => {
-            const { data: stageList } = await supabase.rpc('get_pipeline_stages', { p_pipeline_id: p.id });
+          list.map(async (p: any) => {
+            const stageList = await api.pipelines.stages(p.id) as any[];
             (stageList || []).forEach((s: any) => {
               map[s.id] = p.id;
             });

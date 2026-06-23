@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUser } from "@clerk/clerk-react";
 import {
@@ -67,6 +67,7 @@ function formatDateTime(iso: string | null): string {
 
 export function EvolutionIntegration() {
   const { toast } = useToast();
+  const api = useApi();
   const { profile, isAdmin, orgId: authOrgId } = useAuth();
   const { user: clerkUser } = useUser();
   const orgId = authOrgId || profile?.organization_id;
@@ -97,11 +98,7 @@ export function EvolutionIntegration() {
     if (!requestOrgId) return null;
 
     try {
-      const { data, error } = await supabase.functions.invoke("whatsapp-status", {
-        body: { organization_id: requestOrgId, refresh_qr: refreshQr },
-        headers: clerkUserId ? { "x-clerk-user-id": clerkUserId } : {},
-      });
-      if (error) throw error;
+      const data = await api.whatsapp.me() as any;
 
       if (activeOrgRef.current !== requestOrgId) {
         return null;
@@ -186,42 +183,28 @@ export function EvolutionIntegration() {
     if (!orgId || !clerkUserId) return;
     setBusy("connect");
     try {
-      const { data, error } = await supabase.functions.invoke("whatsapp-connect", {
-        body: { organization_id: orgId },
-        headers: { "x-clerk-user-id": clerkUserId },
-      });
-      if (error) throw error;
+      const data = await api.whatsapp.meConnect() as any;
       if (!data?.ok) {
-        // Caso o backend detecte que já existe conexão ativa, sincronize a UI
-        const errMsg = String(data?.error || "");
-        if (/já existe|already/i.test(errMsg)) {
+        if (data?.already_connected) {
           await fetchStatus();
-          toast({
-            title: "WhatsApp já está conectado",
-            description: "Sincronizamos o status atual da sua conexão.",
-          });
+          toast({ title: "WhatsApp já está conectado", description: "Sincronizamos o status atual da sua conexão." });
           return;
         }
-        throw new Error(errMsg || "Falha ao iniciar conexão");
+        throw new Error(data?.error || "Falha ao iniciar conexão");
       }
 
-      setConn(data.connection);
+      if (data.connection) {
+        setConn(data.connection);
+      } else if (data.qr_code) {
+        const current = await fetchStatus();
+        if (!current) {
+          setConn({ instance_name: data.instance_name, phone_number: null, status: 'connecting', qr_code: data.qr_code, connected_at: null, last_connected_at: null, last_disconnected_at: null, mirror_enabled: false, mirror_enabled_at: null });
+        }
+      }
       setQrStartedAt(Date.now());
       toast({ title: "QR Code gerado", description: "Escaneie com seu WhatsApp." });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      // Tratamento amigável: se a Edge Function devolveu non-2xx (ex.: 409), o supabase-js
-      // joga FunctionsHttpError sem o body. Tentamos sincronizar antes de mostrar erro feio.
-      if (/non-2xx|FunctionsHttpError|409/i.test(msg)) {
-        const synced = await fetchStatus();
-        if (synced?.status === "connected") {
-          toast({
-            title: "WhatsApp já está conectado",
-            description: "Sincronizamos o status atual da sua conexão.",
-          });
-          return;
-        }
-      }
       toast({ title: "Erro ao conectar", description: msg, variant: "destructive" });
     } finally {
       setBusy(null);
@@ -242,12 +225,7 @@ export function EvolutionIntegration() {
     if (!orgId || !clerkUserId) return;
     setBusy("disconnect");
     try {
-      const { data, error } = await supabase.functions.invoke("whatsapp-disconnect", {
-        body: { organization_id: orgId },
-        headers: { "x-clerk-user-id": clerkUserId },
-      });
-      if (error) throw error;
-      if (!data?.ok) throw new Error(data?.error || "Falha ao desconectar");
+      await api.whatsapp.meDisconnect();
       toast({ title: "WhatsApp desconectado" });
       await fetchStatus();
     } catch (err) {

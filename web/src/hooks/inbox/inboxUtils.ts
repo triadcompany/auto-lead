@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { createApi } from '@/lib/api';
 
 export type ConversationStatus = 'open' | 'in_progress' | 'waiting_customer' | 'closed';
 
@@ -84,34 +84,28 @@ export function dedupeAndSort(msgs: InboxMessage[]): InboxMessage[] {
   });
 }
 
+// rpcUpdate agora usa a API REST em vez de Supabase RPC
 export async function rpcUpdate(
-  orgId: string,
-  clerkUserId: string,
+  _orgId: string,
+  _clerkUserId: string,
   conversationId: string,
-  updates: Record<string, any>
+  updates: Record<string, any>,
+  getToken?: () => Promise<string | null>
 ): Promise<void> {
-  await supabase.rpc('update_conversation' as any, {
-    p_clerk_user_id: clerkUserId,
-    p_org_id: orgId,
-    p_conversation_id: conversationId,
-    p_updates: updates,
-  });
+  if (!getToken) return; // sem token, ignora silenciosamente
+  const api = createApi(getToken);
+  await api.conversations.update(conversationId, updates);
 }
 
+// rpcEvent: eventos de conversa — a API registra eventos internamente via update
 export async function rpcEvent(
-  orgId: string,
-  clerkUserId: string,
-  conversationId: string,
-  eventType: string,
-  metadata?: any
+  _orgId: string,
+  _clerkUserId: string,
+  _conversationId: string,
+  _eventType: string,
+  _metadata?: any
 ): Promise<void> {
-  await supabase.rpc('insert_conversation_event' as any, {
-    p_clerk_user_id: clerkUserId,
-    p_org_id: orgId,
-    p_conversation_id: conversationId,
-    p_event_type: eventType,
-    p_metadata: metadata || null,
-  });
+  // Events are handled server-side when conversations are updated
 }
 
 export function sortThreadsByRecency(threads: InboxThread[]): InboxThread[] {

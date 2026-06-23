@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useApi } from "@/hooks/useApi";
 import {
   provisionMetaIntegration,
   deprovisionMetaIntegration,
@@ -57,183 +57,155 @@ export interface MetaFormField {
   type: string;
 }
 
-const GRAPH_PROXY = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-graph-proxy`;
+function normalize(i: any): MetaIntegration {
+  return {
+    id: i.id,
+    campaign_name: i.campaignName || i.campaign_name || '',
+    meta_page_id: i.metaPageId || i.meta_page_id || '',
+    meta_page_name: i.metaPageName || i.meta_page_name || null,
+    meta_form_id: i.metaFormId || i.meta_form_id || '',
+    meta_form_name: i.metaFormName || i.meta_form_name || null,
+    pipeline_id: i.pipelineId || i.pipeline_id || null,
+    stage_id: i.stageId || i.stage_id || null,
+    seller_id: i.sellerId || i.seller_id || null,
+    field_mapping: i.fieldMapping || i.field_mapping || {},
+    status: i.status || 'inactive',
+    last_lead_at: i.lastLeadAt || i.last_lead_at || null,
+    error_message: i.errorMessage || i.error_message || null,
+    n8n_workflow_id: i.n8nWorkflowId || i.n8n_workflow_id || null,
+    n8n_credential_id: i.n8nCredentialId || i.n8n_credential_id || null,
+  };
+}
 
 export function useMetaIntegrations() {
+  const { orgId } = useAuth();
+  const { toast } = useToast();
+  const api = useApi();
   const [integrations, setIntegrations] = useState<MetaIntegration[]>([]);
   const [loading, setLoading] = useState(true);
-  const { profile, orgId } = useAuth();
-  const { toast } = useToast();
-
-  const organizationId = profile?.organization_id || orgId;
 
   const fetchIntegrations = useCallback(async () => {
-    if (!organizationId) return;
-    setLoading(true);
+    if (!orgId) { setLoading(false); return; }
     try {
-      const { data, error } = await supabase
-        .from("meta_integrations")
-        .select("*")
-        .eq("organization_id", organizationId)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setIntegrations((data || []) as MetaIntegration[]);
+      const data = await api.meta.integrations() as any[];
+      setIntegrations(data.map(normalize));
     } catch (err) {
-      console.error("[useMetaIntegrations] fetch error:", err);
+      console.error('Error fetching meta integrations:', err);
     } finally {
       setLoading(false);
     }
-  }, [organizationId]);
+  }, [orgId, api]);
 
-  useEffect(() => {
-    fetchIntegrations();
-  }, [fetchIntegrations]);
+  useEffect(() => { fetchIntegrations(); }, [fetchIntegrations]);
 
-  async function fetchPages(orgId: string): Promise<MetaPage[]> {
-    const res = await fetch(`${GRAPH_PROXY}?action=pages&org_id=${orgId}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-    return data.pages || [];
-  }
-
-  async function fetchForms(orgId: string, pageId: string): Promise<MetaForm[]> {
-    const res = await fetch(`${GRAPH_PROXY}?action=forms&org_id=${orgId}&page_id=${pageId}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-    return data.forms || [];
-  }
-
-  async function fetchFormFields(orgId: string, formId: string): Promise<MetaFormField[]> {
-    const res = await fetch(`${GRAPH_PROXY}?action=form_fields&org_id=${orgId}&form_id=${formId}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-    return data.fields || [];
-  }
-
-  async function createIntegration(formData: CreateIntegrationData): Promise<void> {
-    if (!organizationId) return;
-
-    // Insert with provisioning status
-    const { data: inserted, error: insertError } = await supabase
-      .from("meta_integrations")
-      .insert({
-        organization_id: organizationId,
-        meta_account_id: formData.metaAccountId,
-        campaign_name: formData.campaignName,
-        meta_page_id: formData.metaPageId,
-        meta_page_name: formData.metaPageName,
-        meta_form_id: formData.metaFormId,
-        meta_form_name: formData.metaFormName,
-        pipeline_id: formData.pipelineId,
-        stage_id: formData.stageId,
-        seller_id: formData.sellerId,
-        field_mapping: formData.fieldMapping,
-        status: "provisioning",
-      })
-      .select()
-      .single();
-
-    if (insertError || !inserted) {
-      toast({ title: "Erro ao criar integração", variant: "destructive" });
-      throw insertError;
-    }
-
-    await fetchIntegrations();
-
-    // Get Meta access token
-    const { data: account } = await supabase
-      .from("meta_accounts")
-      .select("access_token")
-      .eq("id", formData.metaAccountId)
-      .single();
-
-    if (!account) {
-      await supabase.from("meta_integrations").update({ status: "error", error_message: "Meta account not found" }).eq("id", inserted.id);
-      toast({ title: "Conta Meta não encontrada", variant: "destructive" });
-      return;
-    }
-
+  const fetchPages = useCallback(async (): Promise<MetaPage[]> => {
     try {
-      const result = await provisionMetaIntegration({
-        orgId: organizationId,
-        orgName: profile?.name || organizationId,
-        campaignName: formData.campaignName,
-        integrationId: inserted.id,
-        metaFormId: formData.metaFormId,
-        metaAccessToken: account.access_token,
-        fieldMapping: formData.fieldMapping,
-      });
+      const data = await api.meta.graph('pages') as any;
+      return (data?.data || data || []) as MetaPage[];
+    } catch {
+      return [];
+    }
+  }, [api]);
 
-      await supabase
-        .from("meta_integrations")
-        .update({
-          status: "active",
+  const fetchForms = useCallback(async (pageId: string): Promise<MetaForm[]> => {
+    try {
+      const data = await api.meta.graph('forms', { page_id: pageId }) as any;
+      return (data?.data || data || []) as MetaForm[];
+    } catch {
+      return [];
+    }
+  }, [api]);
+
+  const fetchFormFields = useCallback(async (formId: string): Promise<MetaFormField[]> => {
+    try {
+      const data = await api.meta.graph('form_fields', { form_id: formId }) as any;
+      return (data?.data || data || []) as MetaFormField[];
+    } catch {
+      return [];
+    }
+  }, [api]);
+
+  const createIntegration = useCallback(async (data: CreateIntegrationData): Promise<boolean> => {
+    if (!orgId) return false;
+    try {
+      const created = await api.meta.createIntegration({
+        campaign_name: data.campaignName,
+        meta_page_id: data.metaPageId,
+        meta_page_name: data.metaPageName,
+        meta_form_id: data.metaFormId,
+        meta_form_name: data.metaFormName,
+        pipeline_id: data.pipelineId,
+        stage_id: data.stageId,
+        seller_id: data.sellerId,
+        field_mapping: data.fieldMapping,
+        status: 'provisioning',
+      }) as any;
+
+      try {
+        const result = await provisionMetaIntegration({
+          integrationId: created.id,
+          organizationId: orgId,
+          metaAccountId: data.metaAccountId,
+          metaPageId: data.metaPageId,
+          metaFormId: data.metaFormId,
+          fieldMapping: data.fieldMapping,
+          pipelineId: data.pipelineId,
+          stageId: data.stageId,
+          sellerId: data.sellerId,
+        });
+
+        await api.meta.updateIntegration(created.id, {
+          status: 'active',
           n8n_workflow_id: result.workflowId,
-          n8n_folder_id: result.folderId,
           n8n_credential_id: result.credentialId,
-          error_message: null,
-        })
-        .eq("id", inserted.id);
-
-      toast({ title: "Integração ativada com sucesso!" });
-    } catch (err: any) {
-      await supabase
-        .from("meta_integrations")
-        .update({ status: "error", error_message: err.message })
-        .eq("id", inserted.id);
-
-      toast({ title: "Erro ao provisionar N8N", description: err.message, variant: "destructive" });
-    }
-
-    await fetchIntegrations();
-  }
-
-  async function toggleIntegration(id: string, active: boolean): Promise<void> {
-    const integration = integrations.find((i) => i.id === id);
-    if (!integration?.n8n_workflow_id || !organizationId) return;
-
-    try {
-      await setWorkflowActive(organizationId, integration.n8n_workflow_id, active);
-      await supabase
-        .from("meta_integrations")
-        .update({ status: active ? "active" : "inactive" })
-        .eq("id", id);
-      await fetchIntegrations();
-    } catch (err: any) {
-      toast({ title: "Erro ao alterar status", description: err.message, variant: "destructive" });
-    }
-  }
-
-  async function deleteIntegration(id: string): Promise<void> {
-    const integration = integrations.find((i) => i.id === id);
-    if (!organizationId) return;
-
-    try {
-      if (integration?.n8n_workflow_id && integration?.n8n_credential_id) {
-        await deprovisionMetaIntegration(
-          organizationId,
-          integration.n8n_workflow_id,
-          integration.n8n_credential_id
-        );
+        });
+      } catch (provisionErr: any) {
+        await api.meta.updateIntegration(created.id, {
+          status: 'error',
+          error_message: provisionErr.message || 'Erro ao provisionar',
+        });
+        toast({ title: 'Aviso', description: 'Integração criada mas falhou ao ativar n8n. Verifique os logs.', variant: 'destructive' });
       }
-      await supabase.from("meta_integrations").delete().eq("id", id);
-      await fetchIntegrations();
-      toast({ title: "Integração removida" });
-    } catch (err: any) {
-      toast({ title: "Erro ao remover integração", description: err.message, variant: "destructive" });
-    }
-  }
 
-  return {
-    integrations,
-    loading,
-    fetchIntegrations,
-    fetchPages,
-    fetchForms,
-    fetchFormFields,
-    createIntegration,
-    toggleIntegration,
-    deleteIntegration,
-  };
+      await fetchIntegrations();
+      toast({ title: 'Sucesso', description: 'Integração Meta criada com sucesso' });
+      return true;
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message || 'Erro ao criar integração', variant: 'destructive' });
+      return false;
+    }
+  }, [orgId, api, fetchIntegrations, toast]);
+
+  const toggleIntegration = useCallback(async (id: string, active: boolean): Promise<boolean> => {
+    const integration = integrations.find(i => i.id === id);
+    if (!integration?.n8n_workflow_id) return false;
+    try {
+      await setWorkflowActive(integration.n8n_workflow_id, active);
+      await api.meta.updateIntegration(id, { status: active ? 'active' : 'inactive' });
+      await fetchIntegrations();
+      toast({ title: 'Sucesso', description: active ? 'Integração ativada' : 'Integração desativada' });
+      return true;
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message || 'Erro ao alterar status', variant: 'destructive' });
+      return false;
+    }
+  }, [integrations, api, fetchIntegrations, toast]);
+
+  const deleteIntegration = useCallback(async (id: string): Promise<boolean> => {
+    const integration = integrations.find(i => i.id === id);
+    try {
+      if (integration?.n8n_workflow_id) {
+        await deprovisionMetaIntegration(integration.n8n_workflow_id, integration.n8n_credential_id || '');
+      }
+      await api.meta.deleteIntegration(id);
+      await fetchIntegrations();
+      toast({ title: 'Sucesso', description: 'Integração removida' });
+      return true;
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message || 'Erro ao remover integração', variant: 'destructive' });
+      return false;
+    }
+  }, [integrations, api, fetchIntegrations, toast]);
+
+  return { integrations, loading, fetchIntegrations, fetchPages, fetchForms, fetchFormFields, createIntegration, toggleIntegration, deleteIntegration };
 }

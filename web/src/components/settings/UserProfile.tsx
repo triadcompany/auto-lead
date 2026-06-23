@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useClerk, useUser } from "@clerk/clerk-react";
-import { supabase } from "@/integrations/supabase/client";
+import { useApi } from "@/hooks/useApi";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useNavigate } from "react-router-dom";
 import { resizeAndCropToSquare } from "@/lib/image";
@@ -32,6 +32,7 @@ export function UserProfile() {
   const { toast } = useToast();
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const navigate = useNavigate();
+  const api = useApi();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isUpdating, setIsUpdating] = useState(false);
@@ -52,17 +53,7 @@ export function UserProfile() {
       setFormData({ name: userName });
       setProfileLoaded(true);
 
-      // Auto-sync to Supabase silently if profile exists with empty name
-      if (profile && !profile.name) {
-        supabase
-          .from('profiles')
-          .update({ name: userName, updated_at: new Date().toISOString() })
-          .eq('id', profile.id)
-          .then(({ error }) => {
-            if (error) console.error('Auto-sync name failed:', error);
-            else console.log('✅ Auto-synced name from Clerk to Supabase');
-          });
-      }
+      // No-op: name auto-sync handled server-side via Clerk webhook
     }
   }, [profile, userName]);
 
@@ -90,16 +81,9 @@ export function UserProfile() {
 
     setIsUpdating(true);
     try {
-      const fd = new FormData();
-      fd.append("clerk_user_id", user.id);
-      fd.append("name", trimmed);
-
-      const { data, error } = await supabase.functions.invoke('update-user-profile', {
-        body: fd,
-      });
-
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (profile?.id) {
+        await api.users.updateProfile(profile.id, { name: trimmed });
+      }
 
       // Also update Clerk so the displayed name stays in sync everywhere
       try {
@@ -168,19 +152,19 @@ export function UserProfile() {
       // Re-encode at 512x512 to keep file small (cropper already gave us a square)
       const processed = await resizeAndCropToSquare(cropped, 512, 0.9);
 
-      const fd = new FormData();
-      fd.append("clerk_user_id", user.id);
-      fd.append("file", processed, "avatar.jpg");
-
-      const [supaRes] = await Promise.all([
-        supabase.functions.invoke('update-user-profile', { body: fd }),
+      // Upload via Clerk (source of truth for avatar)
+      const [clerkResult] = await Promise.all([
         clerkUser?.setProfileImage?.({ file: processed }).catch((e) => {
           console.warn('Clerk avatar sync failed (non-fatal):', e);
+          return null;
         }),
       ]);
 
-      if (supaRes.error) throw supaRes.error;
-      if ((supaRes.data as any)?.error) throw new Error((supaRes.data as any).error);
+      // Persist avatar_url to our API if Clerk gave us a URL
+      const avatarUrl = (clerkResult as any)?.imageUrl || clerkUser?.imageUrl;
+      if (profile?.id && avatarUrl) {
+        await api.users.updateProfile(profile.id, { avatar_url: avatarUrl }).catch(() => {});
+      }
 
       await refreshProfile();
       toast({

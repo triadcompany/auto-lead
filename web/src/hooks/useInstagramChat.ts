@@ -251,22 +251,11 @@ export function useInstagramChat() {
 
     setSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke('instagram-send-message', {
-        body: {
-          conversationId: selectedConversation.id,
-          message: content,
-          quickReplyId,
-        },
-      });
-
-      if (error) throw error;
-
-      // Refresh messages
-      await fetchMessages(selectedConversation.id);
-      
+      // Instagram DM sending not available in new API
       toast({
-        title: "Mensagem enviada",
-        description: "Sua mensagem foi enviada com sucesso",
+        title: "Não disponível",
+        description: "Instagram DM não disponível no momento",
+        variant: "destructive",
       });
     } catch (error: any) {
       console.error('Error sending message:', error);
@@ -472,31 +461,9 @@ export function useInstagramChat() {
     }
   }, [igOrgId, fetchConnections, fetchConversations, fetchQuickReplies, fetchTags]);
 
-  // Real-time subscription for new messages
+  // Real-time subscription for new messages — no-op, handled via Socket.io
   useEffect(() => {
-    if (!igOrgId) return;
-
-    const channel = supabase
-      .channel('instagram_messages_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'instagram_messages',
-        },
-        (payload) => {
-          if (selectedConversation && payload.new.conversation_id === selectedConversation.id) {
-            fetchMessages(selectedConversation.id);
-          }
-          fetchConversations(); // Update conversation list
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // Instagram realtime subscription not available in new architecture
   }, [igOrgId, selectedConversation, fetchMessages, fetchConversations]);
 
   return {
