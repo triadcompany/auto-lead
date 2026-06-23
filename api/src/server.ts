@@ -22,9 +22,8 @@ import authRoutes from "./routes/auth.js"
 
 const server = Fastify({
   logger: true,
-  // Preserve raw body for Stripe webhook signature verification
-  bodyParser: { rawBody: true },
-} as any)
+  bodyLimit: 5 * 1024 * 1024, // 5MB global — permite uploads de áudio em base64
+})
 
 await server.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } })
 await server.register(corsPlugin)
