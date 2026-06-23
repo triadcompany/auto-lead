@@ -61,10 +61,9 @@ export function PipelinePermissionsModal({
         const memberList = (await api.users.list()) as OrgMember[];
         if (cancelled) return;
 
-        // Pipeline permissions not yet in API — start with empty set
-        const permIds = new Set<string>();
+        const permProfileIds = await api.pipelines.permissions(pipelineId) as string[];
         setMembers(memberList || []);
-        setSelected(permIds);
+        setSelected(new Set(permProfileIds));
       } catch (err: any) {
         toast({
           title: 'Erro',
@@ -93,9 +92,19 @@ export function PipelinePermissionsModal({
 
   const handleSave = async () => {
     if (!pipelineId) return;
-    // Pipeline permissions feature not yet available in new API
-    toast({ title: 'Info', description: 'Permissões serão configuradas em breve' });
-    onOpenChange(false);
+    setSaving(true);
+    try {
+      const nonOwnerSelected = members
+        .filter((m) => !m.is_owner && selected.has(m.profile_id))
+        .map((m) => m.profile_id);
+      await api.pipelines.setPermissions(pipelineId, nonOwnerSelected);
+      toast({ title: 'Permissões salvas', description: 'Acesso ao pipeline atualizado.' });
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message || 'Falha ao salvar permissões', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
