@@ -186,7 +186,7 @@ export function useSupabaseLeads(pipelineId?: string) {
   // ── moveLead mutation (optimistic update) ────────────────────────────────
   const moveLeadMutation = useMutation({
     mutationFn: async ({ leadId, newStageId }: { leadId: string; newStageId: string }) => {
-      await api.leads.changeStage(leadId, newStageId);
+      await api.leads.moveStage(leadId, newStageId);
       return { leadId, newStageId };
     },
     onMutate: async ({ leadId, newStageId }) => {
