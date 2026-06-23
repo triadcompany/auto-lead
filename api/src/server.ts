@@ -27,6 +27,10 @@ const server = Fastify({
 } as any)
 
 await server.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } })
+
+// Parser para uploads de áudio binário (usado pelo /whatsapp/send-audio)
+server.addContentTypeParser(/^audio\//, { parseAs: 'buffer', bodyLimit: 25 * 1024 * 1024 }, (_req, body, done) => done(null, body))
+
 await server.register(corsPlugin)
 await server.register(authPlugin)
 await server.register(socketPlugin)
