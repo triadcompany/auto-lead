@@ -95,7 +95,8 @@ const BLOCK_REASON_LABELS: Record<string, string> = {
 
 // ── Helpers ──
 
-function formatPhone(phone: string): string {
+function formatPhone(phone: string | null | undefined): string {
+  if (!phone) return '—';
   const digits = phone.replace(/\D/g, '');
   if (digits.length === 13 && digits.startsWith('55')) {
     const ddd = digits.substring(2, 4);
@@ -745,7 +746,7 @@ export default function InboxPage() {
   useEffect(() => {
     const phoneParam = searchParams.get('phone');
     if (phoneParam && threads.length > 0 && !loadingThreads) {
-      const match = threads.find(t => t.contact_phone.replace(/\D/g, '').includes(phoneParam));
+      const match = threads.find(t => (t.contact_phone || '').replace(/\D/g, '').includes(phoneParam));
       if (match) {
         selectThread(match.id);
       }
