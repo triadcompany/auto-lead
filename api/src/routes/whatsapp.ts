@@ -62,19 +62,28 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
       } catch { /* non-critical */ }
     }
 
+    // Lê mirror_enabled via SQL (coluna pode não existir em produção antiga)
+    let mirrorEnabled = false
+    try {
+      const rows = await prisma.$queryRaw<[{ mirror_enabled: boolean }]>`
+        SELECT mirror_enabled FROM whatsapp_integrations WHERE organization_id = ${req.auth.orgId}::uuid LIMIT 1
+      `
+      mirrorEnabled = rows[0]?.mirror_enabled ?? false
+    } catch { /* coluna não existe ainda */ }
+
     return {
       ok: true,
       status: evStatus,
       connection: {
         instance_name: instanceName,
-        phone_number: integration.phoneNumber || null,
+        phone_number: null,
         status: evStatus,
         qr_code: qrCode,
         connected_at: integration.connectedAt || null,
-        last_connected_at: integration.lastConnectedAt || null,
-        last_disconnected_at: integration.lastDisconnectedAt || null,
-        mirror_enabled: integration.mirrorEnabled || false,
-        mirror_enabled_at: integration.mirrorEnabledAt || null,
+        last_connected_at: null,
+        last_disconnected_at: null,
+        mirror_enabled: mirrorEnabled,
+        mirror_enabled_at: null,
       },
     }
   })
@@ -168,15 +177,18 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
   // PATCH /whatsapp/me — atualiza configurações da integração (ex: mirror_enabled)
   fastify.patch<{ Body: { mirror_enabled?: boolean } }>("/whatsapp/me", async (req, reply) => {
     const { mirror_enabled } = req.body
-    await (prisma as any).whatsappIntegration?.updateMany?.({
-      where: { organizationId: req.auth.orgId },
-      data: {
-        ...(mirror_enabled !== undefined && {
-          mirrorEnabled: mirror_enabled,
-          mirrorEnabledAt: mirror_enabled ? new Date() : undefined,
-        }),
-      },
-    }).catch(() => null)
+    if (mirror_enabled === undefined) return { success: true }
+
+    const orgId = req.auth.orgId
+    try {
+      // Cria a coluna se ainda não existir (deploy sem migration)
+      await prisma.$executeRaw`ALTER TABLE whatsapp_integrations ADD COLUMN IF NOT EXISTS mirror_enabled BOOLEAN DEFAULT false`
+      await prisma.$executeRaw`
+        UPDATE whatsapp_integrations SET mirror_enabled = ${mirror_enabled} WHERE organization_id = ${orgId}::uuid
+      `
+    } catch (err: any) {
+      fastify.log.warn({ err: err?.message }, "mirror_enabled update falhou")
+    }
     return { success: true }
   })
 
@@ -304,6 +316,16 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     const orgId = integration.organizationId as string
 
     if (event === "messages.upsert") {
+      // Só processa se espelhamento estiver ativado
+      let mirrorEnabled = false
+      try {
+        const rows = await prisma.$queryRaw<[{ mirror_enabled: boolean }]>`
+          SELECT mirror_enabled FROM whatsapp_integrations WHERE instance_name = ${instanceName} LIMIT 1
+        `
+        mirrorEnabled = rows[0]?.mirror_enabled ?? false
+      } catch { }
+      if (!mirrorEnabled) return { received: true }
+
       const msg = body.data as any
       if (!msg?.key) return { received: true }
 
