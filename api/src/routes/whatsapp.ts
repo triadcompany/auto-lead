@@ -104,6 +104,21 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     return reply.code(201).send({ ok: true, instance_name: targetInstance, qr_code: qrCode, ...(data as object) })
   })
 
+  // PATCH /whatsapp/me — atualiza configurações da integração (ex: mirror_enabled)
+  fastify.patch<{ Body: { mirror_enabled?: boolean } }>("/whatsapp/me", async (req, reply) => {
+    const { mirror_enabled } = req.body
+    await (prisma as any).whatsappIntegration?.updateMany?.({
+      where: { organizationId: req.auth.orgId },
+      data: {
+        ...(mirror_enabled !== undefined && {
+          mirrorEnabled: mirror_enabled,
+          mirrorEnabledAt: mirror_enabled ? new Date() : undefined,
+        }),
+      },
+    }).catch(() => null)
+    return { success: true }
+  })
+
   // DELETE /whatsapp/me/disconnect — desconecta org autenticada
   fastify.delete("/whatsapp/me/disconnect", async (req) => {
     const integration = await (prisma as any).whatsappIntegration?.findFirst?.({
