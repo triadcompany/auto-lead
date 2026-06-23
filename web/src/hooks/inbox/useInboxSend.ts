@@ -96,13 +96,7 @@ export function useInboxSend({
 
     try {
       if (params.kind === 'audio') {
-        // Converte blob para base64 e envia via endpoint dedicado de áudio
-        const arrayBuffer = await params.file.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-        const base64 = btoa(binary);
-        await api.whatsapp.sendAudio(selectedThreadId, base64, params.file.type || 'audio/webm');
+        await api.whatsapp.sendAudio(selectedThreadId, params.file);
       } else {
         await api.conversations.sendMessage(selectedThreadId, previewBody, params.kind);
       }
