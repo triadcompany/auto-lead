@@ -18,6 +18,7 @@ import {
   Trash2, Pencil, FileText, FileIcon, Play, Pause,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { useBroadcasts } from '@/hooks/useBroadcasts';
 import { supabase } from '@/integrations/supabase/client';
 import { useApi } from '@/hooks/useApi';
@@ -118,6 +119,7 @@ function SourceCard({
 // ─── Main wizard ──────────────────────────────────────────────────────────────
 export function NewCampaignWizard({ onClose }: Props) {
   const { orgId, profile } = useAuth();
+const { getToken } = useClerkAuth();
   const { createCampaign } = useBroadcasts();
   const api = useApi();
   const [step, setStep] = useState(1);
@@ -306,8 +308,18 @@ export function NewCampaignWizard({ onClose }: Props) {
 
   // ── Storage upload ──
   const uploadToStorage = async (file: File | Blob, folder: string, name: string): Promise<string> => {
-    // Upload via API endpoint
-    throw new Error("Upload de mídia em manutenção");
+    const apiUrl = (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000';
+    const token = await getToken();
+    const formData = new FormData();
+    formData.append('file', file instanceof File ? file : new File([file], name));
+    const res = await fetch(`${apiUrl}/broadcasts/upload-media`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!res.ok) throw new Error('Falha no upload da mídia');
+    const data = await res.json() as { url: string };
+    return data.url;
   };
 
   // ── Image upload ──
