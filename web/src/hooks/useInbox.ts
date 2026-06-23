@@ -14,6 +14,25 @@ import { useConversationActions } from './inbox/useConversationActions';
 
 export type { ConversationStatus, InboxThread, InboxMessage, OrgMember, AssignmentFilter, StatusFilter };
 
+function normalizeMessage(row: any): InboxMessage {
+  return {
+    ...row,
+    conversation_id: row.conversation_id || row.conversationId,
+    organization_id: row.organization_id || row.organizationId,
+    created_at: row.created_at || row.createdAt,
+    external_message_id: row.external_message_id || row.externalMessageId || null,
+    message_type: row.message_type || row.messageType || 'text',
+    media_url: row.media_url || row.mediaUrl || null,
+    mime_type: row.mime_type || row.mimeType || null,
+    duration_ms: row.duration_ms ?? row.durationMs ?? null,
+    sender_name: row.sender_name || row.senderName || null,
+    sender_phone: row.sender_phone || row.senderPhone || null,
+    sender_avatar_url: row.sender_avatar_url || row.senderAvatarUrl || null,
+    ai_generated: row.ai_generated ?? row.aiGenerated ?? false,
+    ai_interaction_id: row.ai_interaction_id || row.aiInteractionId || null,
+  };
+}
+
 function normalizeThread(row: any): InboxThread {
   return {
     ...row,
@@ -107,7 +126,7 @@ export function useInbox() {
     setLoadingMessages(true);
     try {
       const data = await api.conversations.messages(conversationId, { limit: 200 }) as any[];
-      setMessages(dedupeAndSort(data));
+      setMessages(dedupeAndSort(data.map(normalizeMessage)));
     } catch {
       toast.error('Erro ao carregar mensagens');
     } finally {
@@ -120,8 +139,13 @@ export function useInbox() {
     if (!orgId) return;
 
     const unsubs = [
-      on('message:created', (newMsg: any) => {
-        if (newMsg.conversation_id === selectedThreadIdRef.current) {
+      on('message:created', (payload: any) => {
+        // API emite { conversationId, message } ou diretamente o objeto msg
+        const raw = payload?.message || payload;
+        const newMsg = normalizeMessage(raw);
+        const convId = newMsg.conversation_id;
+
+        if (convId === selectedThreadIdRef.current) {
           setMessages(prev => {
             if (prev.some(m => m.id === newMsg.id)) return prev;
             const withoutOptimistic = prev.filter(m => {
@@ -135,12 +159,12 @@ export function useInbox() {
 
         setThreads(prev => {
           const updated = prev.map(t => {
-            if (t.id !== newMsg.conversation_id) return t;
+            if (t.id !== convId) return t;
             return {
               ...t,
               last_message_at: newMsg.created_at,
               last_message_preview: (newMsg.body || '').substring(0, 100),
-              unread_count: newMsg.conversation_id === selectedThreadIdRef.current
+              unread_count: convId === selectedThreadIdRef.current
                 ? 0
                 : t.unread_count + (newMsg.direction === 'inbound' ? 1 : 0),
             };
