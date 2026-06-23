@@ -123,4 +123,49 @@ export default async function pipelinesRoutes(fastify: FastifyInstance) {
       return { success: true }
     }
   )
+
+  // GET /pipelines/:id/permissions — lista profile_ids com acesso
+  fastify.get<{ Params: { id: string } }>("/pipelines/:id/permissions", async (req, reply) => {
+    const pipeline = await prisma.pipeline.findFirst({
+      where: { id: req.params.id, ...orgScope(req) },
+    })
+    if (!pipeline) return reply.code(404).send({ error: "Not found" })
+
+    const perms = await prisma.pipelinePermission.findMany({
+      where: { pipelineId: req.params.id },
+      select: { profileId: true },
+    })
+    return perms.map((p) => p.profileId)
+  })
+
+  // PUT /pipelines/:id/permissions — substitui lista de profile_ids com acesso
+  fastify.put<{ Params: { id: string }; Body: { profile_ids: string[] } }>(
+    "/pipelines/:id/permissions",
+    async (req, reply) => {
+      const pipeline = await prisma.pipeline.findFirst({
+        where: { id: req.params.id, ...orgScope(req) },
+      })
+      if (!pipeline) return reply.code(404).send({ error: "Not found" })
+
+      const { profile_ids } = req.body
+
+      await prisma.$transaction([
+        prisma.pipelinePermission.deleteMany({ where: { pipelineId: req.params.id } }),
+        ...(profile_ids.length > 0
+          ? [
+              prisma.pipelinePermission.createMany({
+                data: profile_ids.map((profileId) => ({
+                  pipelineId: req.params.id,
+                  profileId,
+                  createdBy: req.auth.userId,
+                })),
+                skipDuplicates: true,
+              }),
+            ]
+          : []),
+      ])
+
+      return { success: true }
+    }
+  )
 }
