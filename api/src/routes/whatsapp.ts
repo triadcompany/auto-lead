@@ -331,27 +331,52 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
 
   // POST /whatsapp/send-audio — envia áudio gravado pelo usuário
   fastify.post<{
-    Body: { organization_id?: string; conversation_id: string; audio_base64: string; mime_type?: string }
+    Body: { conversation_id: string; audio_base64: string; mime_type?: string }
   }>("/whatsapp/send-audio", async (req, reply) => {
     const { conversation_id, audio_base64, mime_type = "audio/webm" } = req.body
+    const orgId = req.auth.orgId
 
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversation_id },
-      select: { instanceName: true, contactPhone: true, organizationId: true },
+    const conversation = await prisma.conversation.findFirst({
+      where: { id: conversation_id, organizationId: orgId },
+      select: { id: true, instanceName: true, contactPhone: true },
     })
     if (!conversation) return reply.code(404).send({ error: "Conversa não encontrada" })
 
-    const { uploadFile } = await import("../services/storage.js")
-    const buffer = Buffer.from(audio_base64, "base64")
-    const ext = mime_type.includes("ogg") ? "ogg" : "webm"
-    const key = `audio/${conversation.organizationId}/${Date.now()}.${ext}`
-    const audioUrl = await uploadFile(key, buffer, mime_type)
-
-    const res = await evolutionFetch(`/message/sendWhatsAppAudio/${conversation.instanceName}`, {
+    // Envia ao Evolution como data URI base64 (sem precisar de storage externo)
+    const dataUri = `data:${mime_type};base64,${audio_base64}`
+    const evRes = await evolutionFetch(`/message/sendWhatsAppAudio/${conversation.instanceName}`, {
       method: "POST",
-      body: JSON.stringify({ number: conversation.contactPhone, audio: audioUrl, delay: 1000 }),
+      body: JSON.stringify({ number: conversation.contactPhone, audio: dataUri, delay: 1000 }),
     })
-    return res.json()
+
+    if (!evRes.ok) {
+      const err = await evRes.json().catch(() => ({}))
+      return reply.code(502).send({ error: "Evolution error", details: err })
+    }
+
+    const evData = await evRes.json() as any
+
+    // Salva mensagem no DB
+    const message = await prisma.message.create({
+      data: {
+        organizationId: orgId,
+        conversationId: conversation_id,
+        direction: "outbound",
+        body: "🎵 Áudio",
+        messageType: "audio",
+        channel: "whatsapp",
+        mimeType: mime_type,
+        externalMessageId: evData?.key?.id || null,
+      },
+    })
+
+    await prisma.conversation.update({
+      where: { id: conversation_id },
+      data: { lastMessageAt: new Date(), lastMessagePreview: "🎵 Áudio" },
+    })
+
+    emit(orgId, "message:created", { conversationId: conversation_id, message })
+    return reply.code(201).send(message)
   })
 
   // POST /whatsapp/webhook — recebe eventos do Evolution (rota pública)
