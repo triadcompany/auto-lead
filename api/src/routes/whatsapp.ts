@@ -359,6 +359,9 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
 
     const evData = await evRes.json() as any
 
+    // Salva a data URI para que o player do CRM funcione offline (sem precisar buscar no Evolution)
+    const audioDataUri = `data:${mime_type};base64,${audio_base64}`
+
     const message = await prisma.message.create({
       data: {
         organizationId: orgId,
@@ -368,6 +371,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
         messageType: "audio",
         channel: "whatsapp",
         mimeType: mime_type,
+        mediaUrl: audioDataUri,
         externalMessageId: evData?.key?.id || null,
       },
     })
