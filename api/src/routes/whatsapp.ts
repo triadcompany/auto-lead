@@ -75,8 +75,17 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
   // POST /whatsapp/me/connect — conecta org autenticada (cria ou reutiliza instância)
   fastify.post("/whatsapp/me/connect", async (req, reply) => {
     const orgId = req.auth.orgId
-    const instanceName = `org-${orgId}`
     const webhookUrl = `${process.env.API_URL || "https://auto-lead-api.upw28y.easypanel.host"}/whatsapp/webhook`
+
+    // Nome da instância = nome da organização sanitizado (sem espaços/especiais)
+    const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } })
+    const orgSlug = (org?.name || orgId)
+      .toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "") // remove acentos
+      .replace(/[^a-z0-9]+/g, "-")                      // não-alfanumérico → hífen
+      .replace(/^-+|-+$/g, "")                          // trim hífens
+      .slice(0, 50)
+    const defaultInstanceName = orgSlug || `org-${orgId}`
 
     // Busca registro existente no banco
     let existing: any = null
@@ -94,7 +103,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
       } catch { /* continua */ }
     }
 
-    const targetInstance = existing?.instanceName || instanceName
+    const targetInstance = existing?.instanceName || defaultInstanceName
 
     // Cria instância na Evolution
     const createRes = await evolutionFetch("/instance/create", {
