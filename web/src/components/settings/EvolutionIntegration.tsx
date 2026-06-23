@@ -176,25 +176,36 @@ export function EvolutionIntegration() {
     setBusy("connect");
     try {
       const data = await api.whatsapp.meConnect() as any;
+      if (data?.already_connected) {
+        await fetchStatus();
+        toast({ title: "WhatsApp já está conectado", description: "Sincronizamos o status atual da sua conexão." });
+        return;
+      }
+
       if (!data?.ok) {
-        if (data?.already_connected) {
-          await fetchStatus();
-          toast({ title: "WhatsApp já está conectado", description: "Sincronizamos o status atual da sua conexão." });
-          return;
-        }
         throw new Error(data?.error || "Falha ao iniciar conexão");
       }
 
-      if (data.connection) {
-        setConn(data.connection);
-      } else if (data.qr_code) {
-        const current = await fetchStatus();
-        if (!current) {
-          setConn({ instance_name: data.instance_name, phone_number: null, status: 'connecting', qr_code: data.qr_code, connected_at: null, last_connected_at: null, last_disconnected_at: null, mirror_enabled: false, mirror_enabled_at: null });
-        }
-      }
+      // Seta QR imediatamente com dados da resposta
+      setConn({
+        instance_name: data.instance_name || "",
+        phone_number: null,
+        status: "connecting",
+        qr_code: data.qr_code || null,
+        connected_at: null,
+        last_connected_at: null,
+        last_disconnected_at: null,
+        mirror_enabled: false,
+        mirror_enabled_at: null,
+      } as Connection);
       setQrStartedAt(Date.now());
-      toast({ title: "QR Code gerado", description: "Escaneie com seu WhatsApp." });
+
+      if (data.qr_code) {
+        toast({ title: "QR Code gerado", description: "Escaneie com seu WhatsApp." });
+      } else {
+        // QR não veio — tenta buscar
+        await fetchStatus();
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast({ title: "Erro ao conectar", description: msg, variant: "destructive" });
