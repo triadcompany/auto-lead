@@ -152,7 +152,8 @@ function colorFromString(input: string): string {
   return `hsl(${hue}, 65%, 45%)`;
 }
 
-function formatMessageTime(dateStr: string) {
+function formatMessageTime(dateStr: string | null | undefined) {
+  if (!dateStr) return '';
   const date = parseISO(dateStr);
   return format(date, 'HH:mm');
 }
@@ -165,7 +166,8 @@ function formatThreadTime(dateStr: string | null) {
   return format(date, 'dd/MM', { locale: ptBR });
 }
 
-function formatDateSeparator(dateStr: string): string {
+function formatDateSeparator(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
   const date = parseISO(dateStr);
   if (isToday(date)) return 'Hoje';
   if (isYesterday(date)) return 'Ontem';
@@ -586,8 +588,8 @@ function MessagesList({
 
     // Merge messages and timeline items sorted by created_at
     const allEntries: { ts: string; entry: Entry }[] = [
-      ...messages.map((m) => ({ ts: m.created_at, entry: { type: 'message' as const, message: m } })),
-      ...timelineItems.map((t) => ({ ts: t.created_at, entry: { type: 'timeline' as const, item: t } })),
+      ...messages.filter((m) => m.created_at).map((m) => ({ ts: m.created_at, entry: { type: 'message' as const, message: m } })),
+      ...timelineItems.filter((t) => t.created_at).map((t) => ({ ts: t.created_at, entry: { type: 'timeline' as const, item: t } })),
     ].sort((a, b) => a.ts.localeCompare(b.ts));
 
     const result: Entry[] = [];
