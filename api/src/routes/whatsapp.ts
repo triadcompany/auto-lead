@@ -24,52 +24,98 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     return { evolution_url: evolutionUrl, evolution_key: evolutionKey, evolution_ping: evolutionPing, instances }
   })
 
+  // Helper: deriva slug da org (mesmo algoritmo do meConnect)
+  async function orgInstanceName(orgId: string): Promise<string> {
+    const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } })
+    return (org?.name || orgId)
+      .toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 50) || `org-${orgId}`
+  }
+
+  // Helper: garante que a tabela e colunas existem
+  async function ensureWhatsappTable(orgId: string, instanceName: string, status = "connected") {
+    try {
+      await prisma.$executeRaw`
+        CREATE TABLE IF NOT EXISTS whatsapp_integrations (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          organization_id UUID UNIQUE NOT NULL,
+          provider TEXT NOT NULL DEFAULT 'evolution',
+          instance_name TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'disconnected',
+          is_active BOOLEAN NOT NULL DEFAULT true,
+          mirror_enabled BOOLEAN NOT NULL DEFAULT false,
+          connected_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `
+      await prisma.$executeRaw`ALTER TABLE whatsapp_integrations ADD COLUMN IF NOT EXISTS mirror_enabled BOOLEAN DEFAULT false`
+      await prisma.$executeRaw`
+        INSERT INTO whatsapp_integrations (organization_id, instance_name, status, provider, is_active)
+        VALUES (${orgId}::uuid, ${instanceName}, ${status}, 'evolution', true)
+        ON CONFLICT (organization_id) DO UPDATE SET
+          instance_name = EXCLUDED.instance_name,
+          status = ${status}
+      `
+    } catch (e: any) {
+      // log mas não falha — o endpoint ainda funciona sem banco
+    }
+  }
+
   // GET /whatsapp/me — status da instância da org autenticada
   fastify.get("/whatsapp/me", async (req, reply) => {
-    const integration = await (prisma as any).whatsappIntegration?.findFirst?.({
-      where: { organizationId: req.auth.orgId },
-      orderBy: { createdAt: "desc" },
-    }).catch(() => null)
+    const orgId = req.auth.orgId
 
-    if (!integration) return { ok: false, status: "not_configured", connection: null }
+    // Tenta ler do banco; se falhar, deriva o nome da instância do nome da org
+    let dbRecord: any = null
+    try { dbRecord = await prisma.whatsappIntegration.findFirst({ where: { organizationId: orgId } }) } catch { }
 
-    const instanceName = integration.instanceName as string
+    const instanceName = dbRecord?.instanceName || await orgInstanceName(orgId)
+
+    // Consulta estado real na Evolution
     let evolutionData: any = null
     let qrCode: string | null = null
-
     try {
       const res = await evolutionFetch(`/instance/connectionState/${instanceName}`)
-      evolutionData = await res.json()
-    } catch {
-      // Evolution API unreachable — return last known status from DB
+      if (res.ok) evolutionData = await res.json()
+    } catch { }
+
+    // Se Evolution não conhece essa instância e não há registro no banco → não configurado
+    if (!evolutionData?.instance && !dbRecord) {
+      return { ok: false, status: "not_configured", connection: null }
     }
 
-    const rawState = evolutionData?.instance?.state || integration.status || "disconnected"
-    // Mapeia estados da Evolution para estados internos
+    const rawState = evolutionData?.instance?.state || dbRecord?.status || "disconnected"
     const evStatus =
-      rawState === "open" ? "connected" :
+      rawState === "open"   ? "connected"   :
       rawState === "close" || rawState === "closed" ? "disconnected" :
-      rawState === "qr" ? "connecting" :
-      rawState // connecting, error, etc.
+      rawState === "qr"    ? "connecting"   :
+      rawState
 
-    const isConnecting = evStatus === "connecting"
+    // Se conectado mas sem banco → salva automaticamente
+    if (evStatus === "connected" && !dbRecord) {
+      await ensureWhatsappTable(orgId, instanceName, "connected")
+    }
 
-    if (isConnecting) {
+    if (evStatus === "connecting") {
       try {
         const qrRes = await evolutionFetch(`/instance/connect/${instanceName}`)
         const qrData = await qrRes.json() as Record<string, any>
         qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null
-      } catch { /* non-critical */ }
+      } catch { }
     }
 
-    // Lê mirror_enabled via SQL (coluna pode não existir em produção antiga)
+    // Lê mirror_enabled (coluna pode não existir em produção antiga)
     let mirrorEnabled = false
     try {
       const rows = await prisma.$queryRaw<[{ mirror_enabled: boolean }]>`
-        SELECT mirror_enabled FROM whatsapp_integrations WHERE organization_id = ${req.auth.orgId}::uuid LIMIT 1
+        SELECT mirror_enabled FROM whatsapp_integrations WHERE organization_id = ${orgId}::uuid LIMIT 1
       `
       mirrorEnabled = rows[0]?.mirror_enabled ?? false
-    } catch { /* coluna não existe ainda */ }
+    } catch { }
 
     return {
       ok: true,
@@ -79,7 +125,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
         phone_number: null,
         status: evStatus,
         qr_code: qrCode,
-        connected_at: integration.connectedAt || null,
+        connected_at: dbRecord?.connectedAt || null,
         last_connected_at: null,
         last_disconnected_at: null,
         mirror_enabled: mirrorEnabled,
@@ -127,14 +173,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
       const stateData = await stateRes.json() as Record<string, any>
       const currentState = stateData?.instance?.state
       if (currentState === "open") {
-        // Garante registro no banco para o fetchStatus funcionar depois
-        await prisma.$executeRaw`
-          INSERT INTO whatsapp_integrations (organization_id, instance_name, status, provider, is_active)
-          VALUES (${orgId}::uuid, ${targetInstance}, 'connected', 'evolution', true)
-          ON CONFLICT (organization_id) DO UPDATE SET
-            instance_name = EXCLUDED.instance_name,
-            status = 'connected'
-        `.catch(() => null)
+        await ensureWhatsappTable(orgId, targetInstance, "connected")
         return { ok: true, already_connected: true }
       }
     } catch { /* instância não existe ainda — continua para create */ }
@@ -175,18 +214,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
       })
     }
 
-    // Persiste no banco
-    try {
-      await prisma.$executeRaw`
-        INSERT INTO whatsapp_integrations (organization_id, instance_name, status, provider, is_active)
-        VALUES (${orgId}::uuid, ${targetInstance}, 'connecting', 'evolution', true)
-        ON CONFLICT (organization_id) DO UPDATE SET
-          instance_name = EXCLUDED.instance_name,
-          status = 'connecting'
-      `
-    } catch (dbErr: any) {
-      fastify.log.warn({ err: dbErr?.message }, "DB upsert falhou (não crítico)")
-    }
+    await ensureWhatsappTable(orgId, targetInstance, "connecting")
 
     // QR vem no create; se não, busca com /instance/connect
     let qrCode: string | null = createData?.qrcode?.base64 || null
