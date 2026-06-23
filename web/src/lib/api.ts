@@ -218,11 +218,22 @@ export function createApi(getToken: () => Promise<string | null>) {
       disconnect: (instance: string) => del(`/whatsapp/disconnect/${instance}`),
       send: (instance: string, phone: string, message: string) =>
         post<any>("/whatsapp/send", { instance, phone, message }),
-      sendAudio: (conversation_id: string, file: File) => {
-        const fd = new FormData();
-        fd.append('audio', file, file.name);
-        fd.append('conversation_id', conversation_id);
-        return postForm<any>("/whatsapp/send-audio", fd);
+      sendAudio: async (conversation_id: string, file: File): Promise<any> => {
+        const token = await getToken()
+        const url = `${BASE_URL}/whatsapp/send-audio?conversation_id=${encodeURIComponent(conversation_id)}`
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': file.type || 'audio/webm',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: file,
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }))
+          throw { status: res.status, message: err.error || res.statusText } as ApiError
+        }
+        return res.json()
       },
     },
 
