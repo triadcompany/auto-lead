@@ -329,16 +329,12 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     return res.json()
   })
 
-  // POST /whatsapp/send-audio — envia áudio binário (Content-Type: audio/*, conversation_id na query)
-  fastify.post<{ Querystring: { conversation_id: string } }>("/whatsapp/send-audio", async (req, reply) => {
+  // POST /whatsapp/send-audio — envia áudio (base64 JSON, max ~300KB para 60s a 32kbps)
+  fastify.post<{
+    Body: { conversation_id: string; audio_base64: string; mime_type?: string }
+  }>("/whatsapp/send-audio", { bodyLimit: 5 * 1024 * 1024 } as any, async (req, reply) => {
+    const { conversation_id, audio_base64, mime_type = "audio/webm" } = req.body
     const orgId = req.auth.orgId
-    const { conversation_id } = req.query
-    const mimeType = (req.headers["content-type"] || "audio/webm").split(";")[0].trim()
-    const audioBuffer = req.body as Buffer
-
-    if (!audioBuffer?.length || !conversation_id) {
-      return reply.code(400).send({ error: "audio e conversation_id são obrigatórios" })
-    }
 
     const conversation = await prisma.conversation.findFirst({
       where: { id: conversation_id, organizationId: orgId },
@@ -346,17 +342,16 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     })
     if (!conversation) return reply.code(404).send({ error: "Conversa não encontrada" })
 
-    const base64 = audioBuffer.toString("base64")
-    const dataUri = `data:${mimeType};base64,${base64}`
-
+    const dataUri = `data:${mime_type};base64,${audio_base64}`
     const evRes = await evolutionFetch(`/message/sendWhatsAppAudio/${conversation.instanceName}`, {
       method: "POST",
       body: JSON.stringify({ number: conversation.contactPhone, audio: dataUri, delay: 1000 }),
     })
 
     if (!evRes.ok) {
-      const err = await evRes.json().catch(() => ({}))
-      return reply.code(502).send({ error: "Evolution error", details: err })
+      const evErr = await evRes.json().catch(() => ({})) as any
+      fastify.log.error({ evErr }, "Evolution send-audio error")
+      return reply.code(502).send({ error: evErr?.message || "Falha ao enviar áudio" })
     }
 
     const evData = await evRes.json() as any
@@ -369,7 +364,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
         body: "🎵 Áudio",
         messageType: "audio",
         channel: "whatsapp",
-        mimeType,
+        mimeType: mime_type,
         externalMessageId: evData?.key?.id || null,
       },
     })
