@@ -81,6 +81,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
+import { useSession } from '@clerk/clerk-react';
 
 const BLOCK_REASON_LABELS: Record<string, string> = {
   throttle_active: 'Throttle ativo',
@@ -337,6 +338,39 @@ function renderWithMentions(
   return parts;
 }
 
+// ── Audio autenticado (busca via proxy com Bearer token) ──
+
+function AuthAudioPlayer({ convId, msgId, isOutbound, durationMs }: {
+  convId: string; msgId: string; isOutbound: boolean; durationMs?: number | null;
+}) {
+  const { session } = useSession();
+  const [src, setSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const api = useApi();
+
+  useEffect(() => {
+    let blobUrl = '';
+    (async () => {
+      try {
+        const token = session ? await session.getToken() : null;
+        const proxyUrl = api.conversations.audioProxyUrl(convId, msgId);
+        const res = await fetch(proxyUrl, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) { setFailed(true); return; }
+        const blob = await res.blob();
+        blobUrl = URL.createObjectURL(blob);
+        setSrc(blobUrl);
+      } catch { setFailed(true); }
+    })();
+    return () => { if (blobUrl) URL.revokeObjectURL(blobUrl); };
+  }, [convId, msgId]);
+
+  if (failed) return <span className="text-xs opacity-60">⚠️ Áudio indisponível</span>;
+  if (!src) return <span className="text-xs opacity-50 animate-pulse">Carregando áudio…</span>;
+  return <AudioPlayer src={src} durationMs={durationMs} isOutbound={isOutbound} />;
+}
+
 // ── Message Bubble ──
 
 function MessageBubble({
@@ -360,7 +394,7 @@ function MessageBubble({
   const type = message.message_type || 'text';
   const isImage = type === 'image' && mediaUrl;
   const isVideo = type === 'video' && mediaUrl;
-  const isAudio = type === 'audio' && mediaUrl;
+  const isAudio = type === 'audio';
   const isDocument = type === 'document' && mediaUrl;
   const showGroupSenderHeader = !!isGroup && !isOutbound && !!showSender && !!senderLabel;
   const indentForAvatar = !!isGroup && !isOutbound;
@@ -447,12 +481,23 @@ function MessageBubble({
             />
           )}
 
-          {isAudio && (
+          {isAudio && mediaUrl && (
             <AudioPlayer
-              src={mediaUrl!}
+              src={mediaUrl}
               durationMs={message.duration_ms}
               isOutbound={isOutbound}
             />
+          )}
+          {isAudio && !mediaUrl && !message.id.startsWith('temp-') && (
+            <AuthAudioPlayer
+              convId={message.conversation_id}
+              msgId={message.id}
+              isOutbound={isOutbound}
+              durationMs={message.duration_ms}
+            />
+          )}
+          {isAudio && !mediaUrl && message.id.startsWith('temp-') && (
+            <span className="text-xs opacity-50 animate-pulse">Enviando áudio…</span>
           )}
 
           {isDocument && (
