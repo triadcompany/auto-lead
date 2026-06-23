@@ -329,26 +329,14 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     return res.json()
   })
 
-  // POST /whatsapp/send-audio — envia áudio gravado pelo usuário (multipart/form-data)
-  fastify.post("/whatsapp/send-audio", async (req, reply) => {
+  // POST /whatsapp/send-audio — envia áudio binário (Content-Type: audio/*, conversation_id na query)
+  fastify.post<{ Querystring: { conversation_id: string } }>("/whatsapp/send-audio", async (req, reply) => {
     const orgId = req.auth.orgId
+    const { conversation_id } = req.query
+    const mimeType = (req.headers["content-type"] || "audio/webm").split(";")[0].trim()
+    const audioBuffer = req.body as Buffer
 
-    // Lê o multipart
-    const parts = req.parts()
-    let audioBuffer: Buffer | null = null
-    let mimeType = "audio/webm"
-    let conversation_id = ""
-
-    for await (const part of parts) {
-      if (part.type === "file" && part.fieldname === "audio") {
-        mimeType = part.mimetype || "audio/webm"
-        audioBuffer = await part.toBuffer()
-      } else if (part.type === "field" && part.fieldname === "conversation_id") {
-        conversation_id = part.value as string
-      }
-    }
-
-    if (!audioBuffer || !conversation_id) {
+    if (!audioBuffer?.length || !conversation_id) {
       return reply.code(400).send({ error: "audio e conversation_id são obrigatórios" })
     }
 
@@ -358,9 +346,9 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     })
     if (!conversation) return reply.code(404).send({ error: "Conversa não encontrada" })
 
-    // Envia ao Evolution como data URI base64
     const base64 = audioBuffer.toString("base64")
     const dataUri = `data:${mimeType};base64,${base64}`
+
     const evRes = await evolutionFetch(`/message/sendWhatsAppAudio/${conversation.instanceName}`, {
       method: "POST",
       body: JSON.stringify({ number: conversation.contactPhone, audio: dataUri, delay: 1000 }),
