@@ -48,30 +48,32 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
     return conv
   })
 
-  // PATCH /conversations/:id — atualiza status, assignee, ai_mode
+  // PATCH /conversations/:id — atualiza status, assignee, lock, ai_mode etc
   fastify.patch<{
     Params: { id: string }
-    Body: {
-      status?: string
-      assigned_to?: string | null
-      ai_mode?: string
-      lead_id?: string | null
-      unread_count?: number
-    }
+    Body: Record<string, unknown>
   }>("/conversations/:id", async (req, reply) => {
-    const { status, assigned_to, ai_mode, lead_id, unread_count } = req.body
+    const b = req.body as any
+    const data: Record<string, unknown> = {
+      ...(b.status !== undefined && { status: b.status }),
+      ...(b.assigned_to !== undefined && {
+        assignedTo: b.assigned_to,
+        assignedAt: b.assigned_to ? new Date() : null,
+      }),
+      ...(b.ai_mode !== undefined && { aiMode: b.ai_mode }),
+      ...(b.lead_id !== undefined && { leadId: b.lead_id }),
+      ...(b.unread_count !== undefined && { unreadCount: b.unread_count }),
+      ...(b.locked_by !== undefined && { lockedBy: b.locked_by }),
+      ...(b.locked_at !== undefined && { lockedAt: b.locked_at ? new Date(b.locked_at as string) : null }),
+      ...(b.last_status_change_at !== undefined && { lastStatusChangeAt: b.last_status_change_at ? new Date(b.last_status_change_at as string) : null }),
+      ...(b.assigned_at !== undefined && { assignedAt: b.assigned_at ? new Date(b.assigned_at as string) : null }),
+    }
+
+    if (Object.keys(data).length === 0) return { success: true }
+
     const updated = await prisma.conversation.updateMany({
       where: { id: req.params.id, ...orgScope(req) },
-      data: {
-        ...(status !== undefined && { status }),
-        ...(assigned_to !== undefined && {
-          assignedTo: assigned_to,
-          assignedAt: assigned_to ? new Date() : null,
-        }),
-        ...(ai_mode !== undefined && { aiMode: ai_mode }),
-        ...(lead_id !== undefined && { leadId: lead_id }),
-        ...(unread_count !== undefined && { unreadCount: unread_count }),
-      },
+      data,
     })
     if (updated.count === 0) return reply.code(404).send({ error: "Not found" })
 
