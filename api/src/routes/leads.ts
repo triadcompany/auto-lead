@@ -51,10 +51,29 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
 
   // POST /leads
   fastify.post<{ Body: Record<string, unknown> }>("/leads", async (req, reply) => {
+    const b = req.body as any
     const lead = await prisma.lead.create({
-      data: { ...req.body, organizationId: req.auth.orgId } as any,
+      data: {
+        organizationId: req.auth.orgId,
+        name: b.name,
+        phone: b.phone,
+        email: b.email || undefined,
+        sellerId: b.seller_id || b.sellerId || undefined,
+        source: b.source || undefined,
+        leadSource: b.lead_source || b.leadSource || undefined,
+        leadSourceId: b.lead_source_id || b.leadSourceId || undefined,
+        interest: b.interest || undefined,
+        observations: b.observations || undefined,
+        stageId: b.stage_id || b.stageId || undefined,
+        pipelineId: b.pipeline_id || b.pipelineId || undefined,
+        servico: b.servico || undefined,
+        cidade: b.cidade || undefined,
+        estado: b.estado || undefined,
+        valorNegocio: b.valor_negocio ?? b.valorNegocio ?? undefined,
+        createdBy: req.auth.userId || undefined,
+      },
     })
-    emit(req.auth.orgId, "lead:created", lead)
+    emit(req.auth.orgId, "lead:created", { ...lead, stage_name: null })
     return reply.code(201).send(lead)
   })
 
@@ -67,10 +86,28 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
       })
       if (!existing) return reply.code(404).send({ error: "Not found" })
 
-      const lead = await prisma.lead.update({
-        where: { id: req.params.id },
-        data: { ...req.body, updatedAt: new Date() } as any,
-      })
+      const b = req.body as any
+      const data: any = { updatedAt: new Date() }
+      if (b.name !== undefined) data.name = b.name
+      if (b.phone !== undefined) data.phone = b.phone
+      if (b.email !== undefined) data.email = b.email
+      if (b.seller_id !== undefined) data.sellerId = b.seller_id
+      if (b.sellerId !== undefined) data.sellerId = b.sellerId
+      if (b.source !== undefined) data.source = b.source
+      if (b.interest !== undefined) data.interest = b.interest
+      if (b.observations !== undefined) data.observations = b.observations
+      if (b.stage_id !== undefined) data.stageId = b.stage_id
+      if (b.stageId !== undefined) data.stageId = b.stageId
+      if (b.pipeline_id !== undefined) data.pipelineId = b.pipeline_id
+      if (b.pipelineId !== undefined) data.pipelineId = b.pipelineId
+      if (b.servico !== undefined) data.servico = b.servico
+      if (b.cidade !== undefined) data.cidade = b.cidade
+      if (b.estado !== undefined) data.estado = b.estado
+      if (b.valor_negocio !== undefined) data.valorNegocio = b.valor_negocio
+      if (b.valorNegocio !== undefined) data.valorNegocio = b.valorNegocio
+      if (b.status !== undefined) data.status = b.status
+
+      const lead = await prisma.lead.update({ where: { id: req.params.id }, data })
       emit(req.auth.orgId, "lead:updated", lead)
       return lead
     }
