@@ -162,6 +162,8 @@ export function createApi(getToken: () => Promise<string | null>) {
         get<any[]>(`/conversations/${id}/messages`, q as any),
       sendMessage: (id: string, body: string, message_type?: string) =>
         post<any>(`/conversations/${id}/messages`, { body, message_type }),
+      audioProxyUrl: (convId: string, msgId: string) =>
+        `${BASE_URL}/conversations/${convId}/messages/${msgId}/audio`,
       addNote: (id: string, content: string) =>
         post<any>(`/conversations/${id}/notes`, { content }),
       markRead: (id: string) => post<any>(`/conversations/${id}/read`),
@@ -191,6 +193,8 @@ export function createApi(getToken: () => Promise<string | null>) {
       disconnect: (instance: string) => del(`/whatsapp/disconnect/${instance}`),
       send: (instance: string, phone: string, message: string) =>
         post<any>("/whatsapp/send", { instance, phone, message }),
+      sendAudio: (conversation_id: string, audio_base64: string, mime_type: string) =>
+        post<any>("/whatsapp/send-audio", { conversation_id, audio_base64, mime_type }),
     },
 
     // ── Meta ─────────────────────────────────────────────────────────────────
