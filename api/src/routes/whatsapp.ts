@@ -6,25 +6,22 @@ import { emit } from "../plugins/socket.js"
 import { evolutionFetch } from "../lib/evolution.js"
 
 export default async function whatsappRoutes(fastify: FastifyInstance) {
-  // GET /whatsapp/debug — diagnóstico da conexão Evolution (admin only)
-  fastify.get("/whatsapp/debug", async (req, reply) => {
+  // GET /whatsapp/debug — diagnóstico público (temporário)
+  fastify.get("/whatsapp/debug", { config: { skipAuth: true } } as any, async (req, reply) => {
     const evolutionUrl = process.env.EVOLUTION_API_URL || "(não definido)"
     const evolutionKey = process.env.EVOLUTION_API_KEY ? "***definido***" : "(não definido)"
 
     let evolutionPing: any = null
+    let instances: any = null
     try {
       const r = await evolutionFetch("/instance/fetchInstances")
       evolutionPing = { status: r.status, ok: r.ok }
+      if (r.ok) instances = (await r.json() as any[]).map((i: any) => ({ name: i.name, status: i.connectionStatus }))
     } catch (e: any) {
       evolutionPing = { error: e.message }
     }
 
-    return {
-      evolution_url: evolutionUrl,
-      evolution_key: evolutionKey,
-      evolution_ping: evolutionPing,
-      org_id: req.auth.orgId,
-    }
+    return { evolution_url: evolutionUrl, evolution_key: evolutionKey, evolution_ping: evolutionPing, instances }
   })
 
   // GET /whatsapp/me — status da instância da org autenticada
