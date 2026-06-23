@@ -184,6 +184,7 @@ export function createApi(getToken: () => Promise<string | null>) {
       me: () => get<any>("/whatsapp/me"),
       meConnect: () => post<any>("/whatsapp/me/connect", {}),
       meDisconnect: () => del("/whatsapp/me/disconnect"),
+      meUpdate: (data: { mirror_enabled?: boolean }) => patch<any>("/whatsapp/me", data),
       status: (instance: string) => get<any>(`/whatsapp/status/${instance}`),
       qr: (instance: string) => get<any>(`/whatsapp/qr/${instance}`),
       connect: (instance_name: string) => post<any>("/whatsapp/connect", { instance_name }),
