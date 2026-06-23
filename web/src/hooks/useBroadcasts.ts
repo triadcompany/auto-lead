@@ -206,3 +206,53 @@ export function useBroadcasts() {
     refresh: () => queryClient.invalidateQueries({ queryKey: ['broadcasts'] }),
   };
 }
+
+export function useBroadcastDetail(id: string | undefined) {
+  const api = useApi();
+
+  const campaignQuery = useQuery({
+    queryKey: ['broadcast', id],
+    enabled: !!id,
+    queryFn: async () => normalize(await api.broadcasts.get(id!) as any),
+  });
+
+  const recipientsQuery = useQuery({
+    queryKey: ['broadcast-recipients', id],
+    enabled: !!id,
+    queryFn: async () => {
+      const data = await api.broadcasts.listRecipients(id!) as any[];
+      return data.map(r => ({
+        id: r.id,
+        campaign_id: r.campaignId || r.campaign_id,
+        organization_id: r.organizationId || r.organization_id,
+        phone: r.phone,
+        name: r.name,
+        variables: r.variables,
+        status: r.status,
+        sent_at: r.sentAt || r.sent_at,
+        error: r.error,
+        message_id: r.messageId || r.message_id,
+        response_received: r.responseReceived || r.response_received || false,
+        response_at: r.responseAt || r.response_at,
+        response_message_id: r.responseMessageId || r.response_message_id,
+        created_at: r.createdAt || r.created_at,
+      })) as BroadcastRecipient[];
+    },
+  });
+
+  const campaign = campaignQuery.data;
+  const recipients = recipientsQuery.data ?? [];
+  const stats = campaign ? {
+    total: campaign.total ?? recipients.length,
+    sent: campaign.sent ?? recipients.filter(r => r.status === 'sent').length,
+    failed: campaign.failed ?? recipients.filter(r => r.status === 'failed').length,
+    responded: campaign.responded ?? recipients.filter(r => r.response_received).length,
+  } : null;
+
+  return {
+    campaign: campaign ?? null,
+    recipients,
+    stats,
+    loading: campaignQuery.isLoading || recipientsQuery.isLoading,
+  };
+}
