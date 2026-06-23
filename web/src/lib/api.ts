@@ -3,7 +3,19 @@
  * Use o hook useApi() para obter uma instância autenticada.
  */
 
-const BASE_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:3000"
+function resolveBaseUrl(): string {
+  const env = import.meta.env.VITE_API_URL as string
+  if (env) return env
+  // Runtime fallback: deriva a URL da API a partir do hostname do frontend
+  if (typeof window !== 'undefined') {
+    const { hostname, protocol } = window.location
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return 'http://localhost:3000'
+    return `${protocol}//${hostname.replace('-web.', '-api.')}`
+  }
+  return 'http://localhost:3000'
+}
+
+const BASE_URL = resolveBaseUrl()
 
 export type ApiError = { status: number; message: string }
 

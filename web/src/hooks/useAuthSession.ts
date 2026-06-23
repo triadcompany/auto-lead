@@ -1,7 +1,18 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useUser, useSession } from '@clerk/clerk-react';
 
-const API_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000';
+function resolveApiUrl(): string {
+  const env = import.meta.env.VITE_API_URL as string
+  if (env) return env
+  if (typeof window !== 'undefined') {
+    const { hostname, protocol } = window.location
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return 'http://localhost:3000'
+    return `${protocol}//${hostname.replace('-web.', '-api.')}`
+  }
+  return 'http://localhost:3000'
+}
+
+const API_URL = resolveApiUrl();
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
