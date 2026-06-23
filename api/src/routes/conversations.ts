@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify"
 import { prisma } from "../lib/prisma.js"
 import { orgScope } from "../lib/auth.js"
 import { emit } from "../plugins/socket.js"
+import { evolutionFetch } from "../lib/evolution.js"
 
 export default async function conversationsRoutes(fastify: FastifyInstance) {
   // GET /conversations
@@ -101,13 +102,14 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
     })
   })
 
-  // POST /conversations/:id/messages — envia mensagem manual
+  // POST /conversations/:id/messages — envia mensagem manual pelo inbox
   fastify.post<{
     Params: { id: string }
     Body: { body: string; message_type?: string }
   }>("/conversations/:id/messages", async (req, reply) => {
     const conv = await prisma.conversation.findFirst({
       where: { id: req.params.id, ...orgScope(req) },
+      select: { id: true, channel: true, instanceName: true, contactPhone: true },
     })
     if (!conv) return reply.code(404).send({ error: "Not found" })
 
@@ -119,11 +121,10 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
         body: req.body.body,
         messageType: req.body.message_type || "text",
         channel: conv.channel,
-        senderName: req.auth.userId,
+        senderName: req.auth.profileId,
       },
     })
 
-    // Update conversation preview
     await prisma.conversation.update({
       where: { id: req.params.id },
       data: {
@@ -133,7 +134,15 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
       },
     })
 
-    emit(req.auth.orgId, "message:sent", { conversationId: req.params.id, message })
+    // Envia ao WhatsApp via Evolution API (não bloqueia a resposta)
+    if (conv.channel === "whatsapp" && conv.instanceName && conv.contactPhone) {
+      evolutionFetch(`/message/sendText/${conv.instanceName}`, {
+        method: "POST",
+        body: JSON.stringify({ number: conv.contactPhone, text: req.body.body }),
+      }).catch((err) => fastify.log.error({ err }, "Falha ao enviar mensagem para WhatsApp"))
+    }
+
+    emit(req.auth.orgId, "message:created", { conversationId: req.params.id, message })
     return reply.code(201).send(message)
   })
 
@@ -146,7 +155,7 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
           conversationId: req.params.id,
           organizationId: req.auth.orgId,
           content: req.body.content,
-          createdBy: req.auth.userId,
+          createdBy: req.auth.profileId,
         },
       })
       return reply.code(201).send(note)
