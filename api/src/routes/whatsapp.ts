@@ -43,7 +43,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     if (isConnecting) {
       try {
         const qrRes = await evolutionFetch(`/instance/connect/${instanceName}`)
-        const qrData = await qrRes.json()
+        const qrData = await qrRes.json() as Record<string, any>
         qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null
       } catch { /* non-critical */ }
     }
@@ -80,7 +80,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
       // Check if instance already running in Evolution
       try {
         const stateRes = await evolutionFetch(`/instance/connectionState/${existing.instanceName}`)
-        const stateData = await stateRes.json()
+        const stateData = await stateRes.json() as Record<string, any>
         if (stateData?.instance?.state === "open") {
           return { ok: true, already_connected: true }
         }
@@ -96,7 +96,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
         webhook: { enabled: true, url: webhookUrl, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] },
       }),
     })
-    const data = await res.json()
+    const data = await res.json() as Record<string, any>
 
     await (prisma as any).whatsappIntegration?.upsert?.({
       where: { organizationId: orgId } as any,
@@ -108,11 +108,11 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     let qrCode: string | null = null
     try {
       const qrRes = await evolutionFetch(`/instance/connect/${targetInstance}`)
-      const qrData = await qrRes.json()
+      const qrData = await qrRes.json() as Record<string, any>
       qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null
     } catch { /* non-critical */ }
 
-    return reply.code(201).send({ ok: true, instance_name: targetInstance, qr_code: qrCode, ...data })
+    return reply.code(201).send({ ok: true, instance_name: targetInstance, qr_code: qrCode, ...(data as object) })
   })
 
   // DELETE /whatsapp/me/disconnect — desconecta org autenticada
