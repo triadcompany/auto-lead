@@ -119,6 +119,7 @@ model UsersProfile {
 
 model Organization {
   id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clerkOrgId                String?   @unique @map("clerk_org_id")
   name                      String
   cnpj                      String?   @unique
   phone                     String?

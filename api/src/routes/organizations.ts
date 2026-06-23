@@ -51,11 +51,26 @@ export default async function organizationsRoutes(fastify: FastifyInstance) {
       return reply.code(200).send({ org: existing.organization, profile: existing })
     }
 
-    // Cria organização
+    // Cria organização no Clerk
+    let clerkOrgId: string | undefined
+    try {
+      const { createClerkClient } = await import("@clerk/backend")
+      const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
+      const clerkOrg = await clerk.organizations.createOrganization({
+        name: org_name,
+        createdBy: userId,
+      })
+      clerkOrgId = clerkOrg.id
+    } catch (err) {
+      console.warn("Clerk org creation failed (non-critical):", err)
+    }
+
+    // Cria organização no banco
     const org = await prisma.organization.create({
       data: {
         name: org_name,
         ...(cnpj ? { cnpj } : {}),
+        ...(clerkOrgId ? { clerkOrgId } : {}),
       },
     })
 
@@ -100,7 +115,7 @@ export default async function organizationsRoutes(fastify: FastifyInstance) {
       ],
     })
 
-    return reply.code(201).send({ org, profile })
+    return reply.code(201).send({ org, profile, clerk_org_id: clerkOrgId ?? null })
   })
 
   // PATCH /organizations/:id — atualiza org (substitui update-clerk-org)

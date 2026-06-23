@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useUser, useSession } from "@clerk/clerk-react";
+import { useUser, useSession, useClerk } from "@clerk/clerk-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ const API_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:30
 export default function Onboarding() {
   const { user } = useUser();
   const { session } = useSession();
+  const { setActive } = useClerk();
   const { refreshProfile, retryBootstrap } = useAuth();
   const navigate = useNavigate();
   const [companyName, setCompanyName] = useState("");
@@ -49,6 +50,15 @@ export default function Onboarding() {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao criar organização");
+
+      // Ativa a org no Clerk se foi criada lá também
+      if (data.clerk_org_id) {
+        try {
+          await setActive({ organization: data.clerk_org_id });
+        } catch (err) {
+          console.warn("setActive Clerk org failed (non-critical):", err);
+        }
+      }
 
       toast.success("Empresa criada!", { description: `Bem-vindo ao AutoLead, ${name}!` });
 
