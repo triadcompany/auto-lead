@@ -15,6 +15,7 @@ declare module "fastify" {
 const PUBLIC_PREFIXES = [
   "/health",
   "/whatsapp/debug",
+  "/whatsapp/send-audio", // auth verificado manualmente no handler (evita preflight CORS)
   "/auth/",
   "/organizations/bootstrap",
   "/leads/webhook",
