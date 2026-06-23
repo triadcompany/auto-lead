@@ -8,11 +8,13 @@ import { Loader2, ArrowRightLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useConversationTransfer, TransferSeller } from '@/hooks/useConversationTransfer';
 
-function getInitials(name: string) {
+function getInitials(name: string | null | undefined) {
+  if (!name) return '?';
   return name
     .split(' ')
     .slice(0, 2)
     .map((n) => n[0])
+    .filter(Boolean)
     .join('')
     .toUpperCase();
 }
