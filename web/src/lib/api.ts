@@ -219,14 +219,33 @@ export function createApi(getToken: () => Promise<string | null>) {
       send: (instance: string, phone: string, message: string) =>
         post<any>("/whatsapp/send", { instance, phone, message }),
       sendAudio: async (conversation_id: string, file: File): Promise<any> => {
-        // Converte para base64 e envia como JSON (funciona dentro do limite do proxy)
+        // Converte para base64 em chunks (evita stack overflow em arrays grandes)
         const buf = await file.arrayBuffer();
-        const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-        return post<any>('/whatsapp/send-audio', {
-          conversation_id,
-          audio_base64: b64,
-          mime_type: file.type || 'audio/webm',
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        const CHUNK = 8192;
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+          binary += String.fromCharCode(...Array.from(bytes.subarray(i, i + CHUNK)));
+        }
+        const b64 = btoa(binary);
+        const mime_type = file.type || 'audio/webm';
+
+        // Usa text/plain SEM headers customizados para evitar preflight CORS.
+        // Token vai na query string; body é JSON stringificado como texto.
+        const token = await getToken();
+        const url = new URL(`${BASE_URL}/whatsapp/send-audio`);
+        if (token) url.searchParams.set('t', token);
+
+        const res = await fetch(url.toString(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ conversation_id, audio_base64: b64, mime_type }),
         });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw { status: res.status, message: err.error || res.statusText } as ApiError;
+        }
+        return res.json();
       },
     },
 
