@@ -706,6 +706,7 @@ model WhatsappIntegration {
   isActive             Boolean   @default(true) @map("is_active")
   webhookToken         String?   @map("webhook_token")
   qrCodeData           String?   @map("qr_code_data")
+  mirrorEnabled        Boolean   @default(false) @map("mirror_enabled")
   connectedAt          DateTime? @map("connected_at") @db.Timestamptz
   lastWebhookEventAt   DateTime? @map("last_webhook_event_at") @db.Timestamptz
   lastWebhookError     String?   @map("last_webhook_error")
