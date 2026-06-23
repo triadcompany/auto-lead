@@ -372,10 +372,27 @@ export function useSupabaseLeads(pipelineId?: string) {
       qc.setQueryData<Lead[]>(key, old => (old ?? []).filter(l => l.id !== deletedId));
     });
 
+    const offMoved = on('lead:moved', (payload: any) => {
+      const { lead, toStageId } = payload || {};
+      if (!lead?.id || !toStageId) return;
+      const qc = queryClientRef.current;
+      const key = leadsKey(orgId, isAdminRef.current, profileIdRef.current);
+      qc.setQueryData<Lead[]>(key, old =>
+        (old ?? []).map(l =>
+          l.id === lead.id
+            ? { ...l, ...normalizeLead(lead),
+                stage_id: toStageId,
+                stage_name: stagesRef.current.find(s => s.id === toStageId)?.name ?? l.stage_name }
+            : l
+        )
+      );
+    });
+
     return () => {
       offCreated?.();
       offUpdated?.();
       offDeleted?.();
+      offMoved?.();
     };
   }, [orgId, on]);
 
