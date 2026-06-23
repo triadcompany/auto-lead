@@ -296,8 +296,13 @@ export function useSupabaseLeads(pipelineId?: string) {
 
       return normalizeLead(raw);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: leadsKey(orgId, isAdmin, profile?.id) });
+    onSuccess: (newLead) => {
+      const key = leadsKey(orgId, isAdmin, profile?.id);
+      queryClient.setQueryData<Lead[]>(key, old => {
+        if (!old) return [newLead];
+        if (old.some(l => l.id === newLead.id)) return old;
+        return [newLead, ...old];
+      });
       toast({ title: 'Sucesso', description: 'Lead criado com sucesso' });
     },
     onError: (err: Error) => {
@@ -343,9 +348,18 @@ export function useSupabaseLeads(pipelineId?: string) {
   useEffect(() => {
     if (!orgId) return;
 
-    const offCreated = on('lead:created', () => {
-      queryClientRef.current.invalidateQueries({
-        queryKey: leadsKey(orgId, isAdminRef.current, profileIdRef.current),
+    const offCreated = on('lead:created', (payload: any) => {
+      const qc = queryClientRef.current;
+      const key = leadsKey(orgId, isAdminRef.current, profileIdRef.current);
+      if (!payload?.id) {
+        qc.invalidateQueries({ queryKey: key });
+        return;
+      }
+      const newLead = normalizeLead(payload);
+      qc.setQueryData<Lead[]>(key, old => {
+        if (!old) return [newLead];
+        if (old.some(l => l.id === newLead.id)) return old;
+        return [newLead, ...old];
       });
     });
 
