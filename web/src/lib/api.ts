@@ -119,6 +119,9 @@ export function createApi(getToken: () => Promise<string | null>) {
       createStage: (id: string, data: Record<string, unknown>) => post<any>(`/pipelines/${id}/stages`, data),
       updateStage: (id: string, stageId: string, data: Record<string, unknown>) => patch(`/pipelines/${id}/stages/${stageId}`, data),
       deleteStage: (id: string, stageId: string) => del(`/pipelines/${id}/stages/${stageId}`),
+      permissions: (id: string) => get<string[]>(`/pipelines/${id}/permissions`),
+      setPermissions: (id: string, profile_ids: string[]) =>
+        request<{ success: boolean }>(getToken, "PUT", `/pipelines/${id}/permissions`, { profile_ids }),
     },
 
     // ── Leads ────────────────────────────────────────────────────────────────
