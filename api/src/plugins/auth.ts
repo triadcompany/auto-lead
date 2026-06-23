@@ -14,6 +14,7 @@ declare module "fastify" {
 
 const PUBLIC_PREFIXES = [
   "/health",
+  "/whatsapp/debug",
   "/auth/",
   "/organizations/bootstrap",
   "/leads/webhook",
