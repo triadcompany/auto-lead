@@ -329,11 +329,14 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     return res.json()
   })
 
-  // POST /whatsapp/send-audio — envia áudio (base64 JSON, max ~300KB para 60s a 32kbps)
-  fastify.post<{
-    Body: { conversation_id: string; audio_base64: string; mime_type?: string }
-  }>("/whatsapp/send-audio", { bodyLimit: 5 * 1024 * 1024 } as any, async (req, reply) => {
-    const { conversation_id, audio_base64, mime_type = "audio/webm" } = req.body
+  // POST /whatsapp/send-audio — envia áudio (base64 JSON)
+  fastify.route({
+    method: "POST",
+    url: "/whatsapp/send-audio",
+    handler: async (req: any, reply) => {
+    const { conversation_id, audio_base64, mime_type = "audio/webm" } = req.body as {
+      conversation_id: string; audio_base64: string; mime_type?: string
+    }
     const orgId = req.auth.orgId
 
     const conversation = await prisma.conversation.findFirst({
@@ -376,6 +379,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
 
     emit(orgId, "message:created", { conversationId: conversation_id, message })
     return reply.code(201).send(message)
+    },
   })
 
   // POST /whatsapp/webhook — recebe eventos do Evolution (rota pública)
