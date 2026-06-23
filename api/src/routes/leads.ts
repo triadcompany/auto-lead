@@ -70,7 +70,7 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         cidade: b.cidade || undefined,
         estado: b.estado || undefined,
         valorNegocio: b.valor_negocio ?? b.valorNegocio ?? undefined,
-        createdBy: req.auth.userId || undefined,
+        createdBy: req.auth.profileId || undefined,
       },
     })
     emit(req.auth.orgId, "lead:created", { ...lead, stage_name: null })
