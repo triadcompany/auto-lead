@@ -1,6 +1,7 @@
 import fp from "fastify-plugin"
 import { Server } from "socket.io"
 import type { FastifyInstance } from "fastify"
+import { prisma } from "../lib/prisma.js"
 
 let _io: Server
 
@@ -29,11 +30,17 @@ async function socketPlugin(fastify: FastifyInstance) {
       const { verifyToken } = await import("@clerk/backend")
       const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY })
 
-      const orgId = payload.org_id as string | undefined
-      if (!orgId) return next(new Error("No organization in token"))
+      const clerkUserId = payload.sub
+      const profile = await prisma.profile.findFirst({
+        where: { clerkUserId },
+        select: { id: true, organizationId: true },
+      })
 
-      socket.data.orgId = orgId
-      socket.data.userId = payload.sub
+      if (!profile?.organizationId) return next(new Error("No organization found for user"))
+
+      socket.data.orgId = profile.organizationId
+      socket.data.userId = clerkUserId
+      socket.data.profileId = profile.id
       next()
     } catch {
       next(new Error("Invalid token"))
