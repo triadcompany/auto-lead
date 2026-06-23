@@ -329,15 +329,45 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     return res.json()
   })
 
-  // POST /whatsapp/send-audio — envia áudio (base64 JSON)
-  fastify.route({
-    method: "POST",
-    url: "/whatsapp/send-audio",
-    handler: async (req: any, reply) => {
-    const { conversation_id, audio_base64, mime_type = "audio/webm" } = req.body as {
-      conversation_id: string; audio_base64: string; mime_type?: string
+  // POST /whatsapp/send-audio
+  // Rota pública (sem auth middleware). Aceita text/plain para evitar preflight CORS.
+  // Token Clerk vem no header x-token (listado em allowedHeaders do CORS).
+  // Body: JSON stringificado enviado como text/plain.
+  fastify.addContentTypeParser("text/plain", { parseAs: "string" }, (_req, body, done) => done(null, body))
+
+  fastify.post("/whatsapp/send-audio", async (req, reply) => {
+    // Auth manual: token Clerk no query param ?t= (evita header customizado que exigiria preflight)
+    const rawToken = (req.query as any).t as string | undefined
+    if (!rawToken) return reply.code(401).send({ error: "Token ausente" })
+
+    let orgId: string
+    try {
+      const { verifyToken } = await import("@clerk/backend")
+      const payload = await verifyToken(rawToken, { secretKey: process.env.CLERK_SECRET_KEY })
+      const profile = await prisma.profile.findFirst({
+        where: { clerkUserId: payload.sub },
+        select: { organizationId: true },
+      })
+      if (!profile?.organizationId) return reply.code(401).send({ error: "Sem organização" })
+      orgId = profile.organizationId
+    } catch {
+      return reply.code(401).send({ error: "Token inválido" })
     }
-    const orgId = req.auth.orgId
+
+    // Parseia body (JSON enviado como text/plain)
+    let conversation_id: string, audio_base64: string, mime_type: string
+    try {
+      const parsed = JSON.parse(req.body as string)
+      conversation_id = parsed.conversation_id
+      audio_base64 = parsed.audio_base64
+      mime_type = parsed.mime_type || "audio/webm"
+    } catch {
+      return reply.code(400).send({ error: "Body inválido" })
+    }
+
+    if (!conversation_id || !audio_base64) {
+      return reply.code(400).send({ error: "conversation_id e audio_base64 são obrigatórios" })
+    }
 
     const conversation = await prisma.conversation.findFirst({
       where: { id: conversation_id, organizationId: orgId },
@@ -346,21 +376,22 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     if (!conversation) return reply.code(404).send({ error: "Conversa não encontrada" })
 
     const dataUri = `data:${mime_type};base64,${audio_base64}`
-    const evRes = await evolutionFetch(`/message/sendWhatsAppAudio/${conversation.instanceName}`, {
-      method: "POST",
-      body: JSON.stringify({ number: conversation.contactPhone, audio: dataUri, delay: 1000 }),
-    })
-
-    if (!evRes.ok) {
-      const evErr = await evRes.json().catch(() => ({})) as any
-      fastify.log.error({ evErr }, "Evolution send-audio error")
-      return reply.code(502).send({ error: evErr?.message || "Falha ao enviar áudio" })
+    let evData: any
+    try {
+      const evRes = await evolutionFetch(`/message/sendWhatsAppAudio/${conversation.instanceName}`, {
+        method: "POST",
+        body: JSON.stringify({ number: conversation.contactPhone, audio: dataUri, delay: 1000 }),
+      })
+      if (!evRes.ok) {
+        const evErr = await evRes.json().catch(() => ({})) as any
+        fastify.log.error({ evErr }, "Evolution send-audio error")
+        return reply.code(502).send({ error: evErr?.message || "Falha ao enviar áudio" })
+      }
+      evData = await evRes.json()
+    } catch (e: any) {
+      fastify.log.error({ e }, "Evolution fetch error")
+      return reply.code(502).send({ error: "Erro ao conectar ao Evolution" })
     }
-
-    const evData = await evRes.json() as any
-
-    // Salva a data URI para que o player do CRM funcione offline (sem precisar buscar no Evolution)
-    const audioDataUri = `data:${mime_type};base64,${audio_base64}`
 
     const message = await prisma.message.create({
       data: {
@@ -371,7 +402,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
         messageType: "audio",
         channel: "whatsapp",
         mimeType: mime_type,
-        mediaUrl: audioDataUri,
+        mediaUrl: dataUri, // salva data URI para reproduzir sem precisar do Evolution
         externalMessageId: evData?.key?.id || null,
       },
     })
@@ -383,7 +414,6 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
 
     emit(orgId, "message:created", { conversationId: conversation_id, message })
     return reply.code(201).send(message)
-    },
   })
 
   // POST /whatsapp/webhook — recebe eventos do Evolution (rota pública)
