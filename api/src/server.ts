@@ -18,6 +18,7 @@ import conversationsRoutes from "./routes/conversations.js"
 import tasksRoutes from "./routes/tasks.js"
 import aiRoutes from "./routes/ai.js"
 import miscRoutes from "./routes/misc.js"
+import authRoutes from "./routes/auth.js"
 
 const server = Fastify({
   logger: true,
@@ -46,6 +47,7 @@ await server.register(conversationsRoutes)
 await server.register(tasksRoutes)
 await server.register(aiRoutes)
 await server.register(miscRoutes)
+await server.register(authRoutes)
 
 const port = Number(process.env.PORT) || 3000
 

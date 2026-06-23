@@ -13,44 +13,94 @@ export default async function organizationsRoutes(fastify: FastifyInstance) {
     return org
   })
 
-  // POST /organizations/bootstrap — cria org e perfil do owner (substitui bootstrap-org)
+  // POST /organizations/bootstrap — cria org e perfil do owner (rota pública, auto-auth)
   fastify.post<{
     Body: {
-      clerk_org_id: string
       clerk_user_id: string
       org_name: string
       user_name: string
       email: string
+      cnpj?: string
     }
   }>("/organizations/bootstrap", async (req, reply) => {
-    const { clerk_org_id, clerk_user_id, org_name, user_name, email } = req.body
+    const authHeader = req.headers.authorization
+    if (!authHeader?.startsWith("Bearer ")) {
+      return reply.code(401).send({ error: "Missing authorization header" })
+    }
 
-    const existing = await prisma.organization.findFirst({
-      where: { clerkOrgId: clerk_org_id } as any,
-    }).catch(() => null)
+    let userId: string
+    try {
+      const { verifyToken } = await import("@clerk/backend")
+      const payload = await verifyToken(authHeader.slice(7), { secretKey: process.env.CLERK_SECRET_KEY })
+      userId = payload.sub
+    } catch {
+      return reply.code(401).send({ error: "Invalid token" })
+    }
 
-    if (existing) return reply.code(200).send(existing)
+    const { clerk_user_id, org_name, user_name, email, cnpj } = req.body
+    if (userId !== clerk_user_id) {
+      return reply.code(403).send({ error: "Unauthorized" })
+    }
 
+    // Se já tem perfil com org, retorna existente
+    const existing = await prisma.profile.findFirst({
+      where: { clerkUserId: userId },
+      include: { organization: true },
+    })
+    if (existing?.organization) {
+      return reply.code(200).send({ org: existing.organization, profile: existing })
+    }
+
+    // Cria organização
     const org = await prisma.organization.create({
       data: {
         name: org_name,
-        ...(({ clerkOrgId: clerk_org_id }) as any),
-      } as any,
+        ...(cnpj ? { cnpj } : {}),
+      },
     })
 
-    await prisma.profile.upsert({
-      where: { clerkUserId: clerk_user_id },
-      update: { organizationId: org.id, role: "admin", updatedAt: new Date() },
+    // Cria/atualiza perfil
+    const profile = await prisma.profile.upsert({
+      where: { clerkUserId: userId },
+      update: { organizationId: org.id, role: "admin", onboardingCompleted: true, updatedAt: new Date() },
       create: {
-        clerkUserId: clerk_user_id,
+        clerkUserId: userId,
         name: user_name,
         email,
         organizationId: org.id,
         role: "admin",
+        onboardingCompleted: true,
       },
+      include: { organization: true },
     })
 
-    return reply.code(201).send(org)
+    // Seed lead sources padrão
+    await prisma.leadSource.createMany({
+      data: [
+        { name: "Meta Ads", sortOrder: 10, organizationId: org.id },
+        { name: "Indicação", sortOrder: 20, organizationId: org.id },
+        { name: "Site", sortOrder: 30, organizationId: org.id },
+        { name: "Instagram Orgânico", sortOrder: 40, organizationId: org.id },
+        { name: "WhatsApp", sortOrder: 50, organizationId: org.id },
+      ],
+      skipDuplicates: true,
+    })
+
+    // Seed pipeline padrão
+    const pipeline = await prisma.pipeline.create({
+      data: { name: "Pipeline Principal", organizationId: org.id, isDefault: true },
+    })
+    await prisma.pipelineStage.createMany({
+      data: [
+        { name: "Novo", position: 1, pipelineId: pipeline.id },
+        { name: "Contato feito", position: 2, pipelineId: pipeline.id },
+        { name: "Negociando", position: 3, pipelineId: pipeline.id },
+        { name: "Fechado", position: 4, pipelineId: pipeline.id },
+        { name: "Perdido", position: 5, pipelineId: pipeline.id },
+      ],
+    })
+
+    return reply.code(201).send({ org, profile })
   })
 
   // PATCH /organizations/:id — atualiza org (substitui update-clerk-org)

@@ -59,6 +59,12 @@ export function createApi(getToken: () => Promise<string | null>) {
     // ── Health ──────────────────────────────────────────────────────────────
     health: () => get<{ status: string }>("/health"),
 
+    // ── Auth ────────────────────────────────────────────────────────────────
+    auth: {
+      sync: (data: { email: string; name: string; avatar_url?: string }) =>
+        post<any>("/auth/sync", data),
+    },
+
     // ── Users ───────────────────────────────────────────────────────────────
     users: {
       list: () => get<any[]>("/users"),
