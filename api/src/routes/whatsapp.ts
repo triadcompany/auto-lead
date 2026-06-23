@@ -127,6 +127,14 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
       const stateData = await stateRes.json() as Record<string, any>
       const currentState = stateData?.instance?.state
       if (currentState === "open") {
+        // Garante registro no banco para o fetchStatus funcionar depois
+        await prisma.$executeRaw`
+          INSERT INTO whatsapp_integrations (organization_id, instance_name, status, provider, is_active)
+          VALUES (${orgId}::uuid, ${targetInstance}, 'connected', 'evolution', true)
+          ON CONFLICT (organization_id) DO UPDATE SET
+            instance_name = EXCLUDED.instance_name,
+            status = 'connected'
+        `.catch(() => null)
         return { ok: true, already_connected: true }
       }
     } catch { /* instância não existe ainda — continua para create */ }
