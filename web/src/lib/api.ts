@@ -219,21 +219,14 @@ export function createApi(getToken: () => Promise<string | null>) {
       send: (instance: string, phone: string, message: string) =>
         post<any>("/whatsapp/send", { instance, phone, message }),
       sendAudio: async (conversation_id: string, file: File): Promise<any> => {
-        const token = await getToken()
-        const url = `${BASE_URL}/whatsapp/send-audio?conversation_id=${encodeURIComponent(conversation_id)}`
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': file.type || 'audio/webm',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: file,
-        })
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: res.statusText }))
-          throw { status: res.status, message: err.error || res.statusText } as ApiError
-        }
-        return res.json()
+        // Converte para base64 e envia como JSON (funciona dentro do limite do proxy)
+        const buf = await file.arrayBuffer();
+        const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+        return post<any>('/whatsapp/send-audio', {
+          conversation_id,
+          audio_base64: b64,
+          mime_type: file.type || 'audio/webm',
+        });
       },
     },
 
