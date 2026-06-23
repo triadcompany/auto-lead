@@ -54,6 +54,28 @@ async function request<T>(
   return res.json() as Promise<T>
 }
 
+async function uploadForm<T>(
+  getToken: () => Promise<string | null>,
+  path: string,
+  formData: FormData
+): Promise<T> {
+  const token = await getToken()
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      // NÃO setar Content-Type — browser adiciona boundary automaticamente
+    },
+    body: formData,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw { status: res.status, message: err.error || res.statusText } as ApiError
+  }
+  if (res.status === 204) return undefined as T
+  return res.json() as Promise<T>
+}
+
 export function createApi(getToken: () => Promise<string | null>) {
   const get = <T>(path: string, query?: Record<string, string | number | boolean | undefined>) =>
     request<T>(getToken, "GET", path, undefined, query)
@@ -66,6 +88,9 @@ export function createApi(getToken: () => Promise<string | null>) {
 
   const del = <T>(path: string) =>
     request<T>(getToken, "DELETE", path)
+
+  const postForm = <T>(path: string, formData: FormData) =>
+    uploadForm<T>(getToken, path, formData)
 
   return {
     // ── Health ──────────────────────────────────────────────────────────────
@@ -193,8 +218,12 @@ export function createApi(getToken: () => Promise<string | null>) {
       disconnect: (instance: string) => del(`/whatsapp/disconnect/${instance}`),
       send: (instance: string, phone: string, message: string) =>
         post<any>("/whatsapp/send", { instance, phone, message }),
-      sendAudio: (conversation_id: string, audio_base64: string, mime_type: string) =>
-        post<any>("/whatsapp/send-audio", { conversation_id, audio_base64, mime_type }),
+      sendAudio: (conversation_id: string, file: File) => {
+        const fd = new FormData();
+        fd.append('audio', file, file.name);
+        fd.append('conversation_id', conversation_id);
+        return postForm<any>("/whatsapp/send-audio", fd);
+      },
     },
 
     // ── Meta ─────────────────────────────────────────────────────────────────
