@@ -71,8 +71,15 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="dark min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-orange-950/30 to-orange-900/20 p-4 text-foreground">
-      <Card className="w-full max-w-md border-border/50 shadow-xl">
+    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f] text-white relative overflow-hidden p-4">
+      {/* Ambient gradients — mesmo padrão da página de login */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-[hsl(20,100%,60%)] opacity-20 blur-[120px]" />
+        <div className="absolute top-1/3 -right-40 w-[500px] h-[500px] rounded-full bg-[hsl(15,100%,45%)] opacity-15 blur-[120px]" />
+        <div className="absolute -bottom-40 left-1/3 w-[500px] h-[500px] rounded-full bg-[hsl(25,100%,55%)] opacity-15 blur-[120px]" />
+      </div>
+
+      <Card className="relative z-10 w-full max-w-md border-white/10 bg-white/[0.04] backdrop-blur-sm shadow-xl">
         <CardHeader className="text-center space-y-4">
           <div className="mx-auto w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
             <Building2 className="w-8 h-8 text-primary" />
