@@ -588,8 +588,8 @@ function MessagesList({
 
     // Merge messages and timeline items sorted by created_at
     const allEntries: { ts: string; entry: Entry }[] = [
-      ...messages.filter((m) => m.created_at).map((m) => ({ ts: m.created_at, entry: { type: 'message' as const, message: m } })),
-      ...timelineItems.filter((t) => t.created_at).map((t) => ({ ts: t.created_at, entry: { type: 'timeline' as const, item: t } })),
+      ...messages.map((m) => ({ ts: (m.created_at || (m as any).createdAt) as string, entry: { type: 'message' as const, message: m } })).filter(e => e.ts),
+      ...timelineItems.map((t) => ({ ts: (t.created_at || (t as any).createdAt) as string, entry: { type: 'timeline' as const, item: t } })).filter(e => e.ts),
     ].sort((a, b) => a.ts.localeCompare(b.ts));
 
     const result: Entry[] = [];
