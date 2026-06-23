@@ -81,6 +81,65 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
     return { success: true }
   })
 
+  // GET /conversations/:id/messages/:msgId/audio — proxy para áudio incoming
+  fastify.get<{ Params: { id: string; msgId: string } }>(
+    "/conversations/:id/messages/:msgId/audio",
+    async (req, reply) => {
+      const msg = await prisma.message.findFirst({
+        where: { id: req.params.msgId, conversationId: req.params.id, organizationId: req.auth.orgId },
+      })
+      if (!msg) return reply.code(404).send({ error: "Not found" })
+
+      // Se já temos URL, redireciona
+      if (msg.mediaUrl) return reply.redirect(msg.mediaUrl)
+
+      if (!msg.externalMessageId) return reply.code(404).send({ error: "No external ID" })
+
+      const conv = await prisma.conversation.findFirst({
+        where: { id: req.params.id, organizationId: req.auth.orgId },
+        select: { instanceName: true, contactPhone: true },
+      })
+      if (!conv?.instanceName) return reply.code(404).send({ error: "No instance" })
+
+      // Busca o áudio no Evolution via getBase64FromMediaMessage
+      const remoteJid = `${conv.contactPhone}@s.whatsapp.net`
+      const evRes = await evolutionFetch(
+        `/chat/getBase64FromMediaMessage/${conv.instanceName}`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            message: {
+              key: {
+                id: msg.externalMessageId,
+                remoteJid,
+                fromMe: msg.direction === "outbound",
+              },
+            },
+          }),
+        }
+      )
+
+      if (!evRes.ok) return reply.code(404).send({ error: "Media not available" })
+
+      const data = await evRes.json() as any
+      if (!data?.base64) return reply.code(404).send({ error: "No base64" })
+
+      const buffer = Buffer.from(data.base64, "base64")
+      const mimeType = data.mimetype || msg.mimeType || "audio/ogg"
+
+      // Cache: salva media_url como data URI para evitar re-buscar
+      prisma.message.update({
+        where: { id: msg.id },
+        data: { mimeType },
+      }).catch(() => null)
+
+      reply.header("Content-Type", mimeType)
+      reply.header("Content-Length", buffer.length)
+      reply.header("Cache-Control", "public, max-age=86400")
+      return reply.send(buffer)
+    }
+  )
+
   // GET /conversations/:id/messages
   fastify.get<{
     Params: { id: string }
