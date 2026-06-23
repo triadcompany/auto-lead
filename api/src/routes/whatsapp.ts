@@ -76,26 +76,27 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
   fastify.post("/whatsapp/me/connect", async (req, reply) => {
     const orgId = req.auth.orgId
     const instanceName = `org-${orgId}`
-    const webhookUrl = `${process.env.API_URL || ""}/whatsapp/webhook`
+    const webhookUrl = `${process.env.API_URL || "https://auto-lead-api.upw28y.easypanel.host"}/whatsapp/webhook`
 
-    // Reuse existing integration if it exists
-    const existing = await (prisma as any).whatsappIntegration?.findFirst?.({
-      where: { organizationId: orgId },
-    }).catch(() => null)
+    // Busca registro existente no banco
+    let existing: any = null
+    try {
+      existing = await prisma.whatsappIntegration.findFirst({ where: { organizationId: orgId } })
+    } catch { /* tabela pode não existir */ }
 
     if (existing?.instanceName) {
-      // Check if instance already running in Evolution
       try {
         const stateRes = await evolutionFetch(`/instance/connectionState/${existing.instanceName}`)
         const stateData = await stateRes.json() as Record<string, any>
         if (stateData?.instance?.state === "open") {
           return { ok: true, already_connected: true }
         }
-      } catch { /* continue */ }
+      } catch { /* continua */ }
     }
 
     const targetInstance = existing?.instanceName || instanceName
 
+    // Cria instância na Evolution
     const createRes = await evolutionFetch("/instance/create", {
       method: "POST",
       body: JSON.stringify({
@@ -113,18 +114,29 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     })
     const createData = await createRes.json() as Record<string, any>
 
+    // Se falhou e não é 403 (já existe), retorna erro legível
     if (!createRes.ok && createRes.status !== 403) {
-      // 403 significa instância já existe — tudo bem, busca QR abaixo
       fastify.log.error({ status: createRes.status, body: createData }, "Evolution create falhou")
+      return reply.code(502).send({
+        ok: false,
+        error: `Evolution API erro ${createRes.status}: ${JSON.stringify(createData?.response?.message || createData?.error || createData)}`,
+      })
     }
 
-    await (prisma as any).whatsappIntegration?.upsert?.({
-      where: { organizationId: orgId } as any,
-      update: { instanceName: targetInstance, status: "connecting" },
-      create: { organizationId: orgId, instanceName: targetInstance, status: "connecting" },
-    }).catch(() => null)
+    // Persiste no banco
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO whatsapp_integrations (organization_id, instance_name, status, provider, is_active)
+        VALUES (${orgId}::uuid, ${targetInstance}, 'connecting', 'evolution', true)
+        ON CONFLICT (organization_id) DO UPDATE SET
+          instance_name = EXCLUDED.instance_name,
+          status = 'connecting'
+      `
+    } catch (dbErr: any) {
+      fastify.log.warn({ err: dbErr?.message }, "DB upsert falhou (não crítico)")
+    }
 
-    // QR code já vem no create; se não, busca com /instance/connect
+    // QR vem no create; se não, busca com /instance/connect
     let qrCode: string | null = createData?.qrcode?.base64 || null
     if (!qrCode) {
       try {
