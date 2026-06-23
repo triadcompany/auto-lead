@@ -2,7 +2,6 @@ import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import { useUser, useAuth as useClerkAuth, useClerk, useOrganization } from '@clerk/clerk-react';
 import { useAuthSession } from '@/hooks/useAuthSession';
 import { useClerkAvailable } from '@/providers/ClerkProvider';
-import { supabase } from '@/integrations/supabase/client';
 
 interface Profile {
   id: string;
@@ -104,17 +103,8 @@ function AuthProviderWithClerk({ children }: { children: React.ReactNode }) {
   const switchActiveOrg = useCallback(
     (next: { org_id: string; clerk_org_id: string; role: 'admin' | 'seller' }) => {
       setActiveOrg(next);
-      if (clerkUser?.id) {
-        supabase
-          .from('profiles')
-          .update({ organization_id: next.org_id })
-          .eq('clerk_user_id', clerkUser.id)
-          .then(({ error: err }) => {
-            if (err) console.error('switchActiveOrg: failed to persist org switch', err);
-          });
-      }
     },
-    [setActiveOrg, clerkUser]
+    [setActiveOrg]
   );
 
   const value: AuthContextType = useMemo(() => ({
