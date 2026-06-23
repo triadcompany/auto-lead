@@ -112,14 +112,6 @@ export function EvolutionIntegration() {
         return null;
       }
 
-      // Defesa anti-vazamento entre orgs
-      if (data.connection.organization_id !== requestOrgId) {
-        if (activeOrgRef.current === requestOrgId) {
-          setConn(null);
-        }
-        return null;
-      }
-
       setConn(data.connection);
       return data.connection;
     } catch (err) {
@@ -238,22 +230,17 @@ export function EvolutionIntegration() {
 
   const handleToggleMirror = async (enabled: boolean) => {
     if (!conn) return;
-    const { error } = await supabase
-      .from("whatsapp_connections")
-      .update({
-        mirror_enabled: enabled,
-        mirror_enabled_at: enabled ? new Date().toISOString() : conn.mirror_enabled_at,
-      })
-      .eq("id", conn.id);
-    if (error) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
-      return;
+    try {
+      await api.whatsapp.meUpdate({ mirror_enabled: enabled });
+      setConn({ ...conn, mirror_enabled: enabled });
+      toast({
+        title: enabled ? "Espelhamento ativado" : "Espelhamento desativado",
+        description: enabled ? "Conversas serão exibidas no Inbox" : "Conversas não serão exibidas",
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast({ title: "Erro", description: msg, variant: "destructive" });
     }
-    setConn({ ...conn, mirror_enabled: enabled });
-    toast({
-      title: enabled ? "Espelhamento ativado" : "Espelhamento desativado",
-      description: enabled ? "Conversas serão exibidas no Inbox" : "Conversas não serão exibidas",
-    });
   };
 
   /* ── Permission gate ── */
