@@ -104,10 +104,10 @@ export function EvolutionIntegration() {
         return null;
       }
 
-      if (!data?.ok) return null;
-      if (data.status === "not_configured" || !data.connection) {
+      if (!data?.ok || data.status === "not_configured" || !data.connection) {
         if (activeOrgRef.current === requestOrgId) {
-          setConn(null);
+          // Não limpa se estiver em connecting (o QR foi recém gerado)
+          setConn(prev => (prev?.status === "connecting" ? prev : null));
         }
         return null;
       }
