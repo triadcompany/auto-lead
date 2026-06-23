@@ -130,7 +130,8 @@ function getContactDisplay(thread: InboxThread): { name: string; subtitle: strin
   return { name: formattedPhone, subtitle: '' };
 }
 
-function getInitials(name: string): string {
+function getInitials(name: string | null | undefined): string {
+  if (!name) return '?';
   return name
     .split(' ')
     .map(w => w[0])
