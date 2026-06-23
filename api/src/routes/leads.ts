@@ -30,12 +30,14 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
       ]
     }
 
-    return prisma.lead.findMany({
+    const leads = await prisma.lead.findMany({
       where,
       take: parseInt(limit),
       skip: parseInt(offset),
       orderBy: { createdAt: "desc" },
+      include: { stage: { select: { name: true } } },
     })
+    return leads.map((l: any) => ({ ...l, stage_name: l.stage?.name ?? null, stage: undefined }))
   })
 
   // GET /leads/:id
@@ -123,6 +125,7 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         data: { valorNegocio: req.body.sale_value, updatedAt: new Date() },
       })
       if (updated.count === 0) return reply.code(404).send({ error: "Not found" })
+      emit(req.auth.orgId, "lead:updated", { id: req.params.id, sale_value: req.body.sale_value })
       return { success: true }
     }
   )
