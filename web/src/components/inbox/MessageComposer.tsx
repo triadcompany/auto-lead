@@ -138,6 +138,8 @@ export function MessageComposer({
   };
 
   // ── Audio recording ──
+  const MAX_RECORDING_SECS = 60;
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -145,7 +147,8 @@ export function MessageComposer({
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
         : 'audio/webm';
-      const mr = new MediaRecorder(stream, { mimeType });
+      // 32kbps mantém boa qualidade de voz com tamanho pequeno
+      const mr = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 });
       mediaRecorderRef.current = mr;
       chunksRef.current = [];
       mr.ondataavailable = (e) => {
@@ -167,7 +170,19 @@ export function MessageComposer({
       mr.start(100);
       setRecording(true);
       setElapsed(0);
-      timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
+      timerRef.current = setInterval(() => {
+        setElapsed((e) => {
+          if (e + 1 >= MAX_RECORDING_SECS) {
+            // Auto-para ao atingir limite
+            if (mediaRecorderRef.current?.state === 'recording') {
+              mediaRecorderRef.current.stop();
+            }
+            setRecording(false);
+            if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+          }
+          return e + 1;
+        });
+      }, 1000);
     } catch (err) {
       console.error('mic error', err);
       toast.error('Não foi possível acessar o microfone');
