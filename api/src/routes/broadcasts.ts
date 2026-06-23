@@ -151,6 +151,20 @@ export default async function broadcastsRoutes(fastify: FastifyInstance) {
     if (!updated?.count) return reply.code(404).send({ error: "Campaign not running" })
     return { paused: true }
   })
+
+  // POST /broadcasts/upload-media — faz upload de mídia para campanha no MinIO
+  fastify.post("/broadcasts/upload-media", async (req, reply) => {
+    const data = await req.file()
+    if (!data) return reply.code(400).send({ error: "Nenhum arquivo enviado" })
+
+    const { uploadFile } = await import("../services/storage.js")
+    const buffer = await data.toBuffer()
+    const ext = data.filename.split(".").pop() || "bin"
+    const key = `broadcasts/${req.auth.orgId}/${Date.now()}-${data.filename}`
+    const url = await uploadFile(key, buffer, data.mimetype)
+
+    return { url }
+  })
 }
 
 // ── Background processor ──────────────────────────────────────────────────
