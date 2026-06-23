@@ -121,6 +121,16 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
 
     const targetInstance = existing?.instanceName || defaultInstanceName
 
+    // Verifica estado na Evolution antes de tentar criar (evita ciclo QR se já estiver open)
+    try {
+      const stateRes = await evolutionFetch(`/instance/connectionState/${targetInstance}`)
+      const stateData = await stateRes.json() as Record<string, any>
+      const currentState = stateData?.instance?.state
+      if (currentState === "open") {
+        return { ok: true, already_connected: true }
+      }
+    } catch { /* instância não existe ainda — continua para create */ }
+
     // Cria instância na Evolution
     const createRes = await evolutionFetch("/instance/create", {
       method: "POST",
@@ -139,8 +149,17 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     })
     const createData = await createRes.json() as Record<string, any>
 
-    // Se falhou e não é 403 (já existe), retorna erro legível
-    if (!createRes.ok && createRes.status !== 403) {
+    if (!createRes.ok) {
+      if (createRes.status === 403) {
+        // Instância já existe mas não estava "open" na checagem anterior — tenta pegar QR
+        try {
+          const qrRes = await evolutionFetch(`/instance/connect/${targetInstance}`)
+          const qrData = await qrRes.json() as Record<string, any>
+          const qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null
+          return reply.code(200).send({ ok: true, instance_name: targetInstance, qr_code: qrCode })
+        } catch { }
+        return reply.code(200).send({ ok: true, instance_name: targetInstance, qr_code: null })
+      }
       fastify.log.error({ status: createRes.status, body: createData }, "Evolution create falhou")
       return reply.code(502).send({
         ok: false,
