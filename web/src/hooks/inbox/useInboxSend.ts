@@ -79,6 +79,7 @@ export function useInboxSend({
         : params.kind === 'audio' ? '🎵 Áudio'
         : '📄 Documento');
 
+    const blobUrl = URL.createObjectURL(params.file);
     const optimisticMsg: InboxMessage = {
       id: `temp-${Date.now()}`,
       organization_id: orgId,
@@ -88,16 +89,29 @@ export function useInboxSend({
       external_message_id: null,
       created_at: new Date().toISOString(),
       message_type: params.kind,
-      media_url: URL.createObjectURL(params.file),
+      media_url: blobUrl,
       mime_type: params.file.type || null,
     } as InboxMessage;
     setMessages(prev => dedupeAndSort([...prev, optimisticMsg]));
 
     try {
-      // Upload via API conversation message endpoint
-      await api.conversations.sendMessage(selectedThreadId, previewBody, params.kind);
+      if (params.kind === 'audio') {
+        // Converte blob para base64 e envia via endpoint dedicado de áudio
+        const arrayBuffer = await params.file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        const base64 = btoa(binary);
+        await api.whatsapp.sendAudio(selectedThreadId, base64, params.file.type || 'audio/webm');
+      } else {
+        await api.conversations.sendMessage(selectedThreadId, previewBody, params.kind);
+      }
+      // Remove optimistic (o socket vai trazer a mensagem real)
+      setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
+      URL.revokeObjectURL(blobUrl);
     } catch (err: any) {
       setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
+      URL.revokeObjectURL(blobUrl);
       toast.error(err.message || 'Erro ao enviar mídia');
     } finally {
       setSending(false);
