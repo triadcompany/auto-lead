@@ -78,14 +78,27 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
 
     const targetInstance = existing?.instanceName || instanceName
 
-    const res = await evolutionFetch("/instance/create", {
+    const createRes = await evolutionFetch("/instance/create", {
       method: "POST",
       body: JSON.stringify({
         instanceName: targetInstance,
-        webhook: { enabled: true, url: webhookUrl, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] },
+        integration: "WHATSAPP-BAILEYS",
+        qrcode: true,
+        webhook: {
+          enabled: true,
+          url: webhookUrl,
+          webhookByEvents: false,
+          webhookBase64: false,
+          events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "QRCODE_UPDATED"],
+        },
       }),
     })
-    const data = await res.json() as Record<string, any>
+    const createData = await createRes.json() as Record<string, any>
+
+    if (!createRes.ok && createRes.status !== 403) {
+      // 403 significa instância já existe — tudo bem, busca QR abaixo
+      fastify.log.error({ status: createRes.status, body: createData }, "Evolution create falhou")
+    }
 
     await (prisma as any).whatsappIntegration?.upsert?.({
       where: { organizationId: orgId } as any,
@@ -93,15 +106,17 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
       create: { organizationId: orgId, instanceName: targetInstance, status: "connecting" },
     }).catch(() => null)
 
-    // Get QR code
-    let qrCode: string | null = null
-    try {
-      const qrRes = await evolutionFetch(`/instance/connect/${targetInstance}`)
-      const qrData = await qrRes.json() as Record<string, any>
-      qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null
-    } catch { /* non-critical */ }
+    // QR code já vem no create; se não, busca com /instance/connect
+    let qrCode: string | null = createData?.qrcode?.base64 || null
+    if (!qrCode) {
+      try {
+        const qrRes = await evolutionFetch(`/instance/connect/${targetInstance}`)
+        const qrData = await qrRes.json() as Record<string, any>
+        qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null
+      } catch { /* non-critical */ }
+    }
 
-    return reply.code(201).send({ ok: true, instance_name: targetInstance, qr_code: qrCode, ...(data as object) })
+    return reply.code(201).send({ ok: true, instance_name: targetInstance, qr_code: qrCode })
   })
 
   // PATCH /whatsapp/me — atualiza configurações da integração (ex: mirror_enabled)
