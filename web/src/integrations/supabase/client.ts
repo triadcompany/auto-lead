@@ -1,27 +1,36 @@
 // Supabase stub — app migrado para API própria (Fastify + Prisma)
-// Mantido para compatibilidade com hooks ainda não migrados.
 import type { Database } from './types';
 
 export const dynamicHeaders: Record<string, string> = {};
 
-const noop = () => Promise.resolve({ data: null, error: null });
-const noopChain: any = new Proxy({}, {
-  get: () => noopChain,
-  apply: () => Promise.resolve({ data: null, error: null }),
+const resolved = Promise.resolve({ data: null, error: null });
+
+// noopChain: Proxy sobre uma função → suporta tanto .prop como prop()
+const noopFn = () => resolved;
+const noopChain: any = new Proxy(noopFn, {
+  get: (_t, prop) => {
+    // Não interceptar propriedades de Promise para evitar confusão com await
+    if (prop === 'then' || prop === 'catch' || prop === 'finally') return undefined;
+    return noopChain;
+  },
+  apply: () => resolved,
 });
 
 export const supabase = {
   from: (_table: string) => noopChain,
-  rpc: (_fn: string, _args?: unknown) => Promise.resolve({ data: null, error: null }),
+  rpc: (_fn: string, _args?: unknown) => resolved,
+  functions: {
+    invoke: (_fn: string, _opts?: unknown) => resolved,
+  },
   auth: {
-    getSession: noop,
+    getSession: () => resolved,
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-    signOut: noop,
+    signOut: () => resolved,
   },
   channel: (_name: string) => ({
     on: () => noopChain,
-    subscribe: () => noopChain,
-    unsubscribe: noop,
+    subscribe: () => ({ unsubscribe: () => {} }),
+    unsubscribe: () => resolved,
   }),
-  removeChannel: noop,
+  removeChannel: () => resolved,
 } as any;
