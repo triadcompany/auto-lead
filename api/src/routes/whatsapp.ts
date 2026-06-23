@@ -6,6 +6,27 @@ import { emit } from "../plugins/socket.js"
 import { evolutionFetch } from "../lib/evolution.js"
 
 export default async function whatsappRoutes(fastify: FastifyInstance) {
+  // GET /whatsapp/debug — diagnóstico da conexão Evolution (admin only)
+  fastify.get("/whatsapp/debug", async (req, reply) => {
+    const evolutionUrl = process.env.EVOLUTION_API_URL || "(não definido)"
+    const evolutionKey = process.env.EVOLUTION_API_KEY ? "***definido***" : "(não definido)"
+
+    let evolutionPing: any = null
+    try {
+      const r = await evolutionFetch("/instance/fetchInstances")
+      evolutionPing = { status: r.status, ok: r.ok }
+    } catch (e: any) {
+      evolutionPing = { error: e.message }
+    }
+
+    return {
+      evolution_url: evolutionUrl,
+      evolution_key: evolutionKey,
+      evolution_ping: evolutionPing,
+      org_id: req.auth.orgId,
+    }
+  })
+
   // GET /whatsapp/me — status da instância da org autenticada
   fastify.get("/whatsapp/me", async (req, reply) => {
     const integration = await (prisma as any).whatsappIntegration?.findFirst?.({
