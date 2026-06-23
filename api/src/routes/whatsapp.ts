@@ -3,18 +3,7 @@ import { prisma } from "../lib/prisma.js"
 import { orgScope } from "../lib/auth.js"
 import { emit } from "../plugins/socket.js"
 
-async function evolutionFetch(path: string, options: RequestInit = {}) {
-  const base = process.env.EVOLUTION_API_URL?.replace(/\/$/, "")
-  if (!base) throw new Error("EVOLUTION_API_URL not set")
-  return fetch(`${base}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      apikey: process.env.EVOLUTION_API_KEY || "",
-      ...(options.headers || {}),
-    },
-  })
-}
+import { evolutionFetch } from "../lib/evolution.js"
 
 export default async function whatsappRoutes(fastify: FastifyInstance) {
   // GET /whatsapp/me — status da instância da org autenticada
@@ -230,18 +219,105 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
 
     if (!instanceName) return { received: true }
 
-    // Find org by instance
     const integration = await (prisma as any).whatsappIntegration?.findFirst?.({
       where: { instanceName },
     }).catch(() => null)
 
     if (!integration) return { received: true }
 
-    const orgId = integration.organizationId
+    const orgId = integration.organizationId as string
 
     if (event === "messages.upsert") {
-      const message = body.data
-      emit(orgId, "message:received", { source: "whatsapp", instance: instanceName, message })
+      const msg = body.data as any
+      if (!msg?.key) return { received: true }
+
+      const fromMe = msg.key?.fromMe === true
+      if (fromMe) return { received: true } // Mensagens enviadas pelo app já ficam no DB
+
+      const remoteJid = msg.key?.remoteJid as string | undefined
+      if (!remoteJid || remoteJid.includes("@g.us")) return { received: true } // Ignora grupos
+
+      const contactPhone = remoteJid.split("@")[0]
+      const contactName = (msg.pushName as string | undefined) || contactPhone
+      const externalMessageId = msg.key?.id as string | undefined
+
+      // Parse body e tipo
+      let textBody = ""
+      let messageType = "text"
+      if (msg.message?.conversation) {
+        textBody = msg.message.conversation
+      } else if (msg.message?.extendedTextMessage?.text) {
+        textBody = msg.message.extendedTextMessage.text
+      } else if (msg.message?.imageMessage) {
+        textBody = msg.message.imageMessage?.caption || ""
+        messageType = "image"
+      } else if (msg.message?.audioMessage || msg.message?.pttMessage) {
+        textBody = "🎵 Áudio"
+        messageType = "audio"
+      } else if (msg.message?.videoMessage) {
+        textBody = msg.message.videoMessage?.caption || "🎥 Vídeo"
+        messageType = "video"
+      } else if (msg.message?.documentMessage) {
+        textBody = msg.message.documentMessage?.fileName || "📎 Documento"
+        messageType = "document"
+      } else if (msg.message?.stickerMessage) {
+        textBody = "🎭 Figurinha"
+        messageType = "sticker"
+      }
+
+      // Idempotência: ignora mensagem já salva
+      if (externalMessageId) {
+        const exists = await prisma.message.findFirst({ where: { externalMessageId } })
+        if (exists) return { received: true }
+      }
+
+      // Encontra ou cria conversa
+      let conversation = await prisma.conversation.findFirst({
+        where: { organizationId: orgId, instanceName, contactPhone },
+      })
+
+      if (!conversation) {
+        conversation = await prisma.conversation.create({
+          data: {
+            organizationId: orgId,
+            instanceName,
+            contactPhone,
+            contactName,
+            channel: "whatsapp",
+            status: "open",
+            lastMessageAt: new Date(),
+            lastMessagePreview: textBody.substring(0, 100),
+            unreadCount: 1,
+          },
+        })
+        emit(orgId, "conversation:created", conversation)
+      } else {
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            lastMessageAt: new Date(),
+            lastMessagePreview: textBody.substring(0, 100),
+            unreadCount: { increment: 1 },
+            ...(contactName && contactName !== conversation.contactName ? { contactName } : {}),
+          },
+        })
+      }
+
+      const savedMessage = await prisma.message.create({
+        data: {
+          organizationId: orgId,
+          conversationId: conversation.id,
+          direction: "inbound",
+          body: textBody,
+          messageType,
+          channel: "whatsapp",
+          externalMessageId: externalMessageId || undefined,
+          senderName: contactName,
+          senderPhone: contactPhone,
+        },
+      })
+
+      emit(orgId, "message:created", { conversationId: conversation.id, message: savedMessage })
     }
 
     if (event === "connection.update") {
