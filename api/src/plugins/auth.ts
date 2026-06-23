@@ -28,6 +28,9 @@ const PUBLIC_PREFIXES = [
 
 async function authPlugin(fastify: FastifyInstance) {
   fastify.addHook("onRequest", async (req: FastifyRequest, reply: FastifyReply) => {
+    // Preflight CORS — nunca bloquear OPTIONS
+    if (req.method === "OPTIONS") return
+
     const isPublic = PUBLIC_PREFIXES.some((prefix) => req.url.startsWith(prefix))
     if (isPublic) return
 
