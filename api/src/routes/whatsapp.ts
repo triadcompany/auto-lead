@@ -197,14 +197,27 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     return res.json()
   })
 
-  // POST /whatsapp/send-audio — envia áudio (substitui whatsapp-send-audio)
+  // POST /whatsapp/send-audio — envia áudio gravado pelo usuário
   fastify.post<{
-    Body: { instance: string; phone: string; audio_url: string }
+    Body: { organization_id?: string; conversation_id: string; audio_base64: string; mime_type?: string }
   }>("/whatsapp/send-audio", async (req, reply) => {
-    const { instance, phone, audio_url } = req.body
-    const res = await evolutionFetch(`/message/sendWhatsAppAudio/${instance}`, {
+    const { conversation_id, audio_base64, mime_type = "audio/webm" } = req.body
+
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: conversation_id },
+      select: { instanceName: true, contactPhone: true, organizationId: true },
+    })
+    if (!conversation) return reply.code(404).send({ error: "Conversa não encontrada" })
+
+    const { uploadFile } = await import("../services/storage.js")
+    const buffer = Buffer.from(audio_base64, "base64")
+    const ext = mime_type.includes("ogg") ? "ogg" : "webm"
+    const key = `audio/${conversation.organizationId}/${Date.now()}.${ext}`
+    const audioUrl = await uploadFile(key, buffer, mime_type)
+
+    const res = await evolutionFetch(`/message/sendWhatsAppAudio/${conversation.instanceName}`, {
       method: "POST",
-      body: JSON.stringify({ number: phone, audio: audio_url }),
+      body: JSON.stringify({ number: conversation.contactPhone, audio: audioUrl, delay: 1000 }),
     })
     return res.json()
   })
