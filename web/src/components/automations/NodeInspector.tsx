@@ -3,13 +3,14 @@ import { Node } from "@xyflow/react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { X, Zap, MessageSquare, Clock, GitBranch, Cog, Trash2, MessageSquareReply, Bell } from "lucide-react";
+import { X, Zap, MessageSquare, Clock, GitBranch, GitMerge, Cog, Trash2, MessageSquareReply, Bell } from "lucide-react";
 import { TriggerEditor } from "./editors/TriggerEditor";
 import { DelayEditor } from "./editors/DelayEditor";
 import { MessageEditor } from "./editors/MessageEditor";
 import { ConditionEditor } from "./editors/ConditionEditor";
 import { ActionEditor } from "./editors/ActionEditor";
 import { WaitForReplyEditor } from "./editors/WaitForReplyEditor";
+import { ReplyRouterEditor } from "./editors/ReplyRouterEditor";
 import { FollowupEditor } from "./editors/FollowupEditor";
 
 interface NodeInspectorProps {
@@ -26,6 +27,7 @@ const nodeTypeInfo: Record<string, { label: string; icon: React.ElementType; col
   condition: { label: "Condição", icon: GitBranch, color: "text-emerald-500" },
   action: { label: "Ação", icon: Cog, color: "text-orange-500" },
   wait_for_reply: { label: "Esperar Resposta", icon: MessageSquareReply, color: "text-cyan-500" },
+  reply_router: { label: "Rotear por Resposta", icon: GitMerge, color: "text-violet-500" },
   followup: { label: "Follow-up", icon: Bell, color: "text-green-500" },
 };
 
@@ -54,6 +56,8 @@ export function NodeInspector({ node, onUpdate, onDelete, onClose }: NodeInspect
         return <ActionEditor config={config} onChange={handleConfigChange} />;
       case "wait_for_reply":
         return <WaitForReplyEditor config={config} onChange={handleConfigChange} />;
+      case "reply_router":
+        return <ReplyRouterEditor config={config} onChange={handleConfigChange} />;
       case "followup":
         return <FollowupEditor config={config} onChange={handleConfigChange} />;
       default:
