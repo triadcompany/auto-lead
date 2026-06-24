@@ -30,9 +30,9 @@ import {
   MessageCircle,
   X
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useApi } from "@/hooks/useApi";
 import { FollowupCadence, FollowupCadenceStep, MessageChannel } from "@/types/followup";
 
 const DEFAULT_CADENCES = [
@@ -59,6 +59,7 @@ const DEFAULT_CADENCES = [
 export function FollowupCadencesManagement() {
   const { profile } = useAuth();
   const { toast } = useToast();
+  const api = useApi();
   
   const [cadences, setCadences] = useState<FollowupCadence[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,23 +81,15 @@ export function FollowupCadencesManagement() {
   }, [profile?.organization_id]);
 
   const fetchCadences = async () => {
-    if (!profile?.organization_id) return;
-    
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('followup_cadences')
-        .select('*')
-        .eq('organization_id', profile.organization_id)
-        .order('is_default', { ascending: false });
-
-      if (error) throw error;
-      
-      const parsedCadences = (data || []).map(c => ({
+      const data = await api.followupCadences.list() as any[];
+      const parsedCadences = (data || []).map((c: any) => ({
         ...c,
-        steps: (c.steps as unknown as FollowupCadenceStep[]) || []
+        steps: Array.isArray(c.steps) ? c.steps : [],
+        is_default: c.isDefault ?? c.is_default ?? false,
+        is_active: c.isActive ?? c.is_active ?? true,
       }));
-      
       setCadences(parsedCadences);
     } catch (error) {
       console.error('Error fetching cadences:', error);
@@ -137,46 +130,21 @@ export function FollowupCadencesManagement() {
     setSaving(true);
     try {
       if (editingCadence) {
-        const { error } = await supabase
-          .from('followup_cadences')
-          .update({
-            name,
-            description,
-            steps: steps as unknown as any,
-            is_default: isDefault,
-            is_active: isActive,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingCadence.id);
-
-        if (error) throw error;
+        await api.followupCadences.update(editingCadence.id, {
+          name, description, steps, is_default: isDefault, is_active: isActive,
+        });
         toast({ title: "Cadência atualizada com sucesso" });
       } else {
-        const { error } = await supabase
-          .from('followup_cadences')
-          .insert({
-            organization_id: profile.organization_id,
-            name,
-            description,
-            steps: steps as unknown as any,
-            is_default: isDefault,
-            is_active: isActive,
-            created_by: profile.user_id,
-          });
-
-        if (error) throw error;
+        await api.followupCadences.create({
+          name, description, steps, is_default: isDefault, is_active: isActive,
+        });
         toast({ title: "Cadência criada com sucesso" });
       }
-
       setDialogOpen(false);
       fetchCadences();
     } catch (error) {
       console.error('Error saving cadence:', error);
-      toast({
-        title: "Erro ao salvar cadência",
-        description: "Tente novamente",
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao salvar cadência", description: "Tente novamente", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -184,22 +152,13 @@ export function FollowupCadencesManagement() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir esta cadência?')) return;
-
     try {
-      const { error } = await supabase
-        .from('followup_cadences')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await api.followupCadences.delete(id);
       toast({ title: "Cadência excluída" });
       fetchCadences();
     } catch (error) {
       console.error('Error deleting cadence:', error);
-      toast({
-        title: "Erro ao excluir cadência",
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao excluir cadência", variant: "destructive" });
     }
   };
 
@@ -229,25 +188,16 @@ export function FollowupCadencesManagement() {
   };
 
   const createDefaultCadences = async () => {
-    if (!profile?.organization_id) return;
-    
     try {
       for (const cadence of DEFAULT_CADENCES) {
-        const { error } = await supabase
-          .from('followup_cadences')
-          .insert({
-            organization_id: profile.organization_id,
-            name: cadence.name,
-            description: cadence.description,
-            steps: cadence.steps as unknown as any,
-            is_default: cadence.name === 'Cadência Padrão',
-            is_active: true,
-            created_by: profile.user_id,
-          });
-
-        if (error) throw error;
+        await api.followupCadences.create({
+          name: cadence.name,
+          description: cadence.description,
+          steps: cadence.steps,
+          is_default: cadence.name === 'Cadência Padrão',
+          is_active: true,
+        });
       }
-      
       toast({ title: "Cadências padrão criadas com sucesso" });
       fetchCadences();
     } catch (error) {
