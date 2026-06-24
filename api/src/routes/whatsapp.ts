@@ -2,134 +2,66 @@ import type { FastifyInstance } from "fastify"
 import { prisma } from "../lib/prisma.js"
 import { orgScope } from "../lib/auth.js"
 import { emit } from "../plugins/socket.js"
+import { findPausedReplyRouterRun, matchReply, resumeRun } from "../lib/automationRunner.js"
 
-import { evolutionFetch } from "../lib/evolution.js"
+async function evolutionFetch(path: string, options: RequestInit = {}) {
+  const base = process.env.EVOLUTION_API_URL?.replace(/\/$/, "")
+  if (!base) throw new Error("EVOLUTION_API_URL not set")
+  return fetch(`${base}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      apikey: process.env.EVOLUTION_API_KEY || "",
+      ...(options.headers || {}),
+    },
+  })
+}
 
 export default async function whatsappRoutes(fastify: FastifyInstance) {
-  // GET /whatsapp/debug — diagnóstico público (temporário)
-  fastify.get("/whatsapp/debug", { config: { skipAuth: true } } as any, async (req, reply) => {
-    const evolutionUrl = process.env.EVOLUTION_API_URL || "(não definido)"
-    const evolutionKey = process.env.EVOLUTION_API_KEY ? "***definido***" : "(não definido)"
-
-    let evolutionPing: any = null
-    let instances: any = null
-    try {
-      const r = await evolutionFetch("/instance/fetchInstances")
-      evolutionPing = { status: r.status, ok: r.ok }
-      if (r.ok) instances = (await r.json() as any[]).map((i: any) => ({ name: i.name, status: i.connectionStatus }))
-    } catch (e: any) {
-      evolutionPing = { error: e.message }
-    }
-
-    return { evolution_url: evolutionUrl, evolution_key: evolutionKey, evolution_ping: evolutionPing, instances }
-  })
-
-  // Helper: deriva slug da org (mesmo algoritmo do meConnect)
-  async function orgInstanceName(orgId: string): Promise<string> {
-    const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } })
-    return (org?.name || orgId)
-      .toLowerCase()
-      .normalize("NFD").replace(/[̀-ͯ]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 50) || `org-${orgId}`
-  }
-
-  // Helper: garante que a tabela e colunas existem
-  async function ensureWhatsappTable(orgId: string, instanceName: string, status = "connected") {
-    try {
-      await prisma.$executeRaw`
-        CREATE TABLE IF NOT EXISTS whatsapp_integrations (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          organization_id UUID UNIQUE NOT NULL,
-          provider TEXT NOT NULL DEFAULT 'evolution',
-          instance_name TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'disconnected',
-          is_active BOOLEAN NOT NULL DEFAULT true,
-          mirror_enabled BOOLEAN NOT NULL DEFAULT false,
-          connected_at TIMESTAMPTZ,
-          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-        )
-      `
-      await prisma.$executeRaw`ALTER TABLE whatsapp_integrations ADD COLUMN IF NOT EXISTS mirror_enabled BOOLEAN DEFAULT false`
-      await prisma.$executeRaw`
-        INSERT INTO whatsapp_integrations (organization_id, instance_name, status, provider, is_active)
-        VALUES (${orgId}::uuid, ${instanceName}, ${status}, 'evolution', true)
-        ON CONFLICT (organization_id) DO UPDATE SET
-          instance_name = EXCLUDED.instance_name,
-          status = ${status}
-      `
-    } catch (e: any) {
-      // log mas não falha — o endpoint ainda funciona sem banco
-    }
-  }
-
   // GET /whatsapp/me — status da instância da org autenticada
   fastify.get("/whatsapp/me", async (req, reply) => {
-    const orgId = req.auth.orgId
+    const integration = await (prisma as any).whatsappIntegration?.findFirst?.({
+      where: { organizationId: req.auth.orgId },
+      orderBy: { createdAt: "desc" },
+    }).catch(() => null)
 
-    // Tenta ler do banco; se falhar, deriva o nome da instância do nome da org
-    let dbRecord: any = null
-    try { dbRecord = await prisma.whatsappIntegration.findFirst({ where: { organizationId: orgId } }) } catch { }
+    if (!integration) return { ok: false, status: "not_configured", connection: null }
 
-    const instanceName = dbRecord?.instanceName || await orgInstanceName(orgId)
-
-    // Consulta estado real na Evolution
+    const instanceName = integration.instanceName as string
     let evolutionData: any = null
     let qrCode: string | null = null
+
     try {
       const res = await evolutionFetch(`/instance/connectionState/${instanceName}`)
-      if (res.ok) evolutionData = await res.json()
-    } catch { }
-
-    // Se Evolution não conhece essa instância e não há registro no banco → não configurado
-    if (!evolutionData?.instance && !dbRecord) {
-      return { ok: false, status: "not_configured", connection: null }
+      evolutionData = await res.json()
+    } catch {
+      // Evolution API unreachable — return last known status from DB
     }
 
-    const rawState = evolutionData?.instance?.state || dbRecord?.status || "disconnected"
-    const evStatus =
-      rawState === "open"   ? "connected"   :
-      rawState === "close" || rawState === "closed" ? "disconnected" :
-      rawState === "qr"    ? "connecting"   :
-      rawState
+    const evStatus = evolutionData?.instance?.state || integration.status || "disconnected"
+    const isConnecting = evStatus === "connecting" || evStatus === "qr"
 
-    // Se conectado mas sem banco → salva automaticamente
-    if (evStatus === "connected" && !dbRecord) {
-      await ensureWhatsappTable(orgId, instanceName, "connected")
-    }
-
-    if (evStatus === "connecting") {
+    if (isConnecting) {
       try {
         const qrRes = await evolutionFetch(`/instance/connect/${instanceName}`)
         const qrData = await qrRes.json() as Record<string, any>
         qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null
-      } catch { }
+      } catch { /* non-critical */ }
     }
-
-    // Lê mirror_enabled (coluna pode não existir em produção antiga)
-    let mirrorEnabled = false
-    try {
-      const rows = await prisma.$queryRaw<[{ mirror_enabled: boolean }]>`
-        SELECT mirror_enabled FROM whatsapp_integrations WHERE organization_id = ${orgId}::uuid LIMIT 1
-      `
-      mirrorEnabled = rows[0]?.mirror_enabled ?? false
-    } catch { }
 
     return {
       ok: true,
       status: evStatus,
       connection: {
         instance_name: instanceName,
-        phone_number: null,
+        phone_number: integration.phoneNumber || null,
         status: evStatus,
         qr_code: qrCode,
-        connected_at: dbRecord?.connectedAt || null,
-        last_connected_at: null,
-        last_disconnected_at: null,
-        mirror_enabled: mirrorEnabled,
-        mirror_enabled_at: null,
+        connected_at: integration.connectedAt || null,
+        last_connected_at: integration.lastConnectedAt || null,
+        last_disconnected_at: integration.lastDisconnectedAt || null,
+        mirror_enabled: integration.mirrorEnabled || false,
+        mirror_enabled_at: integration.mirrorEnabledAt || null,
       },
     }
   })
@@ -137,114 +69,51 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
   // POST /whatsapp/me/connect — conecta org autenticada (cria ou reutiliza instância)
   fastify.post("/whatsapp/me/connect", async (req, reply) => {
     const orgId = req.auth.orgId
-    const webhookUrl = `${process.env.API_URL || "https://auto-lead-api.upw28y.easypanel.host"}/whatsapp/webhook`
+    const instanceName = `org-${orgId}`
+    const webhookUrl = `${process.env.API_URL || ""}/whatsapp/webhook`
 
-    // Nome da instância = nome da organização sanitizado (sem espaços/especiais)
-    const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } })
-    const orgSlug = (org?.name || orgId)
-      .toLowerCase()
-      .normalize("NFD").replace(/[̀-ͯ]/g, "") // remove acentos
-      .replace(/[^a-z0-9]+/g, "-")                      // não-alfanumérico → hífen
-      .replace(/^-+|-+$/g, "")                          // trim hífens
-      .slice(0, 50)
-    const defaultInstanceName = orgSlug || `org-${orgId}`
-
-    // Busca registro existente no banco
-    let existing: any = null
-    try {
-      existing = await prisma.whatsappIntegration.findFirst({ where: { organizationId: orgId } })
-    } catch { /* tabela pode não existir */ }
+    // Reuse existing integration if it exists
+    const existing = await (prisma as any).whatsappIntegration?.findFirst?.({
+      where: { organizationId: orgId },
+    }).catch(() => null)
 
     if (existing?.instanceName) {
+      // Check if instance already running in Evolution
       try {
         const stateRes = await evolutionFetch(`/instance/connectionState/${existing.instanceName}`)
         const stateData = await stateRes.json() as Record<string, any>
         if (stateData?.instance?.state === "open") {
           return { ok: true, already_connected: true }
         }
-      } catch { /* continua */ }
+      } catch { /* continue */ }
     }
 
-    const targetInstance = existing?.instanceName || defaultInstanceName
+    const targetInstance = existing?.instanceName || instanceName
 
-    // Verifica estado na Evolution antes de tentar criar (evita ciclo QR se já estiver open)
-    try {
-      const stateRes = await evolutionFetch(`/instance/connectionState/${targetInstance}`)
-      const stateData = await stateRes.json() as Record<string, any>
-      const currentState = stateData?.instance?.state
-      if (currentState === "open") {
-        await ensureWhatsappTable(orgId, targetInstance, "connected")
-        return { ok: true, already_connected: true }
-      }
-    } catch { /* instância não existe ainda — continua para create */ }
-
-    // Cria instância na Evolution
-    const createRes = await evolutionFetch("/instance/create", {
+    const res = await evolutionFetch("/instance/create", {
       method: "POST",
       body: JSON.stringify({
         instanceName: targetInstance,
-        integration: "WHATSAPP-BAILEYS",
-        qrcode: true,
-        webhook: {
-          enabled: true,
-          url: webhookUrl,
-          webhookByEvents: false,
-          webhookBase64: false,
-          events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "QRCODE_UPDATED"],
-        },
+        webhook: { enabled: true, url: webhookUrl, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] },
       }),
     })
-    const createData = await createRes.json() as Record<string, any>
+    const data = await res.json() as Record<string, any>
 
-    if (!createRes.ok) {
-      if (createRes.status === 403) {
-        // Instância já existe mas não estava "open" na checagem anterior — tenta pegar QR
-        try {
-          const qrRes = await evolutionFetch(`/instance/connect/${targetInstance}`)
-          const qrData = await qrRes.json() as Record<string, any>
-          const qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null
-          return reply.code(200).send({ ok: true, instance_name: targetInstance, qr_code: qrCode })
-        } catch { }
-        return reply.code(200).send({ ok: true, instance_name: targetInstance, qr_code: null })
-      }
-      fastify.log.error({ status: createRes.status, body: createData }, "Evolution create falhou")
-      return reply.code(502).send({
-        ok: false,
-        error: `Evolution API erro ${createRes.status}: ${JSON.stringify(createData?.response?.message || createData?.error || createData)}`,
-      })
-    }
+    await (prisma as any).whatsappIntegration?.upsert?.({
+      where: { organizationId: orgId } as any,
+      update: { instanceName: targetInstance, status: "connecting" },
+      create: { organizationId: orgId, instanceName: targetInstance, status: "connecting" },
+    }).catch(() => null)
 
-    await ensureWhatsappTable(orgId, targetInstance, "connecting")
-
-    // QR vem no create; se não, busca com /instance/connect
-    let qrCode: string | null = createData?.qrcode?.base64 || null
-    if (!qrCode) {
-      try {
-        const qrRes = await evolutionFetch(`/instance/connect/${targetInstance}`)
-        const qrData = await qrRes.json() as Record<string, any>
-        qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null
-      } catch { /* non-critical */ }
-    }
-
-    return reply.code(201).send({ ok: true, instance_name: targetInstance, qr_code: qrCode })
-  })
-
-  // PATCH /whatsapp/me — atualiza configurações da integração (ex: mirror_enabled)
-  fastify.patch<{ Body: { mirror_enabled?: boolean } }>("/whatsapp/me", async (req, reply) => {
-    const { mirror_enabled } = req.body
-    if (mirror_enabled === undefined) return { success: true }
-
-    const orgId = req.auth.orgId
+    // Get QR code
+    let qrCode: string | null = null
     try {
-      // Cria a coluna se ainda não existir (deploy sem migration)
-      await prisma.$executeRaw`ALTER TABLE whatsapp_integrations ADD COLUMN IF NOT EXISTS mirror_enabled BOOLEAN DEFAULT false`
-      await prisma.$executeRaw`
-        UPDATE whatsapp_integrations SET mirror_enabled = ${mirror_enabled} WHERE organization_id = ${orgId}::uuid
-      `
-    } catch (err: any) {
-      fastify.log.warn({ err: err?.message }, "mirror_enabled update falhou")
-    }
-    return { success: true }
+      const qrRes = await evolutionFetch(`/instance/connect/${targetInstance}`)
+      const qrData = await qrRes.json() as Record<string, any>
+      qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null
+    } catch { /* non-critical */ }
+
+    return reply.code(201).send({ ok: true, instance_name: targetInstance, qr_code: qrCode, ...(data as object) })
   })
 
   // DELETE /whatsapp/me/disconnect — desconecta org autenticada
@@ -329,91 +198,16 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     return res.json()
   })
 
-  // POST /whatsapp/send-audio
-  // Rota pública (sem auth middleware). Aceita text/plain para evitar preflight CORS.
-  // Token Clerk vem no header x-token (listado em allowedHeaders do CORS).
-  // Body: JSON stringificado enviado como text/plain.
-  fastify.addContentTypeParser("text/plain", { parseAs: "string" }, (_req, body, done) => done(null, body))
-
-  fastify.post("/whatsapp/send-audio", async (req, reply) => {
-    // Auth manual: token Clerk no query param ?t= (evita header customizado que exigiria preflight)
-    const rawToken = (req.query as any).t as string | undefined
-    if (!rawToken) return reply.code(401).send({ error: "Token ausente" })
-
-    let orgId: string
-    try {
-      const { verifyToken } = await import("@clerk/backend")
-      const payload = await verifyToken(rawToken, { secretKey: process.env.CLERK_SECRET_KEY })
-      const profile = await prisma.profile.findFirst({
-        where: { clerkUserId: payload.sub },
-        select: { organizationId: true },
-      })
-      if (!profile?.organizationId) return reply.code(401).send({ error: "Sem organização" })
-      orgId = profile.organizationId
-    } catch {
-      return reply.code(401).send({ error: "Token inválido" })
-    }
-
-    // Parseia body (JSON enviado como text/plain)
-    let conversation_id: string, audio_base64: string, mime_type: string
-    try {
-      const parsed = JSON.parse(req.body as string)
-      conversation_id = parsed.conversation_id
-      audio_base64 = parsed.audio_base64
-      mime_type = parsed.mime_type || "audio/webm"
-    } catch {
-      return reply.code(400).send({ error: "Body inválido" })
-    }
-
-    if (!conversation_id || !audio_base64) {
-      return reply.code(400).send({ error: "conversation_id e audio_base64 são obrigatórios" })
-    }
-
-    const conversation = await prisma.conversation.findFirst({
-      where: { id: conversation_id, organizationId: orgId },
-      select: { id: true, instanceName: true, contactPhone: true },
+  // POST /whatsapp/send-audio — envia áudio (substitui whatsapp-send-audio)
+  fastify.post<{
+    Body: { instance: string; phone: string; audio_url: string }
+  }>("/whatsapp/send-audio", async (req, reply) => {
+    const { instance, phone, audio_url } = req.body
+    const res = await evolutionFetch(`/message/sendWhatsAppAudio/${instance}`, {
+      method: "POST",
+      body: JSON.stringify({ number: phone, audio: audio_url }),
     })
-    if (!conversation) return reply.code(404).send({ error: "Conversa não encontrada" })
-
-    const dataUri = `data:${mime_type};base64,${audio_base64}`
-    let evData: any
-    try {
-      const evRes = await evolutionFetch(`/message/sendWhatsAppAudio/${conversation.instanceName}`, {
-        method: "POST",
-        body: JSON.stringify({ number: conversation.contactPhone, audio: dataUri, delay: 1000 }),
-      })
-      if (!evRes.ok) {
-        const evErr = await evRes.json().catch(() => ({})) as any
-        fastify.log.error({ evErr }, "Evolution send-audio error")
-        return reply.code(502).send({ error: evErr?.message || "Falha ao enviar áudio" })
-      }
-      evData = await evRes.json()
-    } catch (e: any) {
-      fastify.log.error({ e }, "Evolution fetch error")
-      return reply.code(502).send({ error: "Erro ao conectar ao Evolution" })
-    }
-
-    const message = await prisma.message.create({
-      data: {
-        organizationId: orgId,
-        conversationId: conversation_id,
-        direction: "outbound",
-        body: "🎵 Áudio",
-        messageType: "audio",
-        channel: "whatsapp",
-        mimeType: mime_type,
-        mediaUrl: dataUri, // salva data URI para reproduzir sem precisar do Evolution
-        externalMessageId: evData?.key?.id || null,
-      },
-    })
-
-    await prisma.conversation.update({
-      where: { id: conversation_id },
-      data: { lastMessageAt: new Date(), lastMessagePreview: "🎵 Áudio" },
-    })
-
-    emit(orgId, "message:created", { conversationId: conversation_id, message })
-    return reply.code(201).send(message)
+    return res.json()
   })
 
   // POST /whatsapp/webhook — recebe eventos do Evolution (rota pública)
@@ -424,115 +218,35 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
 
     if (!instanceName) return { received: true }
 
+    // Find org by instance
     const integration = await (prisma as any).whatsappIntegration?.findFirst?.({
       where: { instanceName },
     }).catch(() => null)
 
     if (!integration) return { received: true }
 
-    const orgId = integration.organizationId as string
+    const orgId = integration.organizationId
 
     if (event === "messages.upsert") {
-      // Só processa se espelhamento estiver ativado
-      let mirrorEnabled = false
-      try {
-        const rows = await prisma.$queryRaw<[{ mirror_enabled: boolean }]>`
-          SELECT mirror_enabled FROM whatsapp_integrations WHERE instance_name = ${instanceName} LIMIT 1
-        `
-        mirrorEnabled = rows[0]?.mirror_enabled ?? false
-      } catch { }
-      if (!mirrorEnabled) return { received: true }
+      const message = body.data
+      emit(orgId, "message:received", { source: "whatsapp", instance: instanceName, message })
 
-      const msg = body.data as any
-      if (!msg?.key) return { received: true }
-
-      const fromMe = msg.key?.fromMe === true
-      if (fromMe) return { received: true } // Mensagens enviadas pelo app já ficam no DB
-
-      const remoteJid = msg.key?.remoteJid as string | undefined
-      if (!remoteJid || remoteJid.includes("@g.us")) return { received: true } // Ignora grupos
-
-      const contactPhone = remoteJid.split("@")[0]
-      const contactName = (msg.pushName as string | undefined) || contactPhone
-      const externalMessageId = msg.key?.id as string | undefined
-
-      // Parse body e tipo
-      let textBody = ""
-      let messageType = "text"
-      if (msg.message?.conversation) {
-        textBody = msg.message.conversation
-      } else if (msg.message?.extendedTextMessage?.text) {
-        textBody = msg.message.extendedTextMessage.text
-      } else if (msg.message?.imageMessage) {
-        textBody = msg.message.imageMessage?.caption || ""
-        messageType = "image"
-      } else if (msg.message?.audioMessage || msg.message?.pttMessage) {
-        textBody = "🎵 Áudio"
-        messageType = "audio"
-      } else if (msg.message?.videoMessage) {
-        textBody = msg.message.videoMessage?.caption || "🎥 Vídeo"
-        messageType = "video"
-      } else if (msg.message?.documentMessage) {
-        textBody = msg.message.documentMessage?.fileName || "📎 Documento"
-        messageType = "document"
-      } else if (msg.message?.stickerMessage) {
-        textBody = "🎭 Figurinha"
-        messageType = "sticker"
+      // resume paused reply_router automations when lead replies
+      const isInbound = message?.key?.fromMe === false
+      const rawPhone: string = (message?.key?.remoteJid || "").replace("@s.whatsapp.net", "")
+      const messageText: string =
+        message?.message?.conversation ||
+        message?.message?.extendedTextMessage?.text ||
+        ""
+      if (isInbound && rawPhone && messageText) {
+        findPausedReplyRouterRun(orgId, rawPhone)
+          .then((paused) => {
+            if (!paused) return
+            const branch = matchReply(messageText, paused.nodeConfig)
+            return resumeRun(paused.runId, branch, messageText)
+          })
+          .catch((e) => console.error("[whatsapp] automation resume error:", e))
       }
-
-      // Idempotência: ignora mensagem já salva
-      if (externalMessageId) {
-        const exists = await prisma.message.findFirst({ where: { externalMessageId } })
-        if (exists) return { received: true }
-      }
-
-      // Encontra ou cria conversa
-      let conversation = await prisma.conversation.findFirst({
-        where: { organizationId: orgId, instanceName, contactPhone },
-      })
-
-      if (!conversation) {
-        conversation = await prisma.conversation.create({
-          data: {
-            organizationId: orgId,
-            instanceName,
-            contactPhone,
-            contactName,
-            channel: "whatsapp",
-            status: "open",
-            lastMessageAt: new Date(),
-            lastMessagePreview: textBody.substring(0, 100),
-            unreadCount: 1,
-          },
-        })
-        emit(orgId, "conversation:created", conversation)
-      } else {
-        await prisma.conversation.update({
-          where: { id: conversation.id },
-          data: {
-            lastMessageAt: new Date(),
-            lastMessagePreview: textBody.substring(0, 100),
-            unreadCount: { increment: 1 },
-            ...(contactName && contactName !== conversation.contactName ? { contactName } : {}),
-          },
-        })
-      }
-
-      const savedMessage = await prisma.message.create({
-        data: {
-          organizationId: orgId,
-          conversationId: conversation.id,
-          direction: "inbound",
-          body: textBody,
-          messageType,
-          channel: "whatsapp",
-          externalMessageId: externalMessageId || undefined,
-          senderName: contactName,
-          senderPhone: contactPhone,
-        },
-      })
-
-      emit(orgId, "message:created", { conversationId: conversation.id, message: savedMessage })
     }
 
     if (event === "connection.update") {
