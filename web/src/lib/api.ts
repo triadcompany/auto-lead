@@ -151,7 +151,7 @@ export function createApi(getToken: () => Promise<string | null>) {
 
     // ── Leads ────────────────────────────────────────────────────────────────
     leads: {
-      list: (q?: { pipeline_id?: string; stage_id?: string; seller_id?: string; search?: string; limit?: number; offset?: number }) =>
+      list: (q?: Record<string, string | number | boolean | undefined>) =>
         get<any[]>("/leads", q as any),
       get: (id: string) => get<any>(`/leads/${id}`),
       create: (data: Record<string, unknown>) => post<any>("/leads", data),
