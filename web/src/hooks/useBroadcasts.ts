@@ -186,7 +186,7 @@ export function useBroadcasts() {
 
   const retryFailed = useMutation({
     mutationFn: async (id: string) => {
-      await api.broadcasts.start(id);
+      await api.broadcasts.retry(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
