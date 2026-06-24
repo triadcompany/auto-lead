@@ -519,7 +519,7 @@ const { getToken } = useClerkAuth();
   const searchCrmLeads = async () => {
     setCrmLoading(true); setCrmSearched(true);
     try {
-      const params: Record<string, string> = { limit: "2000", has_phone: "1" };
+      const params: Record<string, string> = { limit: "2000" };
 
       if (crmFilters.pipelineId) params.pipeline_id = crmFilters.pipelineId;
 
@@ -548,7 +548,11 @@ const { getToken } = useClerkAuth();
 
       const leads = await api.leads.list(params) as any[];
       setCrmLeads(leads || []);
-    } catch (err) { console.error(err); setCrmLeads([]); toast.error('Erro ao buscar leads do CRM'); }
+    } catch (err: any) {
+      console.error('searchCrmLeads error:', err);
+      setCrmLeads([]);
+      toast.error(`Erro ao buscar leads: ${err?.message || JSON.stringify(err)}`);
+    }
     finally { setCrmLoading(false); }
   };
 
