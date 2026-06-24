@@ -10,7 +10,7 @@ export default async function followupsRoutes(fastify: FastifyInstance) {
     "/followups",
     async (req) => {
       const { lead_id, status, assigned_to } = req.query
-      const items = await prisma.followup.findMany({
+      const items = await (prisma.followup.findMany as any)({
         where: {
           ...orgScope(req),
           ...(lead_id && { leadId: lead_id }),
@@ -22,8 +22,8 @@ export default async function followupsRoutes(fastify: FastifyInstance) {
           template: true,
         },
         orderBy: { scheduledFor: "asc" },
-      })
-      return items.map(f => ({
+      }) as any[]
+      return items.map((f: any) => ({
         id: f.id,
         organization_id: f.organizationId,
         lead_id: f.leadId,
