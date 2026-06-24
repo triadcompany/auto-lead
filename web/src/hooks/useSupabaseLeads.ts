@@ -292,6 +292,7 @@ export function useSupabaseLeads(pipelineId?: string) {
         seller_id: (newLeadData as any).seller_id || null,
         stage_id: stageId,
         created_by: profile?.id || null,
+        valor_negocio: (newLeadData as any).valor_negocio ?? undefined,
       }) as any;
 
       return normalizeLead(raw);
