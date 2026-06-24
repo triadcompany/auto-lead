@@ -43,7 +43,7 @@ const SOURCE_CONFIG: Record<string, { label: string; icon: React.ReactNode }> = 
 };
 
 export default function Broadcasts() {
-  const { campaigns, loading, updateCampaignStatus, duplicateCampaign, deleteCampaign } = useBroadcasts();
+  const { campaigns, loading, updateCampaignStatus, duplicateCampaign, deleteCampaign, isCreating: isDeletingAny } = useBroadcasts();
   const [showWizard, setShowWizard] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<BroadcastCampaign | null>(null);
   const [deletingCampaign, setDeletingCampaign] = useState<BroadcastCampaign | null>(null);
@@ -180,8 +180,7 @@ export default function Broadcasts() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 if (deletingCampaign) {
-                  deleteCampaign.mutate(deletingCampaign.id);
-                  setDeletingCampaign(null);
+                  deleteCampaign.mutate(deletingCampaign.id, { onSettled: () => setDeletingCampaign(null) });
                 }
               }}
             >
