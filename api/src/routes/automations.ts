@@ -275,6 +275,23 @@ export default async function automationsRoutes(fastify: FastifyInstance) {
     })
   })
 
+  // GET /automations/stats — global stats (sem id)
+  fastify.get("/automations/stats", async (req) => {
+    const runs = await prisma.automationRun.findMany({
+      where: { ...orgScope(req) },
+      select: { status: true },
+    })
+    const stats = { total: 0, running: 0, completed: 0, failed: 0, waiting: 0 }
+    for (const r of runs) {
+      stats.total++
+      if (r.status === "running") stats.running++
+      else if (r.status === "completed") stats.completed++
+      else if (r.status === "failed") stats.failed++
+      else if (r.status === "waiting") stats.waiting++
+    }
+    return stats
+  })
+
   fastify.get<{ Params: { id: string } }>("/automations/:id/stats", async (req) => {
     const runs = await prisma.automationRun.findMany({
       where: { automationId: req.params.id, ...orgScope(req) },
