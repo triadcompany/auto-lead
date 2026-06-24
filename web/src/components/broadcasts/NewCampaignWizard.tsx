@@ -585,7 +585,8 @@ const { getToken } = useClerkAuth();
       seen.add(normalized);
       const nameParts = (lead.name || '').trim().split(' ');
       valid.push({ phone: normalized, name: lead.name || undefined, variables: {
-        nome: nameParts[0] || '', nome_completo: lead.name || '', origem: lead.source || '',
+        nome: nameParts[0] || '', nome_completo: lead.name || '',
+        origem: lead.source || lead.leadSource || lead.lead_source || lead.sourceDetail || lead.source_detail || '',
         data_cadastro: (lead.createdAt || lead.created_at) ? format(new Date(lead.createdAt || lead.created_at), 'dd/MM/yyyy', { locale: ptBR }) : '',
       }});
     }
@@ -1533,8 +1534,15 @@ const { getToken } = useClerkAuth();
               {(payloadType === 'text' || payloadType === 'interactive') && messageText && (
                 <Card>
                   <CardContent className="p-4">
-                    <Label className="text-xs text-muted-foreground">Preview da mensagem</Label>
-                    <p className="text-sm mt-1 whitespace-pre-wrap bg-muted/50 rounded-lg p-3">{messageText}</p>
+                    <Label className="text-xs text-muted-foreground">Preview da mensagem {rows[0] ? <span className="text-muted-foreground/60">(renderizado com o 1º contato)</span> : ''}</Label>
+                    <p className="text-sm mt-1 whitespace-pre-wrap bg-muted/50 rounded-lg p-3">{
+                      rows[0]
+                        ? messageText
+                            .replace(/\{\{nome\}\}/gi, rows[0].name?.split(' ')[0] || '')
+                            .replace(/\{\{nome_completo\}\}/gi, rows[0].name || '')
+                            .replace(/\{\{(\w+)\}\}/g, (_, k) => String((rows[0].variables as any)?.[k] ?? `{{${k}}}`) )
+                        : messageText
+                    }</p>
                     {payloadType === 'interactive' && buttons.filter(b => b.label).length > 0 && (
                       <div className="flex gap-2 mt-2">{buttons.filter(b => b.label).map((b, i) => <Badge key={i} variant="outline" className="text-xs">{b.label}</Badge>)}</div>
                     )}
