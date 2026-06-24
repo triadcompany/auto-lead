@@ -224,6 +224,20 @@ export default async function broadcastsRoutes(fastify: FastifyInstance) {
     }
   })
 
+  // POST /broadcasts/:id/cancel — cancela campanha (qualquer status não-running ou running)
+  fastify.post<{ Params: { id: string } }>("/broadcasts/:id/cancel", async (req, reply) => {
+    try {
+      const updated = await prisma.broadcastCampaign.updateMany({
+        where: { id: req.params.id, ...orgScope(req) },
+        data: { status: "cancelled" },
+      })
+      if (!updated.count) return reply.code(404).send({ error: "Campaign not found" })
+      return { cancelled: true }
+    } catch (e: any) {
+      return reply.code(500).send({ error: e.message })
+    }
+  })
+
   // POST /broadcasts/:id/pause
   fastify.post<{ Params: { id: string } }>("/broadcasts/:id/pause", async (req, reply) => {
     try {
