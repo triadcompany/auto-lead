@@ -12,8 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { PlayCircle, Clock, MessageCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
-import { FollowupCadence, FollowupCadenceStep } from "@/types/followup";
+import { useApi } from "@/hooks/useApi";
+import { FollowupCadence } from "@/types/followup";
 
 interface ApplyCadenceModalProps {
   open: boolean;
@@ -23,34 +23,36 @@ interface ApplyCadenceModalProps {
   sellerId: string;
 }
 
-export function ApplyCadenceModal({ 
-  open, 
-  onOpenChange, 
-  leadId, 
+export function ApplyCadenceModal({
+  open,
+  onOpenChange,
+  leadId,
   leadName,
-  sellerId 
+  sellerId
 }: ApplyCadenceModalProps) {
   const { profile } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  
+  const api = useApi();
+
   const [cadences, setCadences] = useState<FollowupCadence[]>([]);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
 
   useEffect(() => {
-    if (open && profile?.organization_id) {
-      fetchCadences();
-    }
-  }, [open, profile?.organization_id]);
+    if (open) fetchCadences();
+  }, [open]);
 
   const fetchCadences = async () => {
-    if (!profile?.organization_id) return;
-
     setLoading(true);
     try {
-      // followup_cadences not yet in new API — return empty list
-      setCadences([]);
+      const data = await api.followupCadences.list() as any[];
+      const parsed = (data || []).map((c: any) => ({
+        ...c,
+        steps: Array.isArray(c.steps) ? c.steps : (typeof c.steps === 'string' ? JSON.parse(c.steps) : []),
+        is_default: c.isDefault ?? c.is_default ?? false,
+        is_active: c.isActive ?? c.is_active ?? true,
+      }));
+      setCadences(parsed);
     } catch (error) {
       console.error('Error fetching cadences:', error);
     } finally {
@@ -59,21 +61,20 @@ export function ApplyCadenceModal({
   };
 
   const handleApplyCadence = async (cadence: FollowupCadence) => {
-    if (!profile?.organization_id) return;
-
+    if (!profile) return;
     setApplying(true);
     try {
-      // apply_cadence_to_lead not yet available in new API
+      const result = await api.leads.applyCadence(leadId, cadence.id, sellerId) as any;
       toast({
-        title: "Em breve",
-        description: "Cadência será aplicada em breve",
+        title: "Cadência aplicada",
+        description: `${result.created} follow-up(s) agendado(s) para ${leadName}`,
       });
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error applying cadence:', error);
       toast({
         title: "Erro ao aplicar cadência",
-        description: "Tente novamente em alguns instantes",
+        description: error?.message || "Tente novamente",
         variant: "destructive",
       });
     } finally {
@@ -82,6 +83,7 @@ export function ApplyCadenceModal({
   };
 
   const formatDelayHours = (hours: number) => {
+    if (hours === 0) return "agora";
     if (hours < 24) return `${hours}h`;
     const days = Math.floor(hours / 24);
     const remainingHours = hours % 24;
@@ -98,7 +100,7 @@ export function ApplyCadenceModal({
             Aplicar Cadência
           </DialogTitle>
           <DialogDescription>
-            Escolha uma cadência para aplicar automaticamente os follow-ups
+            Escolha uma cadência para aplicar automaticamente os follow-ups para <strong>{leadName}</strong>
           </DialogDescription>
         </DialogHeader>
 
@@ -115,10 +117,10 @@ export function ApplyCadenceModal({
             </div>
           ) : (
             cadences.map((cadence) => (
-              <Card 
-                key={cadence.id} 
+              <Card
+                key={cadence.id}
                 className="cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => handleApplyCadence(cadence)}
+                onClick={() => !applying && handleApplyCadence(cadence)}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between">
