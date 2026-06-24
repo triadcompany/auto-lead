@@ -174,7 +174,7 @@ export function useBroadcasts() {
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       if (status === 'paused') return api.broadcasts.pause(id);
       if (status === 'running') return api.broadcasts.start(id);
-      if (status === 'cancelled') return api.broadcasts.delete(id);
+      if (status === 'cancelled' || status === 'canceled') return api.broadcasts.cancel(id);
       throw new Error(`Status desconhecido: ${status}`);
     },
     onSuccess: () => {
