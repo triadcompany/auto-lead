@@ -108,7 +108,7 @@ export default function Automacoes() {
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
-    const result = await createAutomation(newName, newDesc);
+    const result = await createAutomation({ name: newName, description: newDesc });
     if (result) {
       setCreateDialog(false);
       // Pre-populate a trigger node if the user selected a trigger type
