@@ -278,7 +278,7 @@ export function createApi(getToken: () => Promise<string | null>) {
       saveFlow: (id: string, nodes: unknown[], edges: unknown[]) =>
         post<any>(`/automations/${id}/flow`, { nodes, edges }),
       runs: (id: string) => get<any[]>(`/automations/${id}/runs`),
-      stats: (id: string) => get<any>(`/automations/${id}/stats`),
+      stats: (id?: string) => id ? get<any>(`/automations/${id}/stats`) : get<any>("/automations/stats"),
       createFromTemplate: (template: string, extra?: Record<string, unknown>) =>
         post<any>("/automations/templates", { template, ...extra }),
       trigger: (id: string, lead_id: string) =>
