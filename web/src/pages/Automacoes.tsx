@@ -181,8 +181,8 @@ export default function Automacoes() {
     setRunsLoading(false);
   };
 
-  const hasTrigger = currentFlow
-    ? (currentFlow.nodes as Node[]).some((n) => n.type === "trigger")
+  const hasTrigger = Array.isArray(currentFlow?.nodes)
+    ? (currentFlow!.nodes as Node[]).some((n) => n.type === "trigger")
     : false;
 
   const navigate = useNavigate();
