@@ -627,7 +627,6 @@ const { getToken } = useClerkAuth();
   };
 
   const handleCreate = async () => {
-    if (!profile) return;
     let payload: Record<string, any>;
     if (payloadType === 'text' || payloadType === 'interactive') {
       payload = { text: messageText };
@@ -654,7 +653,7 @@ const { getToken } = useClerkAuth();
         noDuplicate,
       },
       recipients: rows,
-      profileId: profile.id,
+      profileId: profile?.id || '',
       enableAutomation,
       automationId: enableAutomation ? selectedAutomationId || null : null,
       responseWindowHours,
