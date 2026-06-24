@@ -195,6 +195,30 @@ export function useBroadcasts() {
     onError: (err: any) => toast.error('Erro ao reenviar', { description: err.message }),
   });
 
+  const duplicateCampaign = useMutation({
+    mutationFn: async (id: string) => {
+      const original = await api.broadcasts.get(id) as any;
+      return api.broadcasts.create({
+        name: `Cópia de ${original.name || original.instanceName || id}`,
+        instance_name: original.instanceName || original.instance_name || '',
+        payload_type: original.payloadType || original.payload_type || 'text',
+        payload: original.payload || {},
+        settings: original.settings || null,
+        buttons: original.buttons || null,
+        enable_automation: original.enableAutomation || original.enable_automation || false,
+        automation_id: original.automationId || original.automation_id || null,
+        response_window_hours: original.responseWindowHours || original.response_window_hours || 24,
+        source_type: original.sourceType || original.source_type || null,
+        source_filters: original.sourceFilters || original.source_filters || null,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
+      toast.success('Campanha duplicada');
+    },
+    onError: (err: any) => toast.error('Erro ao duplicar campanha', { description: err.message }),
+  });
+
   const getCampaignRecipients = async (campaignId: string): Promise<BroadcastRecipient[]> => {
     try {
       const data = await api.broadcasts.listRecipients(campaignId) as any[];
@@ -226,9 +250,10 @@ export function useBroadcasts() {
     isCreating: createCampaign.isPending,
     pauseCampaign: (id: string) => pauseCampaign.mutateAsync(id),
     resumeCampaign: (id: string) => resumeCampaign.mutateAsync(id),
-    deleteCampaign: (id: string) => deleteCampaign.mutateAsync(id),
+    deleteCampaign,
     updateCampaignStatus,
     retryFailed,
+    duplicateCampaign,
     getCampaignRecipients,
     refresh: () => queryClient.invalidateQueries({ queryKey: ['broadcasts'] }),
   };
@@ -274,6 +299,8 @@ export function useBroadcastDetail(id: string | undefined) {
     sent: campaign.sent ?? recipients.filter(r => r.status === 'sent').length,
     failed: campaign.failed ?? recipients.filter(r => r.status === 'failed').length,
     responded: campaign.responded ?? recipients.filter(r => r.response_received).length,
+    pending: recipients.filter(r => r.status === 'pending' || r.status === 'skipped').length,
+    sending: recipients.filter(r => r.status === 'sending').length,
   } : null;
 
   return {
