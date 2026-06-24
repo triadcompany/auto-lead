@@ -29,9 +29,9 @@ import {
   Copy,
   Variable
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useApi } from "@/hooks/useApi";
 import { FollowupTemplate } from "@/types/followup";
 
 const TEMPLATE_CATEGORIES = [
@@ -53,6 +53,7 @@ const AVAILABLE_VARIABLES = [
 export function FollowupTemplatesManagement() {
   const { profile } = useAuth();
   const { toast } = useToast();
+  const api = useApi();
   
   const [templates, setTemplates] = useState<FollowupTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,24 +74,14 @@ export function FollowupTemplatesManagement() {
   }, [profile?.organization_id]);
 
   const fetchTemplates = async () => {
-    if (!profile?.organization_id) return;
-    
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('followup_templates')
-        .select('*')
-        .eq('organization_id', profile.organization_id)
-        .order('category', { ascending: true });
-
-      if (error) throw error;
-      
-      // Extract variables from content
-      const templatesWithVars = (data || []).map(t => ({
+      const data = await api.followupTemplates.list() as any[];
+      const templatesWithVars = (data || []).map((t: any) => ({
         ...t,
-        variables: t.variables || extractVariables(t.content)
+        is_active: t.isActive ?? t.is_active ?? true,
+        variables: t.variables || extractVariables(t.content),
       }));
-      
       setTemplates(templatesWithVars);
     } catch (error) {
       console.error('Error fetching templates:', error);
@@ -134,48 +125,18 @@ export function FollowupTemplatesManagement() {
     setSaving(true);
     try {
       const variables = extractVariables(content);
-      
       if (editingTemplate) {
-        const { error } = await supabase
-          .from('followup_templates')
-          .update({
-            name,
-            category,
-            content,
-            variables,
-            is_active: isActive,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingTemplate.id);
-
-        if (error) throw error;
+        await api.followupTemplates.update(editingTemplate.id, { name, category, content, variables, is_active: isActive });
         toast({ title: "Template atualizado com sucesso" });
       } else {
-        const { error } = await supabase
-          .from('followup_templates')
-          .insert({
-            organization_id: profile.organization_id,
-            name,
-            category,
-            content,
-            variables,
-            is_active: isActive,
-            created_by: profile.user_id,
-          });
-
-        if (error) throw error;
+        await api.followupTemplates.create({ name, category, content, variables, is_active: isActive });
         toast({ title: "Template criado com sucesso" });
       }
-
       setDialogOpen(false);
       fetchTemplates();
     } catch (error) {
       console.error('Error saving template:', error);
-      toast({
-        title: "Erro ao salvar template",
-        description: "Tente novamente",
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao salvar template", description: "Tente novamente", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -183,22 +144,13 @@ export function FollowupTemplatesManagement() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este template?')) return;
-
     try {
-      const { error } = await supabase
-        .from('followup_templates')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await api.followupTemplates.delete(id);
       toast({ title: "Template excluído" });
       fetchTemplates();
     } catch (error) {
       console.error('Error deleting template:', error);
-      toast({
-        title: "Erro ao excluir template",
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao excluir template", variant: "destructive" });
     }
   };
 
