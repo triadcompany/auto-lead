@@ -258,14 +258,67 @@ async function processCampaign(campaignId: string, campaign: any) {
     try {
       const phone = recipient.phone.replace(/\D/g, "")
       const payload = campaign.payload as Record<string, any>
-      const text = renderTemplate(payload.text || "", recipient)
+      const payloadType: string = campaign.payloadType || "text"
 
-      const res = await evolutionFetch(
-        `/message/sendText/${campaign.instanceName}`,
-        { number: phone, text },
-        apiKey,
-        baseUrl
-      )
+      let res: Response
+      if (payloadType === "text" || payloadType === "interactive") {
+        const text = renderTemplate(payload.text || "", recipient)
+        res = await evolutionFetch(
+          `/message/sendText/${campaign.instanceName}`,
+          { number: phone, text },
+          apiKey, baseUrl
+        )
+      } else if (payloadType === "image") {
+        const mediaData = payload.media_url || payload.mediaUrl || ""
+        // base64 data URL ("data:image/...;base64,...")
+        const isBase64 = mediaData.startsWith("data:")
+        const body: Record<string, any> = {
+          number: phone,
+          caption: renderTemplate(payload.caption || "", recipient),
+        }
+        if (isBase64) {
+          const [header, base64] = mediaData.split(",")
+          const mediatype = (header.match(/data:([^;]+)/) || [])[1] || "image/jpeg"
+          body.media = base64
+          body.mediatype = mediatype
+          body.fileName = "image.jpg"
+        } else {
+          body.url = mediaData
+        }
+        res = await evolutionFetch(`/message/sendMedia/${campaign.instanceName}`, body, apiKey, baseUrl)
+      } else if (payloadType === "audio") {
+        const audioData = payload.audio_url || payload.audioUrl || ""
+        const isBase64 = audioData.startsWith("data:")
+        const body: Record<string, any> = { number: phone }
+        if (isBase64) {
+          const [, base64] = audioData.split(",")
+          body.audio = base64
+          body.encoding = true
+        } else {
+          body.audio = audioData
+        }
+        res = await evolutionFetch(`/message/sendWhatsAppAudio/${campaign.instanceName}`, body, apiKey, baseUrl)
+      } else if (payloadType === "document") {
+        const docData = payload.media_url || payload.mediaUrl || ""
+        const isBase64 = docData.startsWith("data:")
+        const body: Record<string, any> = {
+          number: phone,
+          caption: renderTemplate(payload.caption || "", recipient),
+          fileName: payload.file_name || payload.fileName || "documento",
+          mediatype: "document",
+        }
+        if (isBase64) {
+          const [, base64] = docData.split(",")
+          body.media = base64
+        } else {
+          body.url = docData
+        }
+        res = await evolutionFetch(`/message/sendMedia/${campaign.instanceName}`, body, apiKey, baseUrl)
+      } else {
+        const text = renderTemplate(payload.text || "", recipient)
+        res = await evolutionFetch(`/message/sendText/${campaign.instanceName}`, { number: phone, text }, apiKey, baseUrl)
+      }
+
       const ok = res.ok
 
       await prisma.broadcastRecipient.update({
