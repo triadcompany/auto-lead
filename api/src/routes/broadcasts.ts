@@ -81,7 +81,7 @@ export default async function broadcastsRoutes(fastify: FastifyInstance) {
           status: "draft",
           scheduledAt: scheduled_at ? new Date(scheduled_at) : null,
           delaySeconds: delay_seconds || 5,
-          createdBy: req.auth.userId || null,
+          createdBy: req.auth.profileId || null,
           enableAutomation: enable_automation || false,
           automationId: automation_id || null,
           responseWindowHours: response_window_hours || 24,
