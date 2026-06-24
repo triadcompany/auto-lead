@@ -113,16 +113,22 @@ export default async function broadcastsRoutes(fastify: FastifyInstance) {
     }
   })
 
-  // DELETE /broadcasts/:id
+  // DELETE /broadcasts/:id — cancela se estiver rodando e apaga
   fastify.delete<{ Params: { id: string } }>("/broadcasts/:id", async (req, reply) => {
     try {
+      // para a campanha se estiver rodando (o loop vai detectar status != running e parar)
+      await prisma.broadcastCampaign.updateMany({
+        where: { id: req.params.id, ...orgScope(req), status: "running" },
+        data: { status: "cancelled" },
+      }).catch(() => null)
+
       const deleted = await prisma.broadcastCampaign.deleteMany({
-        where: { id: req.params.id, ...orgScope(req), status: { in: ["draft", "paused", "completed", "failed"] } },
+        where: { id: req.params.id, ...orgScope(req) },
       })
-      if (!deleted.count) return reply.code(404).send({ error: "Not found or campaign is running" })
+      if (!deleted.count) return reply.code(404).send({ error: "Campaign not found" })
       return { success: true }
-    } catch {
-      return reply.code(404).send({ error: "Not found or campaign is running" })
+    } catch (e: any) {
+      return reply.code(500).send({ error: e.message })
     }
   })
 
