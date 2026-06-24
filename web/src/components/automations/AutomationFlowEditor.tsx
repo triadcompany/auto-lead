@@ -24,6 +24,7 @@ import { DelayNode } from "./nodes/DelayNode";
 import { ConditionNode } from "./nodes/ConditionNode";
 import { ActionNode } from "./nodes/ActionNode";
 import { WaitForReplyNode } from "./nodes/WaitForReplyNode";
+import { ReplyRouterNode } from "./nodes/ReplyRouterNode";
 import { FollowupNode } from "./nodes/FollowupNode";
 import { BlocksSidebar } from "./BlocksSidebar";
 import { NodeInspector } from "./NodeInspector";
@@ -36,6 +37,7 @@ const nodeTypes = {
   condition: ConditionNode,
   action: ActionNode,
   wait_for_reply: WaitForReplyNode,
+  reply_router: ReplyRouterNode,
   followup: FollowupNode,
 };
 
@@ -329,6 +331,8 @@ function getDefaultConfig(type: string) {
       return { actionType: "update_lead", params: {} };
     case "wait_for_reply":
       return { timeout_amount: 24, timeout_unit: "hours" };
+    case "reply_router":
+      return { yes_keywords: ["1", "sim", "quero", "s"], no_keywords: ["2", "não", "nao", "n"], timeout_amount: 24, timeout_unit: "hours" };
     case "followup":
       return { channel: "whatsapp", delay_hours: 0, message: "" };
     default:
