@@ -10,19 +10,18 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
     Querystring: {
       pipeline_id?: string
       stage_id?: string
-      stage_ids?: string  // comma-separated UUIDs
-      seller_id?: string  // UUID or "none"
+      stage_ids?: string
+      seller_id?: string
       source?: string
       search?: string
-      has_phone?: string  // "1" to filter only leads with phone
-      created_after?: string  // ISO date
-      created_before?: string // ISO date
+      created_after?: string
+      created_before?: string
       limit?: string
       offset?: string
     }
   }>("/leads", async (req, reply) => {
     try {
-      const { pipeline_id, stage_id, stage_ids, seller_id, source, search, has_phone, created_after, created_before, limit = "200", offset = "0" } = req.query
+      const { pipeline_id, stage_id, stage_ids, seller_id, source, search, created_after, created_before, limit = "200", offset = "0" } = req.query
 
       const where: any = { ...orgScope(req) }
       if (pipeline_id) where.pipelineId = pipeline_id
@@ -38,9 +37,6 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         where.sellerId = seller_id
       }
       if (source) where.source = { contains: source, mode: "insensitive" }
-      if (has_phone === "1") {
-        where.phone = { not: null }
-      }
       const createdAtFilter: any = {}
       if (created_after) createdAtFilter.gte = new Date(created_after)
       if (created_before) createdAtFilter.lte = new Date(created_before)
