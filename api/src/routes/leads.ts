@@ -20,56 +20,62 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
       limit?: string
       offset?: string
     }
-  }>("/leads", async (req) => {
-    const { pipeline_id, stage_id, stage_ids, seller_id, source, search, has_phone, created_after, created_before, limit = "200", offset = "0" } = req.query
+  }>("/leads", async (req, reply) => {
+    try {
+      const { pipeline_id, stage_id, stage_ids, seller_id, source, search, has_phone, created_after, created_before, limit = "200", offset = "0" } = req.query
 
-    const where: any = { ...orgScope(req) }
-    if (pipeline_id) where.pipelineId = pipeline_id
-    if (stage_ids) {
-      const ids = stage_ids.split(",").map((s: string) => s.trim()).filter(Boolean)
-      if (ids.length > 0) where.stageId = { in: ids }
-    } else if (stage_id) {
-      where.stageId = stage_id
-    }
-    if (seller_id === "none") {
-      where.sellerId = null
-    } else if (seller_id) {
-      where.sellerId = seller_id
-    }
-    if (source) where.source = { contains: source, mode: "insensitive" }
-    if (has_phone === "1") {
-      where.phone = { not: null }
-      where.AND = [{ phone: { not: "" } }]
-    }
-    if (created_after) where.createdAt = { ...where.createdAt, gte: new Date(created_after) }
-    if (created_before) where.createdAt = { ...where.createdAt, lte: new Date(created_before) }
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { phone: { contains: search } },
-        { email: { contains: search, mode: "insensitive" } },
-      ]
-    }
+      const where: any = { ...orgScope(req) }
+      if (pipeline_id) where.pipelineId = pipeline_id
+      if (stage_ids) {
+        const ids = stage_ids.split(",").map((s: string) => s.trim()).filter(Boolean)
+        if (ids.length > 0) where.stageId = { in: ids }
+      } else if (stage_id) {
+        where.stageId = stage_id
+      }
+      if (seller_id === "none") {
+        where.sellerId = null
+      } else if (seller_id) {
+        where.sellerId = seller_id
+      }
+      if (source) where.source = { contains: source, mode: "insensitive" }
+      if (has_phone === "1") {
+        where.phone = { not: null }
+      }
+      const createdAtFilter: any = {}
+      if (created_after) createdAtFilter.gte = new Date(created_after)
+      if (created_before) createdAtFilter.lte = new Date(created_before)
+      if (Object.keys(createdAtFilter).length > 0) where.createdAt = createdAtFilter
+      if (search) {
+        where.OR = [
+          { name: { contains: search, mode: "insensitive" } },
+          { phone: { contains: search } },
+          { email: { contains: search, mode: "insensitive" } },
+        ]
+      }
 
-    const leads = await prisma.lead.findMany({
-      where,
-      take: parseInt(limit),
-      skip: parseInt(offset),
-      orderBy: { createdAt: "desc" },
-      include: {
-        stage: { select: { name: true, color: true, position: true } },
-        seller: { select: { name: true } },
-      },
-    })
-    return leads.map((l: any) => ({
-      ...l,
-      stage_name: l.stage?.name ?? null,
-      stage_color: l.stage?.color ?? null,
-      stage_position: l.stage?.position ?? null,
-      seller_name: l.seller?.name ?? null,
-      stage: undefined,
-      seller: undefined,
-    }))
+      const leads = await prisma.lead.findMany({
+        where,
+        take: parseInt(limit),
+        skip: parseInt(offset),
+        orderBy: { createdAt: "desc" },
+        include: {
+          stage: { select: { name: true, color: true, position: true } },
+          seller: { select: { name: true } },
+        },
+      })
+      return leads.map((l: any) => ({
+        ...l,
+        stage_name: l.stage?.name ?? null,
+        stage_color: l.stage?.color ?? null,
+        stage_position: l.stage?.position ?? null,
+        seller_name: l.seller?.name ?? null,
+        stage: undefined,
+        seller: undefined,
+      }))
+    } catch (err) {
+      fastify.log.error({ err, query: req.query }, "GET /leads failed")
+      return reply.code(500).send({ error: "Failed to list leads", detail: String(err) })
+    }
   })
 
   // GET /leads/:id
