@@ -157,7 +157,7 @@ export function useAutomations() {
     }
   };
 
-  const getRunStats = async (id: string): Promise<RunStats> => {
+  const getRunStats = async (id?: string): Promise<RunStats> => {
     try {
       return await api.automations.stats(id) as RunStats;
     } catch {
@@ -187,6 +187,12 @@ export function useAutomations() {
     }
   };
 
+  const toggleActive = async (id: string, currentIsActive: boolean) => {
+    return updateAutomation(id, { isActive: !currentIsActive });
+  };
+
+  const listLogs = async (_id: string) => [];
+
   return {
     automations,
     loading,
@@ -195,11 +201,19 @@ export function useAutomations() {
     updateAutomation,
     deleteAutomation,
     duplicateAutomation,
+    toggleActive,
+    // canonical names
     getAutomationFlow,
     saveAutomationFlow,
     getAutomationRuns,
     getRunStats,
     triggerAutomation,
     createFromTemplate,
+    // aliases expected by Automacoes.tsx
+    getFlow: getAutomationFlow,
+    saveFlow: saveAutomationFlow,
+    listRuns: getAutomationRuns,
+    listLogs,
+    triggerWorker: triggerAutomation,
   };
 }
