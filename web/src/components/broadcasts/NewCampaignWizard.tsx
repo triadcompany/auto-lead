@@ -523,8 +523,7 @@ const { getToken } = useClerkAuth();
 
       if (crmFilters.pipelineId) params.pipeline_id = crmFilters.pipelineId;
 
-      // Stage filter: pass comma-separated IDs to API
-      if (crmFilters.stageIds.length > 0) params.stage_ids = crmFilters.stageIds.join(',');
+      // NOTE: stage filter is done client-side to allow debugging stageId mismatches
 
       // Source filter
       if (crmFilters.source !== 'all') params.source = crmFilters.source;
@@ -546,7 +545,20 @@ const { getToken } = useClerkAuth();
         if (crmFilters.dateTo) params.created_before = new Date(crmFilters.dateTo + 'T23:59:59').toISOString();
       }
 
-      const leads = await api.leads.list(params) as any[];
+      const allLeads = await api.leads.list(params) as any[];
+
+      // Debug: log stageId values so we can compare with selected stages
+      if (crmFilters.stageIds.length > 0) {
+        console.log('[CRM] Stage IDs selecionados:', crmFilters.stageIds);
+        console.log('[CRM] Stage IDs dos leads na API:', [...new Set(allLeads.map((l: any) => l.stageId || l.stage_id))]);
+        console.log('[CRM] Stage names dos leads:', [...new Set(allLeads.map((l: any) => l.stage_name))]);
+      }
+
+      // Client-side stage filter
+      const leads = crmFilters.stageIds.length > 0
+        ? allLeads.filter((l: any) => crmFilters.stageIds.includes(l.stageId || l.stage_id))
+        : allLeads;
+
       setCrmLeads(leads || []);
     } catch (err: any) {
       console.error('searchCrmLeads error:', err);
