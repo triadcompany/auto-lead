@@ -196,6 +196,34 @@ export default async function broadcastsRoutes(fastify: FastifyInstance) {
     }
   })
 
+  // POST /broadcasts/:id/retry — reencaminha destinatários com falha
+  fastify.post<{ Params: { id: string } }>("/broadcasts/:id/retry", async (req, reply) => {
+    try {
+      const campaign = await prisma.broadcastCampaign.findFirst({
+        where: { id: req.params.id, ...orgScope(req), status: { notIn: ["running"] } },
+      })
+      if (!campaign) return reply.code(404).send({ error: "Campaign not found or already running" })
+
+      const { count } = await prisma.broadcastRecipient.updateMany({
+        where: { campaignId: req.params.id, status: { in: ["failed", "skipped"] } },
+        data: { status: "pending", errorMessage: null, sentAt: null },
+      })
+      if (count === 0) return reply.code(400).send({ error: "No failed recipients to retry" })
+
+      await prisma.broadcastCampaign.update({
+        where: { id: req.params.id },
+        data: { status: "running", startedAt: new Date() },
+      })
+
+      const updated = await prisma.broadcastCampaign.findFirst({ where: { id: req.params.id } })
+      setImmediate(() => processCampaign(req.params.id, updated!).catch(console.error))
+
+      return { retrying: count }
+    } catch (e: any) {
+      return reply.code(500).send({ error: e.message })
+    }
+  })
+
   // POST /broadcasts/:id/pause
   fastify.post<{ Params: { id: string } }>("/broadcasts/:id/pause", async (req, reply) => {
     try {
@@ -270,22 +298,26 @@ async function processCampaign(campaignId: string, campaign: any) {
         )
       } else if (payloadType === "image") {
         const mediaData = payload.media_url || payload.mediaUrl || ""
-        // base64 data URL ("data:image/...;base64,...")
         const isBase64 = mediaData.startsWith("data:")
         const body: Record<string, any> = {
           number: phone,
+          mediatype: "image",
           caption: renderTemplate(payload.caption || "", recipient),
         }
         if (isBase64) {
           const [header, base64] = mediaData.split(",")
-          const mediatype = (header.match(/data:([^;]+)/) || [])[1] || "image/jpeg"
+          const mimetype = (header.match(/data:([^;]+)/) || [])[1] || "image/jpeg"
           body.media = base64
-          body.mediatype = mediatype
-          body.fileName = "image.jpg"
+          body.mimetype = mimetype
+          body.fileName = "imagem.jpg"
         } else {
           body.url = mediaData
         }
         res = await evolutionFetch(`/message/sendMedia/${campaign.instanceName}`, body, apiKey, baseUrl)
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "")
+          console.error(`[broadcasts] sendMedia failed ${res.status}:`, errText)
+        }
       } else if (payloadType === "audio") {
         const audioData = payload.audio_url || payload.audioUrl || ""
         const isBase64 = audioData.startsWith("data:")
@@ -298,14 +330,18 @@ async function processCampaign(campaignId: string, campaign: any) {
           body.audio = audioData
         }
         res = await evolutionFetch(`/message/sendWhatsAppAudio/${campaign.instanceName}`, body, apiKey, baseUrl)
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "")
+          console.error(`[broadcasts] sendWhatsAppAudio failed ${res.status}:`, errText)
+        }
       } else if (payloadType === "document") {
         const docData = payload.media_url || payload.mediaUrl || ""
         const isBase64 = docData.startsWith("data:")
         const body: Record<string, any> = {
           number: phone,
+          mediatype: "document",
           caption: renderTemplate(payload.caption || "", recipient),
           fileName: payload.file_name || payload.fileName || "documento",
-          mediatype: "document",
         }
         if (isBase64) {
           const [, base64] = docData.split(",")
@@ -314,6 +350,10 @@ async function processCampaign(campaignId: string, campaign: any) {
           body.url = docData
         }
         res = await evolutionFetch(`/message/sendMedia/${campaign.instanceName}`, body, apiKey, baseUrl)
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "")
+          console.error(`[broadcasts] sendMedia(doc) failed ${res.status}:`, errText)
+        }
       } else {
         const text = renderTemplate(payload.text || "", recipient)
         res = await evolutionFetch(`/message/sendText/${campaign.instanceName}`, { number: phone, text }, apiKey, baseUrl)
