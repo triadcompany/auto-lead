@@ -319,40 +319,16 @@ async function processCampaign(campaignId: string, campaign: any) {
       } else if (payloadType === "interactive") {
         const text = renderTemplate(payload.text || "", recipient)
         const campaignButtons = (campaign.buttons as Array<{ label: string; value: string }>) || []
-        if (campaignButtons.length === 0) {
-          // fallback: send as plain text
-          res = await evolutionFetch(
-            `/message/sendText/${campaign.instanceName}`,
-            { number: phone, text },
-            apiKey, baseUrl
-          )
-        } else {
-          res = await evolutionFetch(
-            `/message/sendButtons/${campaign.instanceName}`,
-            {
-              number: phone,
-              title: text.split("\n")[0] || text,
-              description: text,
-              footer: "",
-              buttons: campaignButtons.map((b, i) => ({
-                type: "reply",
-                displayText: b.label,
-                id: b.value || `btn_${i}`,
-              })),
-            },
-            apiKey, baseUrl
-          )
-          if (!res.ok) {
-            const errText = await res.text().catch(() => "")
-            console.error(`[broadcasts] sendButtons failed ${res.status}:`, errText)
-            // fallback: send as plain text
-            res = await evolutionFetch(
-              `/message/sendText/${campaign.instanceName}`,
-              { number: phone, text },
-              apiKey, baseUrl
-            )
-          }
-        }
+        const numberEmojis = ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣"]
+        const optionsText = campaignButtons.length > 0
+          ? "\n\n" + campaignButtons.map((b, i) => `${numberEmojis[i] || `${i + 1}.`} ${b.label}`).join("\n")
+          : ""
+        const fullText = text + optionsText
+        res = await evolutionFetch(
+          `/message/sendText/${campaign.instanceName}`,
+          { number: phone, text: fullText },
+          apiKey, baseUrl
+        )
       } else if (payloadType === "image") {
         const mediaData = payload.media_url || payload.mediaUrl || ""
         const isBase64 = mediaData.startsWith("data:")
