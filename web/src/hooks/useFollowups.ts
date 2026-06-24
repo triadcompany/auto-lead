@@ -131,8 +131,14 @@ export function useFollowups() {
     }
   };
 
-  const applyCadence = async (_leadId: string, _cadenceId: string, _assignedTo: string) => {
-    toast({ title: "Info", description: "Função de cadência em migração" });
+  const applyCadence = async (leadId: string, cadenceId: string, assignedTo: string) => {
+    try {
+      const result = await api.leads.applyCadence(leadId, cadenceId, assignedTo) as any;
+      toast({ title: "Cadência aplicada", description: `${result.created} follow-up(s) agendado(s)` });
+      fetchFollowups();
+    } catch (error: any) {
+      toast({ title: "Erro", description: error?.message || "Erro ao aplicar cadência", variant: "destructive" });
+    }
   };
 
   const stats = {
