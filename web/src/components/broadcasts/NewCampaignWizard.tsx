@@ -206,35 +206,21 @@ const { getToken } = useClerkAuth();
   }, [recording]);
 
   // ── Remote data ──
-  // WhatsApp instances: prefer whatsapp_connections (real source) and only show connected ones.
-  // Falls back to whatsapp_integrations if no connection records exist.
+  // WhatsApp instances via API (avoids Supabase RLS issues)
   const { data: instances } = useQuery({
     queryKey: ['whatsapp-instances', orgId],
     enabled: !!orgId,
     queryFn: async () => {
-      const { data: connections } = await supabase
-        .from('whatsapp_connections')
-        .select('instance_name, status, phone_number')
-        .eq('organization_id', orgId!)
-        .eq('status', 'connected');
-      if (connections && connections.length > 0) {
-        return connections.map((c: any) => ({
-          instance_name: c.instance_name,
-          status: c.status,
-          phone_number: c.phone_number,
-        }));
+      try {
+        const data = await api.whatsapp.me() as any;
+        const conn = data?.connection;
+        if (conn?.instance_name && (conn.status === 'connected' || conn.status === 'open')) {
+          return [{ instance_name: conn.instance_name, status: conn.status, phone_number: conn.phone_number || null }];
+        }
+        return [];
+      } catch {
+        return [];
       }
-      // Fallback for legacy orgs that only have whatsapp_integrations rows
-      const { data: legacy } = await supabase
-        .from('whatsapp_integrations')
-        .select('instance_name, status, phone_number')
-        .eq('organization_id', orgId!)
-        .eq('status', 'connected');
-      return (legacy || []).map((c: any) => ({
-        instance_name: c.instance_name,
-        status: c.status,
-        phone_number: c.phone_number,
-      }));
     },
   });
 
