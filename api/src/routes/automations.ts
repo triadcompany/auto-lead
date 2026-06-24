@@ -78,30 +78,40 @@ export default async function automationsRoutes(fastify: FastifyInstance) {
   fastify.post<{
     Body: { name: string; description?: string; channel?: string }
   }>("/automations", async (req, reply) => {
-    const automation = await prisma.automation.create({
-      data: {
-        organizationId: req.auth.orgId,
-        name: req.body.name,
-        description: req.body.description || null,
-        channel: req.body.channel || "whatsapp",
-        createdBy: req.auth.userId,
-        isActive: false,
-      },
-    })
+    try {
+      if (!req.body?.name?.trim()) {
+        return reply.code(400).send({ error: "name is required" })
+      }
 
-    // Create initial flow
-    await (prisma as any).automationFlow?.create?.({
-      data: {
-        organizationId: req.auth.orgId,
-        automationId: automation.id,
-        nodes: INITIAL_NODES,
-        edges: [],
-        entryNodeId: "trigger_initial",
-        version: 1,
-      },
-    }).catch(() => null)
+      const automation = await prisma.automation.create({
+        data: {
+          organizationId: req.auth.orgId,
+          name: req.body.name.trim(),
+          description: req.body.description || null,
+          channel: req.body.channel || "whatsapp",
+          createdBy: req.auth.userId,
+          isActive: false,
+        },
+      })
 
-    return reply.code(201).send(automation)
+      await prisma.automationFlow.create({
+        data: {
+          organizationId: req.auth.orgId,
+          automationId: automation.id,
+          nodes: INITIAL_NODES as any,
+          edges: [],
+          entryNodeId: "trigger_initial",
+          version: 1,
+        },
+      }).catch((e: unknown) => {
+        fastify.log.warn({ err: e }, "Failed to create initial automationFlow")
+      })
+
+      return reply.code(201).send(automation)
+    } catch (err) {
+      fastify.log.error({ err, body: req.body, orgId: req.auth?.orgId }, "POST /automations failed")
+      return reply.code(500).send({ error: "Failed to create automation", detail: String(err) })
+    }
   })
 
   fastify.patch<{
