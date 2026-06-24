@@ -75,9 +75,9 @@ export default async function broadcastsRoutes(fastify: FastifyInstance) {
           name,
           instanceName: instance_name || "",
           payloadType: payload_type || "text",
-          payload: payload || {},
-          buttons: buttons || null,
-          settings: settings || null,
+          payload: (payload || {}) as any,
+          buttons: (buttons || null) as any,
+          settings: (settings || null) as any,
           status: "draft",
           scheduledAt: scheduled_at ? new Date(scheduled_at) : null,
           delaySeconds: delay_seconds || 5,
@@ -86,7 +86,7 @@ export default async function broadcastsRoutes(fastify: FastifyInstance) {
           automationId: automation_id || null,
           responseWindowHours: response_window_hours || 24,
           sourceType: source_type || null,
-          sourceFilters: source_filters || null,
+          sourceFilters: (source_filters || null) as any,
         },
       })
       return reply.code(201).send(campaign)
@@ -136,7 +136,7 @@ export default async function broadcastsRoutes(fastify: FastifyInstance) {
       organizationId: req.auth.orgId,
       phone: r.phone,
       name: r.name || null,
-      variables: r.variables || {},
+      variables: (r.variables || {}) as any,
       status: "pending",
     }))
     try {
