@@ -27,7 +27,6 @@ import { AutomationRunsPanel } from "@/components/automations/AutomationRunsPane
 import { AutomationExecutionsPanel } from "@/components/automations/AutomationExecutionsPanel";
 import { AutomationStatsCards } from "@/components/automations/AutomationStatsCards";
 import { MetaCapiAutomations } from "@/components/automations/MetaCapiAutomations";
-import { FollowupCadencesManagement } from "@/components/settings/FollowupCadencesManagement";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Node, Edge } from "@xyflow/react";
@@ -415,7 +414,6 @@ export default function Automacoes() {
         <Tabs value={activeListTab} onValueChange={setActiveListTab} className="w-full">
           <TabsList className="font-poppins">
             <TabsTrigger value="automations">Automações</TabsTrigger>
-            <TabsTrigger value="cadencias">Cadências</TabsTrigger>
             <TabsTrigger value="executions">Execuções</TabsTrigger>
             <TabsTrigger value="meta-capi">Meta Ads (CAPI)</TabsTrigger>
           </TabsList>
@@ -502,10 +500,6 @@ export default function Automacoes() {
                 ))}
               </div>
             )}
-          </TabsContent>
-
-          <TabsContent value="cadencias" className="mt-4">
-            <FollowupCadencesManagement />
           </TabsContent>
 
           <TabsContent value="executions" className="mt-4">
