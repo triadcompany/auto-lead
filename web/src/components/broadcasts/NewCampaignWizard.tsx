@@ -519,11 +519,8 @@ const { getToken } = useClerkAuth();
   const searchCrmLeads = async () => {
     setCrmLoading(true); setCrmSearched(true);
     try {
+      // Fetch all leads — no pipeline_id filter (leads may have pipelineId = null)
       const params: Record<string, string> = { limit: "2000" };
-
-      if (crmFilters.pipelineId) params.pipeline_id = crmFilters.pipelineId;
-
-      // NOTE: stage filter is done client-side to allow debugging stageId mismatches
 
       // Source filter
       if (crmFilters.source !== 'all') params.source = crmFilters.source;
@@ -531,7 +528,7 @@ const { getToken } = useClerkAuth();
       // Seller filter
       if (crmFilters.sellerId !== 'all') params.seller_id = crmFilters.sellerId;
 
-      // Period / date filter → created_after / created_before
+      // Period / date filter
       const now = new Date();
       if (crmFilters.period === 'today') {
         const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
@@ -547,7 +544,7 @@ const { getToken } = useClerkAuth();
 
       const allLeads = await api.leads.list(params) as any[];
 
-      // Client-side stage filter: match by UUID first, then by name as fallback
+      // Client-side stage filter: match by UUID or by stage name (fallback)
       const selectedStageNames = new Set(
         stagesForPipeline
           .filter(s => crmFilters.stageIds.includes(s.id))
