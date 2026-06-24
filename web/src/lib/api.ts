@@ -321,6 +321,7 @@ export function createApi(getToken: () => Promise<string | null>) {
       listRecipients: (id: string) => get<any[]>(`/broadcasts/${id}/recipients`),
       start: (id: string) => post<any>(`/broadcasts/${id}/start`),
       pause: (id: string) => post<any>(`/broadcasts/${id}/pause`),
+      cancel: (id: string) => post<any>(`/broadcasts/${id}/cancel`),
       retry: (id: string) => post<any>(`/broadcasts/${id}/retry`),
     },
 
