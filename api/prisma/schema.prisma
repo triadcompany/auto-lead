@@ -1684,15 +1684,51 @@ model Subscription {
 // ─── BROADCAST CAMPAIGNS ─────────────────────────────────────────────────────
 
 model BroadcastCampaign {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId String    @map("organization_id") @db.Uuid
-  name           String
-  status         String    @default("draft") // draft | sending | sent | scheduled | cancelled
-  sourceType     String?   @map("source_type")
-  sourceFilters  Json?     @map("source_filters")
-  scheduledAt    DateTime? @map("scheduled_at") @db.Timestamptz
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String               @map("organization_id") @db.Uuid
+  name                String
+  status              String               @default("draft") // draft | running | paused | completed | failed | scheduled
+  instanceName        String               @default("") @map("instance_name")
+  payloadType         String               @default("text") @map("payload_type")
+  payload             Json                 @default("{}")
+  buttons             Json?
+  settings            Json?
+  sourceType          String?              @map("source_type")
+  sourceFilters       Json?                @map("source_filters")
+  scheduledAt         DateTime?            @map("scheduled_at") @db.Timestamptz
+  delaySeconds        Int                  @default(5) @map("delay_seconds")
+  createdBy           String?              @map("created_by") @db.Uuid
+  enableAutomation    Boolean              @default(false) @map("enable_automation")
+  automationId        String?              @map("automation_id") @db.Uuid
+  responseWindowHours Int                  @default(24) @map("response_window_hours")
+  startedAt           DateTime?            @map("started_at") @db.Timestamptz
+  completedAt         DateTime?            @map("completed_at") @db.Timestamptz
+  totalRecipients     Int                  @default(0) @map("total_recipients")
+  sentCount           Int                  @default(0) @map("sent_count")
+  failedCount         Int                  @default(0) @map("failed_count")
+  respondedCount      Int                  @default(0) @map("responded_count")
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime             @default(now()) @map("updated_at") @db.Timestamptz
+  recipients          BroadcastRecipient[]
 
   @@map("broadcast_campaigns")
+}
+
+model BroadcastRecipient {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId       String            @map("campaign_id") @db.Uuid
+  organizationId   String            @map("organization_id") @db.Uuid
+  phone            String
+  name             String?
+  variables        Json?
+  status           String            @default("pending") // pending | sending | sent | failed | skipped
+  sentAt           DateTime?         @map("sent_at") @db.Timestamptz
+  errorMessage     String?           @map("error_message")
+  messageId        String?           @map("message_id")
+  responseReceived Boolean           @default(false) @map("response_received")
+  responseAt       DateTime?         @map("response_at") @db.Timestamptz
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  campaign         BroadcastCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("broadcast_recipients")
 }
