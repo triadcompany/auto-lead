@@ -24,6 +24,7 @@ import { DelayNode } from "./nodes/DelayNode";
 import { ConditionNode } from "./nodes/ConditionNode";
 import { ActionNode } from "./nodes/ActionNode";
 import { WaitForReplyNode } from "./nodes/WaitForReplyNode";
+import { FollowupNode } from "./nodes/FollowupNode";
 import { BlocksSidebar } from "./BlocksSidebar";
 import { NodeInspector } from "./NodeInspector";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +36,7 @@ const nodeTypes = {
   condition: ConditionNode,
   action: ActionNode,
   wait_for_reply: WaitForReplyNode,
+  followup: FollowupNode,
 };
 
 interface AutomationFlowEditorProps {
@@ -110,6 +112,12 @@ function validateFlow(nodes: Node[], edges: Edge[]): ValidationResult {
       case "action":
         if (!cfg.actionType) {
           errors.push("Há um bloco Ação sem tipo configurado.");
+          problemNodeIds.push(node.id);
+        }
+        break;
+      case "followup":
+        if (!cfg.message?.trim()) {
+          errors.push("Há um bloco Follow-up sem mensagem configurada.");
           problemNodeIds.push(node.id);
         }
         break;
@@ -321,6 +329,8 @@ function getDefaultConfig(type: string) {
       return { actionType: "update_lead", params: {} };
     case "wait_for_reply":
       return { timeout_amount: 24, timeout_unit: "hours" };
+    case "followup":
+      return { channel: "whatsapp", delay_hours: 0, message: "" };
     default:
       return {};
   }
