@@ -138,14 +138,14 @@ export function useAutomations() {
     }
   };
 
-  const saveAutomationFlow = async (id: string, nodes: Node[], edges: Edge[]) => {
+  const saveAutomationFlow = async (id: string, nodes: Node[], edges: Edge[]): Promise<AutomationFlow | null> => {
     try {
-      await api.automations.saveFlow(id, nodes, edges);
+      const flow = await api.automations.saveFlow(id, nodes, edges) as AutomationFlow;
       toast({ title: "Sucesso", description: "Fluxo salvo" });
-      return true;
+      return flow;
     } catch (err: any) {
       toast({ title: "Erro", description: err.message || "Erro ao salvar fluxo", variant: "destructive" });
-      return false;
+      return null;
     }
   };
 
