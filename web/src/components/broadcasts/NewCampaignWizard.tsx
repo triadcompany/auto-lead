@@ -531,28 +531,51 @@ const { getToken } = useClerkAuth();
 
   // ── CRM leads search ──
   const searchCrmLeads = async () => {
-    if (!orgId) return;
     setCrmLoading(true); setCrmSearched(true);
     try {
-      let q = (supabase as any)
-        .from('leads').select('id, name, phone, source, created_at, stage_id, assigned_to')
-        .eq('organization_id', orgId).not('phone', 'is', null).neq('phone', '');
-      const now = new Date();
-      if (crmFilters.period === 'today') q = q.gte('created_at', new Date(now.setHours(0,0,0,0)).toISOString());
-      else if (crmFilters.period === '7d') q = q.gte('created_at', new Date(Date.now() - 7*86400000).toISOString());
-      else if (crmFilters.period === '30d') q = q.gte('created_at', new Date(Date.now() - 30*86400000).toISOString());
-      else if (crmFilters.period === 'custom' && crmFilters.dateFrom) {
-        q = q.gte('created_at', crmFilters.dateFrom);
-        if (crmFilters.dateTo) q = q.lte('created_at', crmFilters.dateTo + 'T23:59:59');
-      }
-      if (crmFilters.stageIds.length > 0) q = q.in('stage_id', crmFilters.stageIds);
-      if (crmFilters.source !== 'all') q = q.ilike('source', `%${crmFilters.source}%`);
-      if (crmFilters.sellerId !== 'all') {
-        if (crmFilters.sellerId === 'none') q = q.is('assigned_to', null);
-        else q = q.eq('assigned_to', crmFilters.sellerId);
-      }
-      const { data } = await q.limit(2000).order('created_at', { ascending: false });
-      setCrmLeads(data || []);
+      const params: Record<string, string> = { limit: "2000" };
+      if (crmFilters.pipelineId && crmFilters.pipelineId !== 'all') params.pipeline_id = crmFilters.pipelineId;
+
+      const all = await api.leads.list(params) as any[];
+
+      // filter client-side
+      const now = Date.now();
+      const filtered = all.filter((lead: any) => {
+        if (!lead.phone || String(lead.phone).trim() === '') return false;
+
+        // period filter
+        const created = new Date(lead.createdAt || lead.created_at).getTime();
+        if (crmFilters.period === 'today') {
+          const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+          if (created < startOfDay.getTime()) return false;
+        } else if (crmFilters.period === '7d') {
+          if (created < now - 7*86400000) return false;
+        } else if (crmFilters.period === '30d') {
+          if (created < now - 30*86400000) return false;
+        } else if (crmFilters.period === 'custom' && crmFilters.dateFrom) {
+          if (created < new Date(crmFilters.dateFrom).getTime()) return false;
+          if (crmFilters.dateTo && created > new Date(crmFilters.dateTo + 'T23:59:59').getTime()) return false;
+        }
+
+        // stage filter
+        const stageId = lead.stageId || lead.stage_id;
+        if (crmFilters.stageIds.length > 0 && !crmFilters.stageIds.includes(stageId)) return false;
+
+        // source filter
+        const source = lead.source || lead.interest || '';
+        if (crmFilters.source !== 'all' && !source.toLowerCase().includes(crmFilters.source.toLowerCase())) return false;
+
+        // seller filter
+        const sellerId = lead.sellerId || lead.assigned_to || null;
+        if (crmFilters.sellerId !== 'all') {
+          if (crmFilters.sellerId === 'none' && sellerId) return false;
+          if (crmFilters.sellerId !== 'none' && sellerId !== crmFilters.sellerId) return false;
+        }
+
+        return true;
+      });
+
+      setCrmLeads(filtered);
     } catch (err) { console.error(err); setCrmLeads([]); }
     finally { setCrmLoading(false); }
   };
