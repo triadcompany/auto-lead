@@ -263,26 +263,12 @@ const { getToken } = useClerkAuth();
     },
   });
 
-  // Members of the current organization (uses org_members → profiles join,
-  // because profiles.organization_id only reflects the user's "current" org).
   const { data: sellers } = useQuery({
     queryKey: ['sellers-for-broadcast', orgId],
     enabled: !!orgId,
     queryFn: async () => {
-      const { data: members, error } = await supabase
-        .from('org_members')
-        .select('clerk_user_id')
-        .eq('organization_id', orgId!)
-        .eq('status', 'active');
-      if (error || !members?.length) return [];
-      const clerkIds = members.map(m => m.clerk_user_id).filter(Boolean) as string[];
-      if (!clerkIds.length) return [];
-      const { data: profs } = await supabase
-        .from('profiles')
-        .select('id, name, clerk_user_id')
-        .in('clerk_user_id', clerkIds)
-        .order('name');
-      return (profs || []).filter(p => p.name);
+      const data = await api.users.list();
+      return (data || []).filter((u: any) => u.name) as Array<{ id: string; name: string }>;
     },
   });
 
@@ -533,50 +519,36 @@ const { getToken } = useClerkAuth();
   const searchCrmLeads = async () => {
     setCrmLoading(true); setCrmSearched(true);
     try {
-      const params: Record<string, string> = { limit: "2000" };
-      if (crmFilters.pipelineId && crmFilters.pipelineId !== 'all') params.pipeline_id = crmFilters.pipelineId;
+      const params: Record<string, string> = { limit: "2000", has_phone: "1" };
 
-      const all = await api.leads.list(params) as any[];
+      if (crmFilters.pipelineId) params.pipeline_id = crmFilters.pipelineId;
 
-      // filter client-side
-      const now = Date.now();
-      const filtered = all.filter((lead: any) => {
-        if (!lead.phone || String(lead.phone).trim() === '') return false;
+      // Stage filter: pass comma-separated IDs to API
+      if (crmFilters.stageIds.length > 0) params.stage_ids = crmFilters.stageIds.join(',');
 
-        // period filter
-        const created = new Date(lead.createdAt || lead.created_at).getTime();
-        if (crmFilters.period === 'today') {
-          const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
-          if (created < startOfDay.getTime()) return false;
-        } else if (crmFilters.period === '7d') {
-          if (created < now - 7*86400000) return false;
-        } else if (crmFilters.period === '30d') {
-          if (created < now - 30*86400000) return false;
-        } else if (crmFilters.period === 'custom' && crmFilters.dateFrom) {
-          if (created < new Date(crmFilters.dateFrom).getTime()) return false;
-          if (crmFilters.dateTo && created > new Date(crmFilters.dateTo + 'T23:59:59').getTime()) return false;
-        }
+      // Source filter
+      if (crmFilters.source !== 'all') params.source = crmFilters.source;
 
-        // stage filter
-        const stageId = lead.stageId || lead.stage_id;
-        if (crmFilters.stageIds.length > 0 && !crmFilters.stageIds.includes(stageId)) return false;
+      // Seller filter
+      if (crmFilters.sellerId !== 'all') params.seller_id = crmFilters.sellerId;
 
-        // source filter
-        const source = lead.source || lead.interest || '';
-        if (crmFilters.source !== 'all' && !source.toLowerCase().includes(crmFilters.source.toLowerCase())) return false;
+      // Period / date filter → created_after / created_before
+      const now = new Date();
+      if (crmFilters.period === 'today') {
+        const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
+        params.created_after = startOfDay.toISOString();
+      } else if (crmFilters.period === '7d') {
+        params.created_after = new Date(Date.now() - 7 * 86400000).toISOString();
+      } else if (crmFilters.period === '30d') {
+        params.created_after = new Date(Date.now() - 30 * 86400000).toISOString();
+      } else if (crmFilters.period === 'custom') {
+        if (crmFilters.dateFrom) params.created_after = new Date(crmFilters.dateFrom).toISOString();
+        if (crmFilters.dateTo) params.created_before = new Date(crmFilters.dateTo + 'T23:59:59').toISOString();
+      }
 
-        // seller filter
-        const sellerId = lead.sellerId || lead.assigned_to || null;
-        if (crmFilters.sellerId !== 'all') {
-          if (crmFilters.sellerId === 'none' && sellerId) return false;
-          if (crmFilters.sellerId !== 'none' && sellerId !== crmFilters.sellerId) return false;
-        }
-
-        return true;
-      });
-
-      setCrmLeads(filtered);
-    } catch (err) { console.error(err); setCrmLeads([]); }
+      const leads = await api.leads.list(params) as any[];
+      setCrmLeads(leads || []);
+    } catch (err) { console.error(err); setCrmLeads([]); toast.error('Erro ao buscar leads do CRM'); }
     finally { setCrmLoading(false); }
   };
 
@@ -603,7 +575,7 @@ const { getToken } = useClerkAuth();
       const nameParts = (lead.name || '').trim().split(' ');
       valid.push({ phone: normalized, name: lead.name || undefined, variables: {
         nome: nameParts[0] || '', nome_completo: lead.name || '', origem: lead.source || '',
-        data_cadastro: lead.created_at ? format(new Date(lead.created_at), 'dd/MM/yyyy', { locale: ptBR }) : '',
+        data_cadastro: (lead.createdAt || lead.created_at) ? format(new Date(lead.createdAt || lead.created_at), 'dd/MM/yyyy', { locale: ptBR }) : '',
       }});
     }
     return valid;
