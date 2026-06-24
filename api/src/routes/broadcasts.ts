@@ -289,13 +289,50 @@ async function processCampaign(campaignId: string, campaign: any) {
       const payloadType: string = campaign.payloadType || "text"
 
       let res: Response
-      if (payloadType === "text" || payloadType === "interactive") {
+      if (payloadType === "text") {
         const text = renderTemplate(payload.text || "", recipient)
         res = await evolutionFetch(
           `/message/sendText/${campaign.instanceName}`,
           { number: phone, text },
           apiKey, baseUrl
         )
+      } else if (payloadType === "interactive") {
+        const text = renderTemplate(payload.text || "", recipient)
+        const campaignButtons = (campaign.buttons as Array<{ label: string; value: string }>) || []
+        if (campaignButtons.length === 0) {
+          // fallback: send as plain text
+          res = await evolutionFetch(
+            `/message/sendText/${campaign.instanceName}`,
+            { number: phone, text },
+            apiKey, baseUrl
+          )
+        } else {
+          res = await evolutionFetch(
+            `/message/sendButtons/${campaign.instanceName}`,
+            {
+              number: phone,
+              title: text.split("\n")[0] || text,
+              description: text,
+              footer: "",
+              buttons: campaignButtons.map((b, i) => ({
+                type: "reply",
+                displayText: b.label,
+                id: b.value || `btn_${i}`,
+              })),
+            },
+            apiKey, baseUrl
+          )
+          if (!res.ok) {
+            const errText = await res.text().catch(() => "")
+            console.error(`[broadcasts] sendButtons failed ${res.status}:`, errText)
+            // fallback: send as plain text
+            res = await evolutionFetch(
+              `/message/sendText/${campaign.instanceName}`,
+              { number: phone, text },
+              apiKey, baseUrl
+            )
+          }
+        }
       } else if (payloadType === "image") {
         const mediaData = payload.media_url || payload.mediaUrl || ""
         const isBase64 = mediaData.startsWith("data:")
