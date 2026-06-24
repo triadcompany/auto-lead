@@ -170,6 +170,31 @@ export function useBroadcasts() {
     onError: (err: any) => toast.error('Erro ao excluir', { description: err.message }),
   });
 
+  const updateCampaignStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      if (status === 'paused') return api.broadcasts.pause(id);
+      if (status === 'running') return api.broadcasts.start(id);
+      if (status === 'cancelled') return api.broadcasts.delete(id);
+      throw new Error(`Status desconhecido: ${status}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
+      toast.success('Status da campanha atualizado');
+    },
+    onError: (err: any) => toast.error('Erro ao atualizar campanha', { description: err.message }),
+  });
+
+  const retryFailed = useMutation({
+    mutationFn: async (id: string) => {
+      await api.broadcasts.start(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
+      toast.success('Reenvio iniciado');
+    },
+    onError: (err: any) => toast.error('Erro ao reenviar', { description: err.message }),
+  });
+
   const getCampaignRecipients = async (campaignId: string): Promise<BroadcastRecipient[]> => {
     try {
       const data = await api.broadcasts.listRecipients(campaignId) as any[];
@@ -202,6 +227,8 @@ export function useBroadcasts() {
     pauseCampaign: (id: string) => pauseCampaign.mutateAsync(id),
     resumeCampaign: (id: string) => resumeCampaign.mutateAsync(id),
     deleteCampaign: (id: string) => deleteCampaign.mutateAsync(id),
+    updateCampaignStatus,
+    retryFailed,
     getCampaignRecipients,
     refresh: () => queryClient.invalidateQueries({ queryKey: ['broadcasts'] }),
   };
