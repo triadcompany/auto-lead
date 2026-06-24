@@ -278,20 +278,18 @@ const { getToken } = useClerkAuth();
     },
   });
 
-  // ── Storage upload ──
-  const uploadToStorage = async (file: File | Blob, folder: string, name: string): Promise<string> => {
-    const apiUrl = (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000';
-    const token = await getToken();
-    const formData = new FormData();
-    formData.append('file', file instanceof File ? file : new File([file], name));
-    const res = await fetch(`${apiUrl}/broadcasts/upload-media`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
+  // ── Storage upload — converte para base64 e armazena no payload da campanha ──
+  const uploadToStorage = async (file: File | Blob, _folder: string, name: string): Promise<string> => {
+    const fileObj = file instanceof File ? file : new File([file], name);
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string; // "data:image/png;base64,..."
+        resolve(base64);
+      };
+      reader.onerror = () => reject(new Error('Falha ao ler o arquivo'));
+      reader.readAsDataURL(fileObj);
     });
-    if (!res.ok) throw new Error('Falha no upload da mídia');
-    const data = await res.json() as { url: string };
-    return data.url;
   };
 
   // ── Image upload ──
