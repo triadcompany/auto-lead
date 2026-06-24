@@ -165,6 +165,8 @@ export function createApi(getToken: () => Promise<string | null>) {
         patch<any>(`/leads/${id}/sale-value`, { valor_negocio: value }),
       resetFirstTouch: (id: string) =>
         post<any>(`/leads/${id}/reset-first-touch`),
+      applyCadence: (id: string, cadence_id: string, assigned_to: string) =>
+        post<any>(`/leads/${id}/apply-cadence`, { cadence_id, assigned_to }),
     },
 
     // ── Tasks ────────────────────────────────────────────────────────────────
@@ -285,10 +287,26 @@ export function createApi(getToken: () => Promise<string | null>) {
 
     // ── Followups ────────────────────────────────────────────────────────────
     followups: {
-      list: (q?: { lead_id?: string; status?: string }) => get<any[]>("/followups", q as any),
+      list: (q?: { lead_id?: string; status?: string; assigned_to?: string }) => get<any[]>("/followups", q as any),
       create: (data: Record<string, unknown>) => post<any>("/followups", data),
       update: (id: string, data: Record<string, unknown>) => patch(`/followups/${id}`, data),
       delete: (id: string) => del(`/followups/${id}`),
+    },
+
+    // ── Followup Cadências ───────────────────────────────────────────────────
+    followupCadences: {
+      list: () => get<any[]>("/followup-cadences"),
+      create: (data: Record<string, unknown>) => post<any>("/followup-cadences", data),
+      update: (id: string, data: Record<string, unknown>) => patch(`/followup-cadences/${id}`, data),
+      delete: (id: string) => del(`/followup-cadences/${id}`),
+    },
+
+    // ── Followup Templates ───────────────────────────────────────────────────
+    followupTemplates: {
+      list: () => get<any[]>("/followup-templates"),
+      create: (data: Record<string, unknown>) => post<any>("/followup-templates", data),
+      update: (id: string, data: Record<string, unknown>) => patch(`/followup-templates/${id}`, data),
+      delete: (id: string) => del(`/followup-templates/${id}`),
     },
 
     // ── Broadcasts ───────────────────────────────────────────────────────────
