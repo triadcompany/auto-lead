@@ -43,7 +43,7 @@ type SourceType = 'spreadsheet' | 'crm_leads' | 'inbox';
 type PayloadType = 'text' | 'interactive' | 'image' | 'audio' | 'document';
 
 interface CrmFilters {
-  period: 'today' | '7d' | '30d' | 'custom';
+  period: 'today' | 'yesterday' | '7d' | '30d' | 'month' | 'all' | 'custom';
   dateFrom: string;
   dateTo: string;
   pipelineId: string;
@@ -533,10 +533,20 @@ const { getToken } = useClerkAuth();
       if (crmFilters.period === 'today') {
         const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
         params.created_after = startOfDay.toISOString();
+      } else if (crmFilters.period === 'yesterday') {
+        const yStart = new Date(now); yStart.setDate(yStart.getDate() - 1); yStart.setHours(0, 0, 0, 0);
+        const yEnd = new Date(yStart); yEnd.setHours(23, 59, 59, 999);
+        params.created_after = yStart.toISOString();
+        params.created_before = yEnd.toISOString();
       } else if (crmFilters.period === '7d') {
         params.created_after = new Date(Date.now() - 7 * 86400000).toISOString();
       } else if (crmFilters.period === '30d') {
         params.created_after = new Date(Date.now() - 30 * 86400000).toISOString();
+      } else if (crmFilters.period === 'month') {
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        params.created_after = startOfMonth.toISOString();
+      } else if (crmFilters.period === 'all') {
+        // sem filtro de data
       } else if (crmFilters.period === 'custom') {
         if (crmFilters.dateFrom) params.created_after = new Date(crmFilters.dateFrom).toISOString();
         if (crmFilters.dateTo) params.created_before = new Date(crmFilters.dateTo + 'T23:59:59').toISOString();
@@ -869,10 +879,10 @@ const { getToken } = useClerkAuth();
                   <div>
                     <Label className="text-xs text-muted-foreground mb-1.5 block">Período de criação</Label>
                     <div className="flex gap-2 flex-wrap">
-                      {(['today', '7d', '30d', 'custom'] as const).map(p => (
+                      {(['today', 'yesterday', '7d', '30d', 'month', 'all', 'custom'] as const).map(p => (
                         <button key={p} type="button" onClick={() => setCrmFilters(f => ({ ...f, period: p }))}
                           className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${crmFilters.period === p ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:border-primary/50'}`}>
-                          {p === 'today' ? 'Hoje' : p === '7d' ? 'Últimos 7 dias' : p === '30d' ? 'Últimos 30 dias' : 'Personalizado'}
+                          {p === 'today' ? 'Hoje' : p === 'yesterday' ? 'Ontem' : p === '7d' ? 'Últimos 7 dias' : p === '30d' ? 'Últimos 30 dias' : p === 'month' ? 'Este mês' : p === 'all' ? 'Máximo' : 'Personalizado'}
                         </button>
                       ))}
                     </div>
