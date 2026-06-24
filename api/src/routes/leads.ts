@@ -35,9 +35,20 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
       take: parseInt(limit),
       skip: parseInt(offset),
       orderBy: { createdAt: "desc" },
-      include: { stage: { select: { name: true } } },
+      include: {
+        stage: { select: { name: true, color: true, position: true } },
+        seller: { select: { name: true } },
+      },
     })
-    return leads.map((l: any) => ({ ...l, stage_name: l.stage?.name ?? null, stage: undefined }))
+    return leads.map((l: any) => ({
+      ...l,
+      stage_name: l.stage?.name ?? null,
+      stage_color: l.stage?.color ?? null,
+      stage_position: l.stage?.position ?? null,
+      seller_name: l.seller?.name ?? null,
+      stage: undefined,
+      seller: undefined,
+    }))
   })
 
   // GET /leads/:id
