@@ -120,7 +120,7 @@ function SourceCard({
 export function NewCampaignWizard({ onClose }: Props) {
   const { orgId, profile } = useAuth();
 const { getToken } = useClerkAuth();
-  const { createCampaign } = useBroadcasts();
+  const { createCampaign, isCreating } = useBroadcasts();
   const api = useApi();
   const [step, setStep] = useState(1);
   const [sourceType, setSourceType] = useState<SourceType>('spreadsheet');
@@ -638,7 +638,7 @@ const { getToken } = useClerkAuth();
       payload = { media_url: uploadedMediaUrl, caption };
     }
 
-    await createCampaign.mutateAsync({
+    await createCampaign({
       name: campaignName,
       instance_name: instanceName,
       payload_type: payloadType as any,
@@ -1577,9 +1577,9 @@ const { getToken } = useClerkAuth();
           {step === 3 && (
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep(2)} className="gap-2"><ArrowLeft className="h-4 w-4" /> Voltar</Button>
-              <Button onClick={handleCreate} disabled={createCampaign.isPending || rows.length === 0} className="gap-2">
-                {createCampaign.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : scheduleMode === 'later' ? <Calendar className="h-4 w-4" /> : <Check className="h-4 w-4" />}
-                {scheduleMode === 'later' ? 'Agendar campanha' : 'Criar e iniciar'}
+              <Button onClick={handleCreate} disabled={isCreating || rows.length === 0} className="gap-2">
+                {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : scheduleMode === 'later' ? <Calendar className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                {scheduleMode === 'later' ? 'Agendar campanha' : 'Criar'}
               </Button>
             </div>
           )}
