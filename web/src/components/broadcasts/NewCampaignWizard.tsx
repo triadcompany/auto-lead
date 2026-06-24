@@ -547,16 +547,18 @@ const { getToken } = useClerkAuth();
 
       const allLeads = await api.leads.list(params) as any[];
 
-      // Debug: log stageId values so we can compare with selected stages
-      if (crmFilters.stageIds.length > 0) {
-        console.log('[CRM] Stage IDs selecionados:', crmFilters.stageIds);
-        console.log('[CRM] Stage IDs dos leads na API:', [...new Set(allLeads.map((l: any) => l.stageId || l.stage_id))]);
-        console.log('[CRM] Stage names dos leads:', [...new Set(allLeads.map((l: any) => l.stage_name))]);
-      }
-
-      // Client-side stage filter
+      // Client-side stage filter: match by UUID first, then by name as fallback
+      const selectedStageNames = new Set(
+        stagesForPipeline
+          .filter(s => crmFilters.stageIds.includes(s.id))
+          .map(s => s.name.toLowerCase().trim())
+      );
       const leads = crmFilters.stageIds.length > 0
-        ? allLeads.filter((l: any) => crmFilters.stageIds.includes(l.stageId || l.stage_id))
+        ? allLeads.filter((l: any) => {
+            const stageId = l.stageId || l.stage_id;
+            const stageName = (l.stage_name || '').toLowerCase().trim();
+            return crmFilters.stageIds.includes(stageId) || (stageName && selectedStageNames.has(stageName));
+          })
         : allLeads;
 
       setCrmLeads(leads || []);
