@@ -26,6 +26,7 @@ const actionTypes = [
   { value: "transfer_to_agent", label: "Transferir para atendente" },
   { value: "create_note", label: "Criar nota" },
   { value: "set_lead_status", label: "Marcar como ganho / perdido" },
+  { value: "internal_notification", label: "Notificação interna" },
   { value: "send_whatsapp", label: "Enviar WhatsApp" },
   { value: "send_email", label: "Enviar e-mail" },
   { value: "update_lead", label: "Atualizar lead" },
@@ -446,6 +447,45 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
           <p className="text-[10px] text-muted-foreground mt-1">
             Fecha o negócio no CRM. Não dispara automações adicionais.
           </p>
+        </div>
+      )}
+
+      {config.actionType === "internal_notification" && (
+        <div className="space-y-3 border border-border rounded-lg p-3 bg-muted/30">
+          <p className="text-[11px] text-muted-foreground font-poppins">
+            Envia uma mensagem WhatsApp para o celular cadastrado do membro da equipe selecionado.
+          </p>
+          <div>
+            <Label className="font-poppins text-sm">Membro da equipe</Label>
+            <Select
+              value={params.member_id || "all"}
+              onValueChange={(v) => updateParams("member_id", v === "all" ? "" : v)}
+            >
+              <SelectTrigger className="mt-1.5">
+                <SelectValue placeholder="Selecione o membro" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os admins</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="font-poppins text-sm">Mensagem</Label>
+            <Textarea
+              className="mt-1.5 min-h-[80px] text-sm font-poppins"
+              placeholder="Ex: Lead {{lead.name}} respondeu e está aguardando atendimento."
+              value={params.message || ""}
+              onChange={(e) => updateParams("message", e.target.value)}
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Variáveis: {"{{lead.name}}"}, {"{{lead.phone}}"}, {"{{org.name}}"}
+            </p>
+          </div>
         </div>
       )}
 
