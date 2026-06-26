@@ -21,17 +21,17 @@ interface TriggerEditorProps {
 }
 
 const triggerTypes = [
+  { value: "broadcast_campaign", label: "Disparo de Campanha (ao enviar)" },
+  { value: "event", label: "Evento do sistema (Event Bus)" },
+  { value: "form_submitted", label: "Formulário enviado" },
   { value: "lead_created", label: "Lead criado" },
-  { value: "lead_stage_changed", label: "Lead movido de etapa" },
-  { value: "deal_stage_changed", label: "📊 Mudança de etapa (Kanban)" },
   { value: "lead_from_instagram", label: "Lead via Instagram" },
   { value: "lead_from_whatsapp", label: "Lead via WhatsApp" },
-  { value: "first_message", label: "📩 Primeira mensagem recebida" },
-  { value: "broadcast_campaign", label: "📢 Disparo de Campanha (ao enviar)" },
-  { value: "broadcast_response", label: "💬 Resposta a Campanha (ao responder)" },
+  { value: "lead_stage_changed", label: "Lead movido de etapa" },
+  { value: "deal_stage_changed", label: "Mudança de etapa (Kanban)" },
+  { value: "first_message", label: "Primeira mensagem recebida" },
+  { value: "broadcast_response", label: "Resposta a Campanha (ao responder)" },
   { value: "tag_added", label: "Tag adicionada" },
-  { value: "form_submitted", label: "Formulário enviado" },
-  { value: "event", label: "📡 Evento do sistema (Event Bus)" },
 ];
 
 const matchTypes = [
