@@ -25,13 +25,18 @@ const triggerTypes = [
   { value: "event", label: "Evento do sistema" },
   { value: "form_submitted", label: "Formulário enviado" },
   { value: "lead_created", label: "Lead criado" },
+  { value: "lead_won", label: "Lead ganho" },
+  { value: "lead_inactive", label: "Lead inativo" },
+  { value: "lead_lost", label: "Lead perdido" },
+  { value: "lead_stage_changed", label: "Lead movido de etapa" },
   { value: "lead_from_instagram", label: "Lead via Instagram" },
   { value: "lead_from_whatsapp", label: "Lead via WhatsApp" },
-  { value: "lead_stage_changed", label: "Lead movido de etapa" },
   { value: "deal_stage_changed", label: "Mudança de etapa" },
   { value: "first_message", label: "Primeira mensagem recebida" },
   { value: "broadcast_response", label: "Resposta a Campanha" },
+  { value: "owner_assigned", label: "Responsável atribuído" },
   { value: "tag_added", label: "Tag adicionada" },
+  { value: "webhook_received", label: "Webhook recebido" },
 ];
 
 const matchTypes = [
@@ -461,6 +466,57 @@ export function TriggerEditor({ config, onChange }: TriggerEditorProps) {
             value={config.tag || ""}
             onChange={(e) => onChange({ ...config, tag: e.target.value })}
           />
+        </div>
+      )}
+
+      {config.triggerType === "lead_inactive" && (
+        <div className="space-y-3 border border-border rounded-lg p-3 bg-muted/30">
+          <p className="text-[11px] text-muted-foreground">
+            Dispara quando um lead não tem atividade de conversa por N dias. Requer o cron <code>POST /automations/cron/inactive-check</code> rodando periodicamente.
+          </p>
+          <div>
+            <Label className="font-poppins text-sm">Dias sem atividade</Label>
+            <Input
+              type="number"
+              className="mt-1.5 w-28"
+              min={1}
+              max={365}
+              value={config.inactive_days ?? 7}
+              onChange={(e) => onChange({ ...config, inactive_days: parseInt(e.target.value) || 7 })}
+            />
+          </div>
+        </div>
+      )}
+
+      {(config.triggerType === "lead_won" || config.triggerType === "lead_lost") && (
+        <div className="border border-border rounded-lg p-3 bg-muted/30">
+          <p className="text-[11px] text-muted-foreground">
+            Dispara quando o status do lead é alterado para <strong>{config.triggerType === "lead_won" ? "Ganho" : "Perdido"}</strong> no CRM.
+            Não requer configuração adicional.
+          </p>
+        </div>
+      )}
+
+      {config.triggerType === "owner_assigned" && (
+        <div className="border border-border rounded-lg p-3 bg-muted/30">
+          <p className="text-[11px] text-muted-foreground">
+            Dispara quando um responsável (vendedor) é atribuído ou alterado no lead.
+            Deixe em branco para disparar em qualquer atribuição.
+          </p>
+        </div>
+      )}
+
+      {config.triggerType === "webhook_received" && (
+        <div className="space-y-2 border border-border rounded-lg p-3 bg-muted/30">
+          <p className="text-[11px] text-muted-foreground">
+            Dispara quando um sistema externo faz um <code>POST</code> para a URL desta automação:
+          </p>
+          <code className="block text-[10px] bg-background border border-border rounded p-2 break-all text-foreground">
+            {(typeof window !== "undefined" ? window.location.origin.replace(":5173", "") : "") + "/api/automations/webhook/[ID da automação]"}
+          </code>
+          <p className="text-[10px] text-muted-foreground">
+            O ID da automação está visível na URL da página. O corpo do POST fica disponível em <code>{"{{webhook_payload}}"}</code>.
+          </p>
         </div>
       )}
     </div>
