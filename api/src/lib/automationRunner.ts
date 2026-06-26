@@ -448,6 +448,32 @@ async function runFromNode(
       }
     }
 
+    if (actionType === "internal_notification") {
+      const memberId: string = config.params?.member_id || ""
+      const message = renderTemplate(config.params?.message || "", ctx)
+      const orgId: string = ctx.organization_id || ""
+      if (message && orgId) {
+        const integration = await (prisma as any).whatsappIntegration?.findFirst?.({
+          where: { organizationId: orgId },
+          select: { instanceName: true },
+        }).catch(() => null)
+        if (integration?.instanceName) {
+          const whereClause: any = { organizationId: orgId }
+          if (memberId) whereClause.id = memberId
+          else whereClause.role = { in: ["admin", "owner"] }
+          const profiles = await prisma.profile.findMany({
+            where: whereClause,
+            select: { whatsappE164: true },
+          }).catch(() => [])
+          for (const p of profiles) {
+            if (p.whatsappE164) {
+              await sendWhatsAppText(integration.instanceName, p.whatsappE164, `🔔 Auto-Lead: ${message}`)
+            }
+          }
+        }
+      }
+    }
+
     if (actionType === "send_whatsapp") {
       const text = renderTemplate(config.params?.message || "", ctx)
       const phone: string = ctx.lead_phone || ctx.phone || ""
@@ -472,6 +498,63 @@ async function runFromNode(
 
     // continue to next node
     const nextEdge = edges.find((e: any) => e.source === nodeId)
+    if (nextEdge) {
+      await runFromNode(runId, nextEdge.target, flow, ctx, depth + 1)
+    } else {
+      await prisma.automationRun.update({
+        where: { id: runId },
+        data: { status: "completed", completedAt: new Date(), updatedAt: new Date() },
+      }).catch(() => null)
+    }
+
+  } else if (nodeType === "business_hours") {
+    const timezone: string = config.timezone || "America/Sao_Paulo"
+    const schedule: Record<string, { enabled: boolean; start: string; end: string }> = config.schedule || {}
+
+    const now = new Date()
+    const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
+    const localDay = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" })
+      .format(now)
+      .toLowerCase()
+      .slice(0, 3)
+    const dayKey = dayNames.includes(localDay) ? localDay : dayNames[now.getDay()]
+
+    const localTime = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(now)
+    const [h, m] = localTime.split(":").map(Number)
+    const currentMinutes = h * 60 + m
+
+    const dayConfig = schedule[dayKey] || { enabled: false, start: "09:00", end: "18:00" }
+    let within = false
+    if (dayConfig.enabled) {
+      const [sh, sm] = (dayConfig.start || "09:00").split(":").map(Number)
+      const [eh, em] = (dayConfig.end || "18:00").split(":").map(Number)
+      within = currentMinutes >= sh * 60 + sm && currentMinutes < eh * 60 + em
+    }
+
+    const handle = within ? "within" : "outside"
+    const nextEdge =
+      edges.find((e: any) => e.source === nodeId && e.sourceHandle === handle) ||
+      edges.find((e: any) => e.source === nodeId)
+    if (nextEdge) {
+      await runFromNode(runId, nextEdge.target, flow, ctx, depth + 1)
+    } else {
+      await prisma.automationRun.update({
+        where: { id: runId },
+        data: { status: "completed", completedAt: new Date(), updatedAt: new Date() },
+      }).catch(() => null)
+    }
+
+  } else if (nodeType === "ab_split") {
+    const splitA = Number(config.split_a ?? 50)
+    const handle = Math.random() * 100 < splitA ? "a" : "b"
+    const nextEdge =
+      edges.find((e: any) => e.source === nodeId && e.sourceHandle === handle) ||
+      edges.find((e: any) => e.source === nodeId)
     if (nextEdge) {
       await runFromNode(runId, nextEdge.target, flow, ctx, depth + 1)
     } else {
