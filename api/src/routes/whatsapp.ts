@@ -215,7 +215,8 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
       // Evolution API unreachable — return last known status from DB
     }
 
-    const evStatus = evolutionData?.instance?.state || integration.status || "disconnected"
+    const rawState = evolutionData?.instance?.state || integration.status || "disconnected"
+    const evStatus = rawState === "open" ? "connected" : rawState === "close" ? "disconnected" : rawState
     const isConnecting = evStatus === "connecting" || evStatus === "qr"
 
     if (isConnecting) {
