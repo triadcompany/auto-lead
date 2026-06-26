@@ -354,16 +354,6 @@ async function runFromNode(
       }
     }
 
-    if (actionType === "assign_owner") {
-      const sellerId: string | undefined = config.params?.owner_id
-      if (sellerId && sellerId !== "auto" && ctx.lead_id) {
-        await prisma.lead.update({
-          where: { id: ctx.lead_id },
-          data: { sellerId, updatedAt: new Date() },
-        }).catch(() => null)
-      }
-    }
-
     if (actionType === "update_lead") {
       const updates: Record<string, any> = {}
       if (config.params?.name) updates.name = renderTemplate(config.params.name, ctx)
