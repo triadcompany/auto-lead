@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -22,6 +23,7 @@ const actionTypes = [
   { value: "add_tag", label: "Adicionar tag" },
   { value: "move_stage", label: "Mover etapa" },
   { value: "assign_owner", label: "Atribuir responsável" },
+  { value: "transfer_to_agent", label: "Transferir para atendente" },
   { value: "send_whatsapp", label: "Enviar WhatsApp" },
   { value: "send_email", label: "Enviar e-mail" },
   { value: "update_lead", label: "Atualizar lead" },
@@ -355,6 +357,57 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
           <p className="text-[10px] text-muted-foreground mt-1">
             Se escolher distribuição automática, o sistema atribui via round-robin ou fallback.
           </p>
+        </div>
+      )}
+
+      {config.actionType === "transfer_to_agent" && (
+        <div className="space-y-4 border border-border rounded-lg p-3 bg-muted/30">
+          <p className="text-[11px] text-muted-foreground font-poppins">
+            Encerra o bot e entrega a conversa a um atendente humano. A automação é finalizada imediatamente após a transferência.
+          </p>
+
+          <div>
+            <Label className="font-poppins text-sm">Atendente</Label>
+            <Select
+              value={params.owner_id || "auto"}
+              onValueChange={(v) => {
+                if (v === "auto") {
+                  onChange({ ...config, params: { ...params, owner_id: "", owner: "" } });
+                } else {
+                  const member = members.find((m) => m.id === v);
+                  onChange({ ...config, params: { ...params, owner_id: v, owner: member?.name || "" } });
+                }
+              }}
+            >
+              <SelectTrigger className="mt-1.5">
+                <SelectValue placeholder="Selecione o atendente" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Distribuição automática</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Se automático, atribui ao primeiro disponível por round-robin.
+            </p>
+          </div>
+
+          <div>
+            <Label className="font-poppins text-sm">Mensagem de transição (opcional)</Label>
+            <Textarea
+              className="mt-1.5 min-h-[80px] text-sm font-poppins"
+              placeholder="Ex: Vou passar você para um de nossos atendentes. Em breve entrarão em contato!"
+              value={params.transfer_message || ""}
+              onChange={(e) => updateParams("transfer_message", e.target.value)}
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Enviada via WhatsApp antes de encerrar o bot.
+            </p>
+          </div>
         </div>
       )}
 
