@@ -150,10 +150,53 @@ export default async function automationsRoutes(fastify: FastifyInstance) {
   })
 
   fastify.delete<{ Params: { id: string } }>("/automations/:id", async (req, reply) => {
-    const deleted = await prisma.automation.deleteMany({
-      where: { id: req.params.id, ...orgScope(req) },
+    const automationId = req.params.id
+    const orgId = req.auth.orgId
+
+    // Verify ownership before deleting
+    const automation = await prisma.automation.findFirst({
+      where: { id: automationId, ...orgScope(req) },
+      select: { id: true },
     })
-    if (deleted.count === 0) return reply.code(404).send({ error: "Not found or system automation" })
+    if (!automation) return reply.code(404).send({ error: "Not found" })
+
+    // Delete child records in correct FK order to avoid constraint violations
+    await prisma.$transaction(async (tx) => {
+      // 1. Null out WhatsappMessage references to runs (optional FK)
+      await (tx as any).whatsappMessage?.updateMany?.({
+        where: { organizationId: orgId, automationRunId: { not: null } },
+        data: { automationRunId: null },
+      }).catch(() => null)
+
+      // 2. Delete AutomationRunStep (child of AutomationRun)
+      const runs = await tx.automationRun.findMany({
+        where: { automationId, organizationId: orgId },
+        select: { id: true },
+      })
+      if (runs.length > 0) {
+        const runIds = runs.map((r) => r.id)
+        await tx.automationRunStep.deleteMany({ where: { runId: { in: runIds } } })
+      }
+
+      // 3. Delete AutomationRun
+      await tx.automationRun.deleteMany({ where: { automationId, organizationId: orgId } })
+
+      // 4. Delete AutomationFlow
+      await tx.automationFlow.deleteMany({ where: { automationId, organizationId: orgId } })
+
+      // 5. Delete AutomationJob
+      await tx.automationJob.deleteMany({ where: { automationId, organizationId: orgId } })
+
+      // 6. Delete AutomationLog
+      await (tx as any).automationLog?.deleteMany?.({ where: { automationId, organizationId: orgId } }).catch(() => null)
+
+      // 7. Delete AutomationFirstContact
+      await (tx as any).automationFirstContact?.deleteMany?.({ where: { automationId, organizationId: orgId } }).catch(() => null)
+
+      // 8. Finally delete the Automation itself
+      await tx.automation.delete({ where: { id: automationId } })
+    })
+
     return { success: true }
   })
 
