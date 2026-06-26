@@ -3,7 +3,7 @@ import { Node } from "@xyflow/react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { X, Zap, MessageSquare, Clock, GitBranch, GitMerge, Cog, Trash2, MessageSquareReply, Bell } from "lucide-react";
+import { X, Zap, MessageSquare, Clock, GitBranch, GitMerge, Cog, Trash2, MessageSquareReply, Bell, Shuffle } from "lucide-react";
 import { TriggerEditor } from "./editors/TriggerEditor";
 import { DelayEditor } from "./editors/DelayEditor";
 import { MessageEditor } from "./editors/MessageEditor";
@@ -12,6 +12,8 @@ import { ActionEditor } from "./editors/ActionEditor";
 import { WaitForReplyEditor } from "./editors/WaitForReplyEditor";
 import { ReplyRouterEditor } from "./editors/ReplyRouterEditor";
 import { FollowupEditor } from "./editors/FollowupEditor";
+import { BusinessHoursEditor } from "./editors/BusinessHoursEditor";
+import { AbSplitEditor } from "./editors/AbSplitEditor";
 
 interface NodeInspectorProps {
   node: Node | null;
@@ -29,6 +31,8 @@ const nodeTypeInfo: Record<string, { label: string; icon: React.ElementType; col
   wait_for_reply: { label: "Esperar Resposta", icon: MessageSquareReply, color: "text-cyan-500" },
   reply_router: { label: "Rotear por Resposta", icon: GitMerge, color: "text-violet-500" },
   followup: { label: "Follow-up", icon: Bell, color: "text-green-500" },
+  business_hours: { label: "Horário Comercial", icon: Clock, color: "text-teal-500" },
+  ab_split: { label: "A/B Split", icon: Shuffle, color: "text-pink-500" },
 };
 
 export function NodeInspector({ node, onUpdate, onDelete, onClose }: NodeInspectorProps) {
@@ -60,6 +64,10 @@ export function NodeInspector({ node, onUpdate, onDelete, onClose }: NodeInspect
         return <ReplyRouterEditor config={config} onChange={handleConfigChange} />;
       case "followup":
         return <FollowupEditor config={config} onChange={handleConfigChange} />;
+      case "business_hours":
+        return <BusinessHoursEditor config={config} onChange={handleConfigChange} />;
+      case "ab_split":
+        return <AbSplitEditor config={config} onChange={handleConfigChange} />;
       default:
         return <p className="text-sm text-muted-foreground font-poppins">Editor não disponível</p>;
     }
