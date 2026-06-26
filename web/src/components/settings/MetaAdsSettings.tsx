@@ -452,7 +452,7 @@ function ConnectionCard({ orgId, profileId, isAdmin }: { orgId: string; profileI
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="font-poppins">Conexão Meta (CAPI)</CardTitle>
+              <CardTitle className="font-poppins">Conexão Meta</CardTitle>
               <CardDescription>Dataset ID (Pixel ID) e Access Token para envio de eventos</CardDescription>
             </div>
             {getStatusBadge()}
@@ -668,7 +668,7 @@ function QueueLogsSection({ orgId, profileId, isAdmin }: { orgId: string; profil
               Nenhum evento enviado ainda.
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Configure uma automação com a ação "Enviar para Meta (CAPI)" para começar.
+              Configure uma automação com a ação "Enviar para Meta" para começar.
             </p>
           </div>
         ) : (
