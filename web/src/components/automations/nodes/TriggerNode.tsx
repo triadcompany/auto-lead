@@ -3,12 +3,22 @@ import { Handle, Position, NodeProps } from "@xyflow/react";
 import { Zap } from "lucide-react";
 
 const triggerOptions: Record<string, string> = {
+  broadcast_campaign: "Disparo de Campanha",
+  broadcast_response: "Resposta a Campanha",
+  deal_stage_changed: "Mudança de etapa",
+  event: "Evento do sistema",
+  first_message: "Primeira mensagem",
+  form_submitted: "Formulário enviado",
   lead_created: "Lead criado",
-  lead_stage_changed: "Lead movido de etapa",
   lead_from_instagram: "Lead via Instagram",
   lead_from_whatsapp: "Lead via WhatsApp",
+  lead_inactive: "Lead inativo",
+  lead_lost: "Lead perdido",
+  lead_stage_changed: "Lead movido de etapa",
+  lead_won: "Lead ganho",
+  owner_assigned: "Responsável atribuído",
   tag_added: "Tag adicionada",
-  form_submitted: "Formulário enviado",
+  webhook_received: "Webhook recebido",
 };
 
 export const TriggerNode = memo(({ data, selected }: NodeProps) => {
