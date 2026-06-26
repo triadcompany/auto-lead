@@ -415,23 +415,23 @@ function NodeVisual({ label, icon: Icon, color, tagColor, small = false }: {
 
 function ExampleFlowCard({ flow }: { flow: ExampleFlow }) {
   return (
-    <div className="border border-border rounded-xl p-4 bg-card">
-      <h4 className="font-poppins font-semibold text-sm mb-1">{flow.title}</h4>
-      <p className="text-xs text-muted-foreground font-poppins mb-4">{flow.description}</p>
+    <div className="border border-border rounded-xl p-5 bg-card">
+      <h4 className="font-poppins font-semibold text-base mb-1">{flow.title}</h4>
+      <p className="text-sm text-muted-foreground font-poppins mb-4">{flow.description}</p>
       <div className="flex flex-wrap items-center gap-2">
         {flow.nodes.map((n, i) => (
           <div key={i} className="flex items-center gap-1">
-            <div className={`flex flex-col items-center px-3 py-2 rounded-xl border ${n.color} min-w-[120px]`}>
+            <div className={`flex flex-col items-center px-3 py-2 rounded-xl border ${n.color} min-w-[130px]`}>
               <div className="flex items-center gap-1.5">
-                <n.icon className="h-3.5 w-3.5 text-foreground/70" />
-                <span className="text-xs font-poppins font-medium leading-tight">{n.label}</span>
+                <n.icon className="h-4 w-4 text-foreground/70" />
+                <span className="text-sm font-poppins font-medium leading-tight">{n.label}</span>
               </div>
               {n.detail && (
-                <span className="text-[10px] text-muted-foreground mt-0.5 font-poppins">{n.detail}</span>
+                <span className="text-xs text-muted-foreground mt-0.5 font-poppins">{n.detail}</span>
               )}
             </div>
             {i < flow.nodes.length - 1 && (
-              <span className="text-muted-foreground text-sm">→</span>
+              <span className="text-muted-foreground text-base">→</span>
             )}
           </div>
         ))}
@@ -445,33 +445,33 @@ function BlockCard({ block }: { block: BlockDoc }) {
   return (
     <div className="border border-border rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/20">
+      <div className="flex items-center gap-3 px-4 py-4 border-b border-border bg-muted/20">
         <div className={`p-2 rounded-lg ${block.tagColor}`}>
-          <Icon className="h-4 w-4" />
+          <Icon className="h-5 w-5" />
         </div>
         <div className="flex-1">
-          <h3 className="font-poppins font-semibold text-sm">{block.label}</h3>
-          <Badge variant="outline" className={`text-[10px] mt-0.5 border px-1.5 py-0 ${block.tagColor}`}>
+          <h3 className="font-poppins font-semibold text-base">{block.label}</h3>
+          <Badge variant="outline" className={`text-xs mt-0.5 border px-1.5 py-0 ${block.tagColor}`}>
             {block.type === "trigger" ? "Gatilho" : block.type === "action" ? "Ação" : block.type === "condition" ? "Lógica" : block.type === "business_hours" ? "Lógica" : block.type === "ab_split" ? "Lógica" : block.label}
           </Badge>
         </div>
       </div>
 
-      <div className="px-4 py-3 space-y-3">
+      <div className="px-4 py-4 space-y-4">
         {/* Descrição */}
         <p className="text-sm text-muted-foreground font-poppins leading-relaxed">{block.summary}</p>
 
         {/* Opções */}
         {block.options.length > 0 && (
           <div>
-            <p className="text-[11px] font-poppins font-bold uppercase tracking-wide text-foreground/50 mb-2">
+            <p className="text-xs font-poppins font-bold uppercase tracking-wide text-foreground/50 mb-2">
               Opções de configuração
             </p>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {block.options.map((opt, i) => (
                 <div key={i} className="flex gap-2">
-                  <span className="text-xs font-poppins font-semibold text-foreground/80 min-w-fit">{opt.name}:</span>
-                  <span className="text-xs font-poppins text-muted-foreground">{opt.desc}</span>
+                  <span className="text-sm font-poppins font-semibold text-foreground/80 min-w-fit">{opt.name}:</span>
+                  <span className="text-sm font-poppins text-muted-foreground">{opt.desc}</span>
                 </div>
               ))}
             </div>
@@ -481,12 +481,12 @@ function BlockCard({ block }: { block: BlockDoc }) {
         {/* Dicas */}
         {block.tips.length > 0 && (
           <div className="bg-primary/5 border border-primary/10 rounded-lg p-3">
-            <p className="text-[11px] font-poppins font-bold uppercase tracking-wide text-primary/70 mb-1.5">
+            <p className="text-xs font-poppins font-bold uppercase tracking-wide text-primary/70 mb-2">
               Dicas de uso
             </p>
-            <ul className="space-y-1">
+            <ul className="space-y-1.5">
               {block.tips.map((tip, i) => (
-                <li key={i} className="flex gap-1.5 text-xs font-poppins text-muted-foreground">
+                <li key={i} className="flex gap-1.5 text-sm font-poppins text-muted-foreground">
                   <span className="text-primary/60 mt-0.5">•</span>
                   <span>{tip}</span>
                 </li>
@@ -521,8 +521,8 @@ export default function AutomationGuide() {
           Voltar
         </Button>
         <div>
-          <h1 className="font-poppins font-bold text-lg">Guia de Blocos de Automação</h1>
-          <p className="text-xs text-muted-foreground font-poppins">
+          <h1 className="font-poppins font-bold text-xl">Guia de Blocos de Automação</h1>
+          <p className="text-sm text-muted-foreground font-poppins">
             Entenda o que cada bloco faz, como configurar e exemplos de uso
           </p>
         </div>
@@ -530,12 +530,12 @@ export default function AutomationGuide() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar de categorias */}
-        <div className="w-48 border-r border-border bg-card/50 flex-shrink-0 py-4 px-3 space-y-1">
+        <div className="w-52 border-r border-border bg-card/50 flex-shrink-0 py-4 px-3 space-y-1">
           {CATEGORIES.map((cat) => (
             <button
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm font-poppins font-medium transition-colors ${
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-poppins font-medium transition-colors ${
                 activeCategory === cat.id
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -544,34 +544,191 @@ export default function AutomationGuide() {
               <span className={activeCategory === cat.id ? "" : cat.accent}>
                 {cat.label}
               </span>
-              <span className="ml-2 text-[10px] opacity-60">
+              <span className="ml-2 text-xs opacity-60">
                 {cat.blocks.length}
               </span>
             </button>
           ))}
 
-          <div className="pt-3 border-t border-border mt-3">
+          <div className="pt-3 border-t border-border mt-3 space-y-1">
+            <button
+              onClick={() => setActiveCategory("como-criar")}
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-poppins font-medium transition-colors ${
+                activeCategory === "como-criar"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              }`}
+            >
+              Como criar
+            </button>
             <button
               onClick={() => setActiveCategory("exemplos")}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm font-poppins font-medium transition-colors ${
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-poppins font-medium transition-colors ${
                 activeCategory === "exemplos"
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"
               }`}
             >
               Exemplos
-              <span className="ml-2 text-[10px] opacity-60">{EXAMPLES.length}</span>
+              <span className="ml-2 text-xs opacity-60">{EXAMPLES.length}</span>
             </button>
           </div>
         </div>
 
         {/* Conteúdo principal */}
         <div className="flex-1 overflow-y-auto p-6">
-          {activeCategory === "exemplos" ? (
+          {activeCategory === "como-criar" ? (
+            <div className="space-y-6 max-w-3xl">
+              <div>
+                <h2 className="font-poppins font-bold text-2xl mb-2">Como criar uma boa automação</h2>
+                <p className="text-base text-muted-foreground font-poppins">
+                  Antes de montar qualquer fluxo, entenda a lógica por trás. Uma automação bem construída poupa tempo, melhora a experiência do lead e não incomoda quem não deve ser incomodado.
+                </p>
+              </div>
+
+              {/* Regra de ouro */}
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-5">
+                <h3 className="font-poppins font-bold text-base mb-2 text-primary">A regra de ouro: Gatilho → Condição → Ação</h3>
+                <p className="text-sm text-muted-foreground font-poppins leading-relaxed mb-3">
+                  Todo fluxo eficiente segue essa estrutura. Um <strong className="text-foreground">gatilho</strong> inicia a automação, uma <strong className="text-foreground">condição</strong> decide se a ação faz sentido para aquele lead, e a <strong className="text-foreground">ação</strong> executa o que precisa ser feito.
+                </p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {[
+                    { label: "Gatilho", desc: "O que aconteceu?", color: "border-amber-500/50 bg-amber-500/5 text-amber-600" },
+                    { label: "→", desc: "", color: "" },
+                    { label: "Condição", desc: "Vale a pena agir?", color: "border-purple-500/50 bg-purple-500/5 text-purple-600" },
+                    { label: "→", desc: "", color: "" },
+                    { label: "Ação", desc: "O que fazer?", color: "border-blue-500/50 bg-blue-500/5 text-blue-600" },
+                  ].map((item, i) =>
+                    item.label === "→" ? (
+                      <span key={i} className="text-xl text-muted-foreground font-bold">→</span>
+                    ) : (
+                      <div key={i} className={`flex flex-col items-center px-4 py-2 rounded-xl border ${item.color} min-w-[110px]`}>
+                        <span className="text-sm font-poppins font-bold">{item.label}</span>
+                        <span className="text-xs text-muted-foreground font-poppins">{item.desc}</span>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+
+              {/* Passo a passo */}
+              <div>
+                <h3 className="font-poppins font-bold text-lg mb-4">Passo a passo para montar um fluxo</h3>
+                <div className="space-y-4">
+                  {[
+                    {
+                      step: "1",
+                      title: "Comece pelo objetivo",
+                      color: "bg-amber-500",
+                      content: "Antes de abrir o editor, responda: qual problema essa automação resolve? Exemplo: 'quero que todo lead que entra receba uma mensagem de boas-vindas dentro de 5 segundos'. Ter o objetivo claro evita criar fluxos confusos com dezenas de blocos sem propósito.",
+                    },
+                    {
+                      step: "2",
+                      title: "Escolha o gatilho certo",
+                      color: "bg-orange-500",
+                      content: "O gatilho é o ponto de partida. Pergunte: quando exatamente esse fluxo deve iniciar? Se for no primeiro contato do lead, use 'Primeira Mensagem'. Se for quando o lead avança no pipeline, use 'Lead movido no Kanban'. Escolha o gatilho mais específico possível para evitar disparos desnecessários.",
+                    },
+                    {
+                      step: "3",
+                      title: "Adicione condições antes das ações",
+                      color: "bg-purple-500",
+                      content: "Não saia mandando mensagens para todo mundo que aciona o gatilho. Use 'Horário Comercial' para não mandar mensagem às 3h da manhã. Use 'Condição' para verificar se o lead tem e-mail antes de enviar um e-mail. Isso evita ações desnecessárias e mantém a qualidade do atendimento.",
+                    },
+                    {
+                      step: "4",
+                      title: "Construa o caminho feliz primeiro",
+                      color: "bg-blue-500",
+                      content: "Monte primeiro o fluxo principal — o que acontece quando tudo funciona como esperado. Depois volte e adicione as ramificações para os casos alternativos. Fluxos construídos 'de trás para frente' ficam difíceis de manter.",
+                    },
+                    {
+                      step: "5",
+                      title: "Use Aguardar com sabedoria",
+                      color: "bg-cyan-500",
+                      content: "O bloco 'Aguardar' é poderoso, mas perigoso se mal usado. Se você colocar 'Aguardar 1 hora' sem motivo, você está apenas atrasando a experiência do lead. Use esperas quando faz sentido: follow-up 24h depois, lembrete 3 dias após sem resposta, confirmação 1h após a compra.",
+                    },
+                    {
+                      step: "6",
+                      title: "Sempre encerre os ramos que não têm ação",
+                      color: "bg-teal-500",
+                      content: "Se você usa 'Condição' ou 'Horário Comercial' e um dos caminhos não precisa de nenhuma ação, coloque o bloco 'Encerrar Automação' nesse ramo. Isso deixa o fluxo explícito e evita comportamentos inesperados.",
+                    },
+                    {
+                      step: "7",
+                      title: "Teste antes de ativar",
+                      color: "bg-green-500",
+                      content: "Use o botão 'Executar manualmente' no detalhe da automação para disparar o fluxo em um lead de teste. Verifique na aba 'Execuções' se os blocos foram executados corretamente. Só ative a automação após confirmar que o fluxo funciona como esperado.",
+                    },
+                  ].map((item) => (
+                    <div key={item.step} className="flex gap-4">
+                      <div className={`shrink-0 w-8 h-8 rounded-full ${item.color} flex items-center justify-center text-white font-poppins font-bold text-sm mt-0.5`}>
+                        {item.step}
+                      </div>
+                      <div>
+                        <h4 className="font-poppins font-semibold text-base mb-1">{item.title}</h4>
+                        <p className="text-sm text-muted-foreground font-poppins leading-relaxed">{item.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Erros comuns */}
+              <div>
+                <h3 className="font-poppins font-bold text-lg mb-4">Erros comuns (e como evitar)</h3>
+                <div className="space-y-3">
+                  {[
+                    {
+                      erro: "Gatilho muito amplo",
+                      desc: "Usar 'Lead criado' quando você deveria usar 'Primeira mensagem recebida' faz a automação disparar para leads importados em massa, leads duplicados, leads criados manualmente — não só para os que entraram em contato.",
+                      fix: "Seja específico no gatilho. Adicione condições para filtrar os casos que não devem receber a automação.",
+                    },
+                    {
+                      erro: "Mensagens sem personalização",
+                      desc: "Mensagens genéricas ('Olá! Como posso ajudar?') têm taxa de resposta muito menor que mensagens personalizadas. O lead percebe que é um bot e ignora.",
+                      fix: "Use variáveis como {{lead.name}} e contextualize a mensagem com base no produto ou fonte do lead.",
+                    },
+                    {
+                      erro: "Fluxo sem saída",
+                      desc: "Criar automações que ficam em loop ou que nunca chegam a um fim definido. O sistema processa o fluxo, mas o lead fica 'preso' em execuções que não terminam.",
+                      fix: "Todo ramo deve terminar em uma ação ou no bloco 'Encerrar Automação'. Revise todos os caminhos possíveis.",
+                    },
+                    {
+                      erro: "Ativar sem testar",
+                      desc: "Ativar a automação diretamente em produção sem testar com um lead real é a causa número 1 de problemas. Leads recebem mensagens duplicadas, erradas ou fora de hora.",
+                      fix: "Sempre teste primeiro. Crie um lead de teste, dispare manualmente e confirme o comportamento na aba 'Execuções'.",
+                    },
+                  ].map((item, i) => (
+                    <div key={i} className="border border-red-500/20 bg-red-500/5 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <span className="text-red-500 font-poppins font-bold text-sm mt-0.5 shrink-0">✗</span>
+                        <div>
+                          <p className="font-poppins font-semibold text-sm text-foreground mb-1">{item.erro}</p>
+                          <p className="text-sm text-muted-foreground font-poppins mb-2 leading-relaxed">{item.desc}</p>
+                          <div className="flex gap-2">
+                            <span className="text-green-600 font-bold text-sm shrink-0">✓</span>
+                            <p className="text-sm text-green-700 dark:text-green-400 font-poppins leading-relaxed">{item.fix}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dica final */}
+              <div className="bg-muted/50 border border-border rounded-xl p-5">
+                <h3 className="font-poppins font-bold text-base mb-2">Lembre-se: menos é mais</h3>
+                <p className="text-sm text-muted-foreground font-poppins leading-relaxed">
+                  Uma automação com 3 blocos bem pensados é mais eficiente do que uma com 20 blocos mal organizados. Comece simples, ative, observe os resultados e vá refinando. Automações são iterativas — não precisam ser perfeitas na primeira versão.
+                </p>
+              </div>
+            </div>
+          ) : activeCategory === "exemplos" ? (
             <div className="space-y-4">
               <div className="mb-4">
-                <h2 className="font-poppins font-bold text-xl mb-1">Exemplos de Automações</h2>
-                <p className="text-sm text-muted-foreground font-poppins">
+                <h2 className="font-poppins font-bold text-2xl mb-1">Exemplos de Automações</h2>
+                <p className="text-base text-muted-foreground font-poppins">
                   Fluxos prontos que você pode replicar para casos de uso comuns.
                 </p>
               </div>
@@ -584,10 +741,10 @@ export default function AutomationGuide() {
           ) : (
             <div className="space-y-4">
               <div className="mb-4">
-                <h2 className={`font-poppins font-bold text-xl mb-1 ${current.accent}`}>
+                <h2 className={`font-poppins font-bold text-2xl mb-1 ${current.accent}`}>
                   {current.label}
                 </h2>
-                <p className="text-sm text-muted-foreground font-poppins">
+                <p className="text-base text-muted-foreground font-poppins">
                   {current.id === "gatilhos" && "Os gatilhos iniciam uma automação. Cada fluxo começa com exatamente um gatilho."}
                   {current.id === "whatsapp" && "Blocos para interagir com o lead via WhatsApp: enviar, aguardar e rotear respostas."}
                   {current.id === "crm" && "Ações que modificam dados do lead e do pipeline dentro do CRM."}
