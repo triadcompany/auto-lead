@@ -396,6 +396,30 @@ async function runFromNode(
       }
     }
 
+    if (actionType === "transfer_to_agent") {
+      // 1. Envia mensagem de transição se configurada
+      const transferMsg: string = config.params?.transfer_message || ""
+      const phone: string = ctx.lead_phone || ctx.phone || ""
+      const instanceName: string = ctx.instance_name || ""
+      if (transferMsg && phone && instanceName) {
+        await sendWhatsAppText(instanceName, phone, renderTemplate(transferMsg, ctx))
+      }
+      // 2. Atribui atendente ao lead
+      const sellerId: string = config.params?.owner_id || ""
+      if (sellerId && ctx.lead_id) {
+        await prisma.lead.update({
+          where: { id: ctx.lead_id },
+          data: { sellerId, updatedAt: new Date() },
+        }).catch(() => null)
+      }
+      // 3. Encerra a automação — conversa agora é de um humano
+      await prisma.automationRun.update({
+        where: { id: runId },
+        data: { status: "completed", completedAt: new Date(), updatedAt: new Date() },
+      }).catch(() => null)
+      return
+    }
+
     if (actionType === "send_whatsapp") {
       const text = renderTemplate(config.params?.message || "", ctx)
       const phone: string = ctx.lead_phone || ctx.phone || ""
