@@ -420,6 +420,34 @@ async function runFromNode(
       return
     }
 
+    if (actionType === "create_note") {
+      const content = renderTemplate(config.params?.content || "", ctx)
+      const orgId: string = ctx.organization_id || ""
+      const leadId: string | undefined = ctx.lead_id
+      if (content && orgId && leadId) {
+        const conversation = await prisma.conversation.findFirst({
+          where: { organizationId: orgId, leadId },
+          orderBy: { lastMessageAt: "desc" },
+          select: { id: true },
+        }).catch(() => null)
+        if (conversation) {
+          await prisma.conversationNote.create({
+            data: { conversationId: conversation.id, organizationId: orgId, content },
+          }).catch(() => null)
+        }
+      }
+    }
+
+    if (actionType === "set_lead_status") {
+      const status: string = config.params?.status || "won"
+      if (ctx.lead_id && (status === "won" || status === "lost")) {
+        await prisma.lead.update({
+          where: { id: ctx.lead_id },
+          data: { status, updatedAt: new Date() } as any,
+        }).catch(() => null)
+      }
+    }
+
     if (actionType === "send_whatsapp") {
       const text = renderTemplate(config.params?.message || "", ctx)
       const phone: string = ctx.lead_phone || ctx.phone || ""
