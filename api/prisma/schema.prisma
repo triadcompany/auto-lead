@@ -776,7 +776,6 @@ model WhatsappRoutingSettings {
   trafficRoles          Json      @default("[\"seller\",\"admin\"]") @map("traffic_roles")
   nonTrafficRoles       Json      @default("[\"seller\",\"admin\"]") @map("non_traffic_roles")
   transferIntroMessage  String?   @map("transfer_intro_message")
-  distributionMode      String    @default("settings") @map("distribution_mode")
   updatedAt             DateTime  @default(now()) @map("updated_at") @db.Timestamptz
 
   organization Organization @relation(fields: [organizationId], references: [id])
