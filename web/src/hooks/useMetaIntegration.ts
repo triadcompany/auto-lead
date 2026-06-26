@@ -1,59 +1,62 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 interface MetaIntegration {
   id: string;
-  pixel_id: string;
-  access_token: string;
-  track_lead_qualificado: boolean;
-  track_lead_super_qualificado: boolean;
-  track_lead_comprou: boolean;
-  track_lead_veio_loja: boolean;
-  is_active: boolean;
-  test_mode: boolean;
+  pixelId: string;
+  accessToken: string;
+  trackLeadQualificado: boolean;
+  trackLeadSuperQualificado: boolean;
+  trackLeadComprou: boolean;
+  trackLeadVeioLoja: boolean;
+  isActive: boolean;
+  testMode: boolean;
+  // snake_case aliases kept for component compatibility
+  pixel_id?: string;
+  access_token?: string;
 }
 
 interface MetaEventLog {
   id: string;
-  event_name: string;
-  event_id: string;
+  eventName: string;
+  eventId: string;
   success: boolean;
-  error_message: string | null;
-  created_at: string;
-  lead_id: string;
+  errorMessage: string | null;
+  createdAt: string;
+  leadId: string;
 }
 
 export function useMetaIntegration() {
-  const { profile, orgId: authOrgId } = useAuth();
-  const metaOrgId = profile?.organization_id || authOrgId;
+  const { orgId: authOrgId, profile } = useAuth();
+  const orgId = profile?.organization_id || authOrgId;
   const [config, setConfig] = useState<MetaIntegration | null>(null);
   const [recentEvents, setRecentEvents] = useState<MetaEventLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (metaOrgId) {
+    if (orgId) {
       loadConfig();
       loadRecentEvents();
     } else {
       setLoading(false);
     }
-  }, [metaOrgId]);
+  }, [orgId]);
 
   const loadConfig = async () => {
     try {
-      const { data, error } = await supabase
-        .from("meta_integrations")
-        .select("*")
-        .eq("organization_id", metaOrgId)
-        .maybeSingle();
-
-      if (error) throw error;
-      setConfig(data);
-    } catch (error: any) {
-      console.error("Error loading Meta integration:", error);
-      toast.error("Erro ao carregar configurações do Meta Pixel");
+      const integrations = await api.meta.integrations();
+      const active = Array.isArray(integrations)
+        ? (integrations.find((i: any) => i.isActive) || integrations[0] || null)
+        : null;
+      if (active) {
+        setConfig({ ...active, pixel_id: active.pixelId, access_token: active.accessToken });
+      } else {
+        setConfig(null);
+      }
+    } catch (err: any) {
+      console.error("Error loading Meta integration:", err);
     } finally {
       setLoading(false);
     }
@@ -61,101 +64,62 @@ export function useMetaIntegration() {
 
   const loadRecentEvents = async () => {
     try {
-      const { data, error } = await supabase
-        .from("meta_events_log")
-        .select("*")
-        .eq("organization_id", metaOrgId)
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-      if (error) throw error;
-      setRecentEvents(data || []);
-    } catch (error: any) {
-      console.error("Error loading Meta events log:", error);
+      const events = await api.meta.capiEvents();
+      setRecentEvents(Array.isArray(events) ? events : []);
+    } catch (err: any) {
+      console.error("Error loading Meta events:", err);
     }
   };
 
-  const saveConfig = async (updates: Partial<MetaIntegration>) => {
+  const saveConfig = async (updates: Partial<MetaIntegration> & { pixel_id?: string; access_token?: string }) => {
     try {
-      if (config?.id) {
-        // Update
-        const { error } = await supabase
-          .from("meta_integrations")
-          .update(updates)
-          .eq("id", config.id);
+      const payload: Record<string, unknown> = { ...updates };
+      if (updates.pixel_id) payload.pixelId = updates.pixel_id;
+      if (updates.access_token) payload.accessToken = updates.access_token;
+      delete payload.pixel_id;
+      delete payload.access_token;
 
-        if (error) throw error;
+      if (config?.id) {
+        await api.meta.updateIntegration(config.id, payload);
       } else {
-        // Insert - pixel_id e access_token são obrigatórios na criação
-        if (!updates.pixel_id || !updates.access_token) {
+        if (!payload.pixelId || !payload.accessToken) {
           toast.error("Pixel ID e Access Token são obrigatórios");
           return;
         }
-
-        const { error } = await supabase
-          .from("meta_integrations")
-          .insert([{
-            pixel_id: updates.pixel_id,
-            access_token: updates.access_token,
-            organization_id: metaOrgId!,
-            created_by: profile?.id!,
-            track_lead_qualificado: updates.track_lead_qualificado ?? true,
-            track_lead_super_qualificado: updates.track_lead_super_qualificado ?? true,
-            track_lead_comprou: updates.track_lead_comprou ?? true,
-            track_lead_veio_loja: updates.track_lead_veio_loja ?? true,
-            is_active: updates.is_active ?? true,
-            test_mode: updates.test_mode ?? false,
-          }]);
-
-        if (error) throw error;
+        await api.meta.createIntegration({
+          ...payload,
+          trackLeadQualificado: payload.trackLeadQualificado ?? true,
+          trackLeadSuperQualificado: payload.trackLeadSuperQualificado ?? true,
+          trackLeadComprou: payload.trackLeadComprou ?? true,
+          trackLeadVeioLoja: payload.trackLeadVeioLoja ?? true,
+          isActive: payload.isActive ?? true,
+          testMode: payload.testMode ?? false,
+        });
       }
-
       toast.success("Configurações salvas com sucesso!");
       await loadConfig();
-    } catch (error: any) {
-      console.error("Error saving Meta integration:", error);
+    } catch (err: any) {
+      console.error("Error saving Meta integration:", err);
       toast.error("Erro ao salvar configurações");
     }
   };
 
   const testConnection = async () => {
-    if (!config?.pixel_id || !config?.access_token) {
+    if (!config?.id) {
       toast.error("Configure o Pixel ID e Access Token primeiro");
       return;
     }
-
     try {
-      // Testar conexão fazendo uma chamada à API do Meta
-      const response = await fetch(
-        `https://graph.facebook.com/v18.0/${config.pixel_id}?access_token=${config.access_token}&fields=id,name`
-      );
-
-      const data = await response.json();
-
-      if (response.ok && data.id) {
-        toast.success(`Conexão OK! Pixel: ${data.name || data.id}`);
+      const result = await api.meta.testConnection();
+      if (result?.ok) {
+        toast.success(`Conexão OK! Pixel: ${result.pixel_name}`);
       } else {
-        const errorMsg = data.error?.message || "Desconhecido";
-        const errorCode = data.error?.code || "";
-        
-        if (errorCode === 100 || errorMsg.includes("permission")) {
-          toast.error("Token sem permissões necessárias. Certifique-se de que o token tem: ads_management e business_management", { duration: 6000 });
-        } else {
-          toast.error(`Erro na conexão: ${errorMsg}`);
-        }
+        toast.error(`Erro na conexão: ${result?.error || "Desconhecido"}`);
       }
-    } catch (error: any) {
+    } catch (err: any) {
       toast.error("Erro ao testar conexão com Meta");
-      console.error("Test connection error:", error);
     }
   };
 
-  return {
-    config,
-    recentEvents,
-    loading,
-    saveConfig,
-    testConnection,
-    refreshEvents: loadRecentEvents,
-  };
+  return { config, recentEvents, loading, saveConfig, testConnection, refreshEvents: loadRecentEvents };
 }
