@@ -151,6 +151,13 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
 
       const lead = await prisma.lead.update({ where: { id: req.params.id }, data })
       emit(req.auth.orgId, "lead:updated", lead)
+      const newSellerId = b.seller_id || b.sellerId
+      if (newSellerId && newSellerId !== existing.sellerId) {
+        setImmediate(() =>
+          fireAutomationTrigger(req.auth.orgId, "owner_assigned", lead.id, { new_seller_id: newSellerId })
+            .catch((e) => console.error("[leads] automation trigger error:", e))
+        )
+      }
       return lead
     }
   )
@@ -202,6 +209,17 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
       })
       if (updated.count === 0) return reply.code(404).send({ error: "Not found" })
       emit(req.auth.orgId, "lead:updated", { id: req.params.id, status: req.body.status })
+      const statusStr = req.body.status
+      if (statusStr === "won" || statusStr === "lost") {
+        setImmediate(() =>
+          fireAutomationTrigger(
+            req.auth.orgId,
+            statusStr === "won" ? "lead_won" : "lead_lost",
+            req.params.id,
+            { status: statusStr }
+          ).catch((e) => console.error("[leads] automation trigger error:", e))
+        )
+      }
       return { success: true }
     }
   )
