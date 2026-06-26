@@ -268,8 +268,8 @@ async function runFromNode(
     // schedule timeout
     setTimeout(() => handleRouterTimeout(runId, nodeId).catch(console.error), timeoutMs)
 
-  } else if (nodeType === "delay") {
-    const ms = toMs(config.amount || 1, config.unit || "minutes")
+  } else if (nodeType === "delay" || nodeType === "wait") {
+    const ms = toMs(config.duration || config.amount || 1, config.unit || "minutes")
     const nextRunAt = new Date(Date.now() + ms)
     await prisma.automationRun.update({
       where: { id: runId },
