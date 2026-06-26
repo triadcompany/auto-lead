@@ -158,6 +158,11 @@ export function useInbox() {
         }
 
         setThreads(prev => {
+          // Conversa ainda não está na lista (ex: primeiro contato) — recarrega
+          if (!prev.some(t => t.id === convId)) {
+            setTimeout(() => fetchThreads(), 0);
+            return prev;
+          }
           const updated = prev.map(t => {
             if (t.id !== convId) return t;
             return {
