@@ -265,7 +265,7 @@ const CATEGORIES: CategoryDoc[] = [
       {
         type: "action", label: "Meta CAPI", icon: BarChart3,
         color: "text-orange-500", tagColor: "bg-orange-500/10 text-orange-500 border-orange-500/30",
-        summary: "Envia um evento de conversão diretamente para a Meta Conversions API (CAPI), otimizando campanhas de anúncios no Facebook e Instagram.",
+        summary: "Envia um evento de conversão diretamente para a Meta Conversions API , otimizando campanhas de anúncios no Facebook e Instagram.",
         options: [
           { name: "Evento", desc: "Nome do evento Meta: Lead, Purchase, InitiateCheckout, CompleteRegistration, etc." },
           { name: "Valor", desc: "Valor monetário da conversão em Reais (opcional)." },
