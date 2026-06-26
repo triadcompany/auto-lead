@@ -21,6 +21,7 @@ import {
   ThumbsDown,
   Globe,
   Timer,
+  HeadphonesIcon,
 } from "lucide-react";
 
 interface BlockItem {
@@ -156,6 +157,14 @@ const blocks: BlockCategory[] = [
         desc: "Espera X min / h / dias",
         icon: Clock,
         color: "text-slate-500 bg-slate-500/10",
+      },
+      {
+        type: "action",
+        label: "Transferir para Atendente",
+        desc: "Encerra bot e atribui a humano",
+        icon: HeadphonesIcon,
+        color: "text-blue-500 bg-blue-500/10",
+        config: { actionType: "transfer_to_agent", params: {} },
       },
     ],
   },
