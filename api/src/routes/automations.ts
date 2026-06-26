@@ -494,6 +494,208 @@ export default async function automationsRoutes(fastify: FastifyInstance) {
           { id: "e5", source: "ab_msg_b", target: "ab_tag_b", sourceHandle: "default" },
         ]
 
+      } else if (template === "welcome_sequence") {
+        name = "Sequência de boas-vindas em 3 etapas"
+        description = "Envia três mensagens progressivas: boas-vindas imediata, cardápio de opções após 5 minutos e mensagem de engajamento após 1 hora."
+        nodes = [
+          { id: "ws_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Primeira mensagem recebida", config: { triggerType: "first_message" } } },
+          { id: "ws_msg1", type: "message", position: { x: 250, y: 160 }, data: { label: "Boas-vindas imediata", config: { messageType: "text", text: "Olá, {{lead.name}}! 👋 Obrigado por entrar em contato!\n\nEstou aqui e já te respondo em instantes. 😊" } } },
+          { id: "ws_wait1", type: "wait", position: { x: 250, y: 310 }, data: { label: "Aguardar 5 min", config: { duration: 5, unit: "minutes" } } },
+          { id: "ws_msg2", type: "message", position: { x: 250, y: 450 }, data: { label: "Menu de opções", config: { messageType: "text", text: "Para te atender melhor, me conta:\n\n1️⃣ Quero conhecer os produtos\n2️⃣ Tenho uma dúvida específica\n3️⃣ Quero falar com um consultor\n4️⃣ Já sou cliente" } } },
+          { id: "ws_wait2", type: "wait", position: { x: 250, y: 600 }, data: { label: "Aguardar 1 hora", config: { duration: 1, unit: "hours" } } },
+          { id: "ws_msg3", type: "message", position: { x: 250, y: 740 }, data: { label: "Engajamento", config: { messageType: "text", text: "{{lead.name}}, vi que você ainda não escolheu uma opção. 😊\n\nPosso te ajudar com alguma dúvida específica?" } } },
+        ]
+        edges = [
+          { id: "e1", source: "ws_trigger", target: "ws_msg1", sourceHandle: "default" },
+          { id: "e2", source: "ws_msg1", target: "ws_wait1", sourceHandle: "default" },
+          { id: "e3", source: "ws_wait1", target: "ws_msg2", sourceHandle: "default" },
+          { id: "e4", source: "ws_msg2", target: "ws_wait2", sourceHandle: "default" },
+          { id: "e5", source: "ws_wait2", target: "ws_msg3", sourceHandle: "default" },
+        ]
+
+      } else if (template === "reactivate_cold") {
+        name = "Reativar lead frio"
+        description = "Sequência de reativação para leads que pararam de responder: duas tentativas espaçadas por 3 dias, depois marca como perdido."
+        nodes = [
+          { id: "rc_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Tag adicionada", config: { triggerType: "tag_added", tag: "lead-frio" } } },
+          { id: "rc_bh", type: "business_hours", position: { x: 250, y: 160 }, data: { label: "Horário Comercial", config: { timezone: "America/Sao_Paulo", schedule: { mon: { enabled: true, start: "09:00", end: "18:00" }, tue: { enabled: true, start: "09:00", end: "18:00" }, wed: { enabled: true, start: "09:00", end: "18:00" }, thu: { enabled: true, start: "09:00", end: "18:00" }, fri: { enabled: true, start: "09:00", end: "18:00" }, sat: { enabled: false, start: "09:00", end: "13:00" }, sun: { enabled: false, start: "09:00", end: "12:00" } } } } },
+          { id: "rc_msg1", type: "message", position: { x: 60, y: 320 }, data: { label: "Primeira tentativa", config: { messageType: "text", text: "Oi, {{lead.name}}! 👋 Tudo bem?\n\nFaz um tempo que não falamos e queria saber se ainda posso te ajudar com algo. Aproveita que temos condições especiais esta semana! 🎁" } } },
+          { id: "rc_wait1", type: "wait", position: { x: 60, y: 480 }, data: { label: "Aguardar 3 dias", config: { duration: 3, unit: "days" } } },
+          { id: "rc_msg2", type: "message", position: { x: 60, y: 620 }, data: { label: "Última tentativa", config: { messageType: "text", text: "{{lead.name}}, esta é minha última mensagem para não ser inconveniente. 🙏\n\nSe mudar de ideia, estarei aqui! Qualquer coisa é só chamar." } } },
+          { id: "rc_wait2", type: "wait", position: { x: 60, y: 760 }, data: { label: "Aguardar 1 dia", config: { duration: 1, unit: "days" } } },
+          { id: "rc_lost", type: "action", position: { x: 60, y: 900 }, data: { label: "Marcar como Perdido", config: { actionType: "set_lead_status", status: "lost" } } },
+          { id: "rc_end", type: "action", position: { x: 440, y: 320 }, data: { label: "Encerrar (fora do horário)", config: { actionType: "end_automation" } } },
+        ]
+        edges = [
+          { id: "e1", source: "rc_trigger", target: "rc_bh", sourceHandle: "default" },
+          { id: "e2", source: "rc_bh", target: "rc_msg1", sourceHandle: "within" },
+          { id: "e3", source: "rc_bh", target: "rc_end", sourceHandle: "outside" },
+          { id: "e4", source: "rc_msg1", target: "rc_wait1", sourceHandle: "default" },
+          { id: "e5", source: "rc_wait1", target: "rc_msg2", sourceHandle: "default" },
+          { id: "e6", source: "rc_msg2", target: "rc_wait2", sourceHandle: "default" },
+          { id: "e7", source: "rc_wait2", target: "rc_lost", sourceHandle: "default" },
+        ]
+
+      } else if (template === "meeting_reminder") {
+        name = "Confirmação + lembrete de reunião"
+        description = "Quando a tag 'reuniao-agendada' é adicionada, confirma o agendamento e envia lembrete automático na véspera."
+        nodes = [
+          { id: "mr_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Tag adicionada", config: { triggerType: "tag_added", tag: "reuniao-agendada" } } },
+          { id: "mr_confirm", type: "message", position: { x: 250, y: 160 }, data: { label: "Confirmação", config: { messageType: "text", text: "✅ Olá, {{lead.name}}! Sua reunião está confirmada!\n\nAssim que se aproximar a data vou te mandar um lembrete. 📅\n\nQualquer dúvida, é só chamar!" } } },
+          { id: "mr_wait", type: "wait", position: { x: 250, y: 310 }, data: { label: "Aguardar 23 horas", config: { duration: 23, unit: "hours" } } },
+          { id: "mr_reminder", type: "message", position: { x: 250, y: 450 }, data: { label: "Lembrete véspera", config: { messageType: "text", text: "⏰ Olá, {{lead.name}}! Lembrete: temos nossa reunião agendada!\n\nEstaremos esperando por você. Até logo! 😊" } } },
+          { id: "mr_note", type: "action", position: { x: 250, y: 600 }, data: { label: "Criar nota", config: { actionType: "create_note", content: "Lembrete de reunião enviado automaticamente." } } },
+        ]
+        edges = [
+          { id: "e1", source: "mr_trigger", target: "mr_confirm", sourceHandle: "default" },
+          { id: "e2", source: "mr_confirm", target: "mr_wait", sourceHandle: "default" },
+          { id: "e3", source: "mr_wait", target: "mr_reminder", sourceHandle: "default" },
+          { id: "e4", source: "mr_reminder", target: "mr_note", sourceHandle: "default" },
+        ]
+
+      } else if (template === "post_sale_nps") {
+        name = "NPS e satisfação pós-venda"
+        description = "Três dias após a venda, envia pesquisa de satisfação ao cliente e registra o feedback automaticamente no histórico."
+        nodes = [
+          { id: "nps_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Lead movido no Kanban", config: { triggerType: "deal_stage_changed" } } },
+          { id: "nps_wait", type: "wait", position: { x: 250, y: 160 }, data: { label: "Aguardar 3 dias", config: { duration: 3, unit: "days" } } },
+          { id: "nps_bh", type: "business_hours", position: { x: 250, y: 300 }, data: { label: "Horário Comercial", config: { timezone: "America/Sao_Paulo", schedule: { mon: { enabled: true, start: "09:00", end: "18:00" }, tue: { enabled: true, start: "09:00", end: "18:00" }, wed: { enabled: true, start: "09:00", end: "18:00" }, thu: { enabled: true, start: "09:00", end: "18:00" }, fri: { enabled: true, start: "09:00", end: "18:00" }, sat: { enabled: false, start: "09:00", end: "13:00" }, sun: { enabled: false, start: "09:00", end: "12:00" } } } } },
+          { id: "nps_msg", type: "message", position: { x: 60, y: 460 }, data: { label: "Pesquisa de satisfação", config: { messageType: "text", text: "Olá, {{lead.name}}! 😊 Passando para saber como foi sua experiência conosco.\n\nNuma escala de 0 a 10, o quanto você nos recomendaria para um amigo?\n\n0️⃣ 1️⃣ 2️⃣ 3️⃣ 4️⃣ 5️⃣ 6️⃣ 7️⃣ 8️⃣ 9️⃣ 🔟\n\nSua opinião é muito importante! 🙏" } } },
+          { id: "nps_note", type: "action", position: { x: 60, y: 620 }, data: { label: "Criar nota", config: { actionType: "create_note", content: "Pesquisa NPS enviada 3 dias após o fechamento da venda." } } },
+          { id: "nps_end", type: "action", position: { x: 440, y: 460 }, data: { label: "Encerrar", config: { actionType: "end_automation" } } },
+        ]
+        edges = [
+          { id: "e1", source: "nps_trigger", target: "nps_wait", sourceHandle: "default" },
+          { id: "e2", source: "nps_wait", target: "nps_bh", sourceHandle: "default" },
+          { id: "e3", source: "nps_bh", target: "nps_msg", sourceHandle: "within" },
+          { id: "e4", source: "nps_bh", target: "nps_end", sourceHandle: "outside" },
+          { id: "e5", source: "nps_msg", target: "nps_note", sourceHandle: "default" },
+        ]
+
+      } else if (template === "instagram_welcome") {
+        name = "Lead do Instagram → Atendimento"
+        description = "Quando um lead chega pelo Instagram, envia boas-vindas personalizadas para o canal, atribui responsável e notifica a equipe."
+        nodes = [
+          { id: "ig_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Lead via Instagram", config: { triggerType: "lead_from_instagram" } } },
+          { id: "ig_msg", type: "message", position: { x: 250, y: 160 }, data: { label: "Boas-vindas Instagram", config: { messageType: "text", text: "Olá, {{lead.name}}! 📸 Que bom te ver por aqui!\n\nVi que você veio pelo Instagram. Como posso te ajudar hoje?" } } },
+          { id: "ig_assign", type: "action", position: { x: 250, y: 310 }, data: { label: "Atribuir responsável", config: { actionType: "assign_owner", params: { strategy: "round_robin" } } } },
+          { id: "ig_tag", type: "action", position: { x: 250, y: 460 }, data: { label: "Tag: instagram", config: { actionType: "add_tag", params: { tag: "instagram" } } } },
+          { id: "ig_notify", type: "action", position: { x: 250, y: 610 }, data: { label: "Notificação interna", config: { actionType: "internal_notification", role: "admin", message: "📸 Novo lead via Instagram!\n\nNome: {{lead.name}}\nCaiu em: {{lead.stage_name}}\n\nAtenda agora!" } } },
+        ]
+        edges = [
+          { id: "e1", source: "ig_trigger", target: "ig_msg", sourceHandle: "default" },
+          { id: "e2", source: "ig_msg", target: "ig_assign", sourceHandle: "default" },
+          { id: "e3", source: "ig_assign", target: "ig_tag", sourceHandle: "default" },
+          { id: "e4", source: "ig_tag", target: "ig_notify", sourceHandle: "default" },
+        ]
+
+      } else if (template === "proposal_followup") {
+        name = "Follow-up de proposta enviada"
+        description = "Quando o lead chega na etapa de proposta, aguarda 48h e envia acompanhamento. Se não responder em 3 dias, envia mensagem de urgência."
+        nodes = [
+          { id: "pf_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Lead movido no Kanban", config: { triggerType: "deal_stage_changed" } } },
+          { id: "pf_wait1", type: "wait", position: { x: 250, y: 160 }, data: { label: "Aguardar 48 horas", config: { duration: 48, unit: "hours" } } },
+          { id: "pf_bh", type: "business_hours", position: { x: 250, y: 300 }, data: { label: "Horário Comercial", config: { timezone: "America/Sao_Paulo", schedule: { mon: { enabled: true, start: "09:00", end: "18:00" }, tue: { enabled: true, start: "09:00", end: "18:00" }, wed: { enabled: true, start: "09:00", end: "18:00" }, thu: { enabled: true, start: "09:00", end: "18:00" }, fri: { enabled: true, start: "09:00", end: "18:00" }, sat: { enabled: false, start: "09:00", end: "13:00" }, sun: { enabled: false, start: "09:00", end: "12:00" } } } } },
+          { id: "pf_msg1", type: "message", position: { x: 60, y: 460 }, data: { label: "Follow-up da proposta", config: { messageType: "text", text: "Olá, {{lead.name}}! 😊 Passando para saber se você teve a chance de analisar nossa proposta.\n\nTem alguma dúvida que eu possa esclarecer?" } } },
+          { id: "pf_wait2", type: "wait", position: { x: 60, y: 610 }, data: { label: "Aguardar 3 dias", config: { duration: 3, unit: "days" } } },
+          { id: "pf_msg2", type: "message", position: { x: 60, y: 750 }, data: { label: "Mensagem de urgência", config: { messageType: "text", text: "{{lead.name}}, nossa proposta ainda está válida por mais alguns dias! ⏳\n\nGostaria de conversar antes que expire? Posso reservar um horário especial para você." } } },
+          { id: "pf_end", type: "action", position: { x: 440, y: 460 }, data: { label: "Encerrar", config: { actionType: "end_automation" } } },
+        ]
+        edges = [
+          { id: "e1", source: "pf_trigger", target: "pf_wait1", sourceHandle: "default" },
+          { id: "e2", source: "pf_wait1", target: "pf_bh", sourceHandle: "default" },
+          { id: "e3", source: "pf_bh", target: "pf_msg1", sourceHandle: "within" },
+          { id: "e4", source: "pf_bh", target: "pf_end", sourceHandle: "outside" },
+          { id: "e5", source: "pf_msg1", target: "pf_wait2", sourceHandle: "default" },
+          { id: "e6", source: "pf_wait2", target: "pf_msg2", sourceHandle: "default" },
+        ]
+
+      } else if (template === "qualification_flow") {
+        name = "Qualificação automática"
+        description = "Envia perguntas de qualificação logo no primeiro contato, aguarda a resposta e encaminha para o vendedor certo."
+        nodes = [
+          { id: "qf_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Primeira mensagem recebida", config: { triggerType: "first_message" } } },
+          { id: "qf_bh", type: "business_hours", position: { x: 250, y: 160 }, data: { label: "Horário Comercial", config: { timezone: "America/Sao_Paulo", schedule: { mon: { enabled: true, start: "09:00", end: "18:00" }, tue: { enabled: true, start: "09:00", end: "18:00" }, wed: { enabled: true, start: "09:00", end: "18:00" }, thu: { enabled: true, start: "09:00", end: "18:00" }, fri: { enabled: true, start: "09:00", end: "18:00" }, sat: { enabled: false, start: "09:00", end: "13:00" }, sun: { enabled: false, start: "09:00", end: "12:00" } } } } },
+          { id: "qf_qual", type: "message", position: { x: 60, y: 320 }, data: { label: "Perguntas de qualificação", config: { messageType: "text", text: "Olá, {{lead.name}}! 😊 Para te atender melhor:\n\n*Qual é o seu maior desafio hoje?*\n\n1️⃣ Preciso aumentar minhas vendas\n2️⃣ Quero automatizar processos\n3️⃣ Estou buscando reduzir custos\n4️⃣ Outro motivo\n\nResponda com o número da opção!" } } },
+          { id: "qf_wait", type: "wait", position: { x: 60, y: 480 }, data: { label: "Aguardar 30 min", config: { duration: 30, unit: "minutes" } } },
+          { id: "qf_assign", type: "action", position: { x: 60, y: 620 }, data: { label: "Atribuir responsável", config: { actionType: "assign_owner", params: { strategy: "round_robin" } } } },
+          { id: "qf_notify", type: "action", position: { x: 60, y: 770 }, data: { label: "Notificação ao vendedor", config: { actionType: "internal_notification", role: "admin", message: "🎯 Lead qualificado pronto para atendimento!\n\nNome: {{lead.name}}\nRetornou em 30min — atenda agora!" } } },
+          { id: "qf_off", type: "message", position: { x: 440, y: 320 }, data: { label: "Fora do horário", config: { messageType: "text", text: "Olá, {{lead.name}}! 🌙 Recebemos sua mensagem!\n\nNosso horário é segunda a sexta, das 9h às 18h. Retornamos amanhã cedo! 😊" } } },
+        ]
+        edges = [
+          { id: "e1", source: "qf_trigger", target: "qf_bh", sourceHandle: "default" },
+          { id: "e2", source: "qf_bh", target: "qf_qual", sourceHandle: "within" },
+          { id: "e3", source: "qf_bh", target: "qf_off", sourceHandle: "outside" },
+          { id: "e4", source: "qf_qual", target: "qf_wait", sourceHandle: "default" },
+          { id: "e5", source: "qf_wait", target: "qf_assign", sourceHandle: "default" },
+          { id: "e6", source: "qf_assign", target: "qf_notify", sourceHandle: "default" },
+        ]
+
+      } else if (template === "client_onboarding") {
+        name = "Onboarding de novo cliente"
+        description = "Após o fechamento da venda, conduz o cliente por uma jornada de onboarding com mensagens progressivas ao longo de 8 dias."
+        nodes = [
+          { id: "ob_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Lead movido no Kanban", config: { triggerType: "deal_stage_changed" } } },
+          { id: "ob_welcome", type: "message", position: { x: 250, y: 160 }, data: { label: "Boas-vindas ao cliente", config: { messageType: "text", text: "🎉 Bem-vindo(a) à família, {{lead.name}}!\n\nEstamos muito felizes em ter você conosco. Nas próximas horas enviarei algumas informações importantes para você aproveitar ao máximo. 🚀" } } },
+          { id: "ob_wait1", type: "wait", position: { x: 250, y: 310 }, data: { label: "Aguardar 1 dia", config: { duration: 1, unit: "days" } } },
+          { id: "ob_tips", type: "message", position: { x: 250, y: 450 }, data: { label: "Dicas de uso", config: { messageType: "text", text: "💡 {{lead.name}}, aqui vão as primeiras dicas para você aproveitar ao máximo:\n\n✅ Dica 1: Configure seu perfil completamente\n✅ Dica 2: Explore as principais funcionalidades\n✅ Dica 3: Qualquer dúvida, estamos aqui!\n\nTem alguma pergunta?" } } },
+          { id: "ob_wait2", type: "wait", position: { x: 250, y: 600 }, data: { label: "Aguardar 7 dias", config: { duration: 7, unit: "days" } } },
+          { id: "ob_check", type: "message", position: { x: 250, y: 740 }, data: { label: "Check-in de satisfação", config: { messageType: "text", text: "{{lead.name}}, já faz uma semana que você está conosco! 🥳\n\nComo está sendo sua experiência até agora? O que podemos melhorar?\n\nSua opinião faz toda a diferença! 💙" } } },
+          { id: "ob_note", type: "action", position: { x: 250, y: 890 }, data: { label: "Criar nota", config: { actionType: "create_note", content: "Onboarding concluído: boas-vindas + dicas (dia 1) + check-in (dia 8)." } } },
+        ]
+        edges = [
+          { id: "e1", source: "ob_trigger", target: "ob_welcome", sourceHandle: "default" },
+          { id: "e2", source: "ob_welcome", target: "ob_wait1", sourceHandle: "default" },
+          { id: "e3", source: "ob_wait1", target: "ob_tips", sourceHandle: "default" },
+          { id: "e4", source: "ob_tips", target: "ob_wait2", sourceHandle: "default" },
+          { id: "e5", source: "ob_wait2", target: "ob_check", sourceHandle: "default" },
+          { id: "e6", source: "ob_check", target: "ob_note", sourceHandle: "default" },
+        ]
+
+      } else if (template === "campaign_response") {
+        name = "Resposta a campanha → Atendente"
+        description = "Quando um lead responde a uma campanha de disparo, verifica o horário, manda mensagem de oferta e transfere para atendimento humano."
+        nodes = [
+          { id: "cr_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Resposta a Campanha", config: { triggerType: "broadcast_response" } } },
+          { id: "cr_bh", type: "business_hours", position: { x: 250, y: 160 }, data: { label: "Horário Comercial", config: { timezone: "America/Sao_Paulo", schedule: { mon: { enabled: true, start: "09:00", end: "18:00" }, tue: { enabled: true, start: "09:00", end: "18:00" }, wed: { enabled: true, start: "09:00", end: "18:00" }, thu: { enabled: true, start: "09:00", end: "18:00" }, fri: { enabled: true, start: "09:00", end: "18:00" }, sat: { enabled: false, start: "09:00", end: "13:00" }, sun: { enabled: false, start: "09:00", end: "12:00" } } } } },
+          { id: "cr_offer", type: "message", position: { x: 60, y: 320 }, data: { label: "Mensagem de oferta", config: { messageType: "text", text: "Que ótimo que você respondeu, {{lead.name}}! 🎉\n\nTemos uma condição especial preparada para você. Vou te conectar agora com um de nossos consultores!" } } },
+          { id: "cr_transfer", type: "action", position: { x: 60, y: 480 }, data: { label: "Transferir para atendente", config: { actionType: "transfer_to_agent", transitionMessage: "Um consultor vai te atender agora! 😊" } } },
+          { id: "cr_off", type: "message", position: { x: 440, y: 320 }, data: { label: "Fora do horário", config: { messageType: "text", text: "Recebemos sua resposta, {{lead.name}}! 😊\n\nNosso atendimento é das 9h às 18h, seg a sex. Entraremos em contato assim que abrirmos! ⏰" } } },
+        ]
+        edges = [
+          { id: "e1", source: "cr_trigger", target: "cr_bh", sourceHandle: "default" },
+          { id: "e2", source: "cr_bh", target: "cr_offer", sourceHandle: "within" },
+          { id: "e3", source: "cr_bh", target: "cr_off", sourceHandle: "outside" },
+          { id: "e4", source: "cr_offer", target: "cr_transfer", sourceHandle: "default" },
+        ]
+
+      } else if (template === "urgency_vs_value") {
+        name = "A/B Test – Urgência vs. Valor"
+        description = "Testa duas estratégias de persuasão: mensagem com senso de urgência (prazo/escassez) versus mensagem focada no valor entregue."
+        nodes = [
+          { id: "uv_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Lead criado", config: { triggerType: "lead_created" } } },
+          { id: "uv_split", type: "ab_split", position: { x: 250, y: 160 }, data: { label: "A/B Split 50/50", config: { split_a: 50 } } },
+          { id: "uv_msg_a", type: "message", position: { x: 60, y: 320 }, data: { label: "Variante A – Urgência", config: { messageType: "text", text: "{{lead.name}}, temos uma oferta *exclusiva* que vence em 48 horas! ⏳\n\nSão poucas vagas disponíveis. Quer garantir a sua agora?" } } },
+          { id: "uv_msg_b", type: "message", position: { x: 440, y: 320 }, data: { label: "Variante B – Valor", config: { messageType: "text", text: "Olá, {{lead.name}}! 👋 Imagina ter [resultado principal] sem precisar [principal dor].\n\nÉ exatamente isso que ajudamos nossos clientes a conquistar. Posso te mostrar como?" } } },
+          { id: "uv_tag_a", type: "action", position: { x: 60, y: 490 }, data: { label: "Tag: ab-urgencia", config: { actionType: "add_tag", params: { tag: "ab-urgencia" } } } },
+          { id: "uv_tag_b", type: "action", position: { x: 440, y: 490 }, data: { label: "Tag: ab-valor", config: { actionType: "add_tag", params: { tag: "ab-valor" } } } },
+          { id: "uv_wait_a", type: "wait", position: { x: 60, y: 640 }, data: { label: "Aguardar 2 dias", config: { duration: 2, unit: "days" } } },
+          { id: "uv_wait_b", type: "wait", position: { x: 440, y: 640 }, data: { label: "Aguardar 2 dias", config: { duration: 2, unit: "days" } } },
+          { id: "uv_follow_a", type: "action", position: { x: 60, y: 790 }, data: { label: "Atribuir responsável (A)", config: { actionType: "assign_owner", params: { strategy: "round_robin" } } } },
+          { id: "uv_follow_b", type: "action", position: { x: 440, y: 790 }, data: { label: "Atribuir responsável (B)", config: { actionType: "assign_owner", params: { strategy: "round_robin" } } } },
+        ]
+        edges = [
+          { id: "e1", source: "uv_trigger", target: "uv_split", sourceHandle: "default" },
+          { id: "e2", source: "uv_split", target: "uv_msg_a", sourceHandle: "a" },
+          { id: "e3", source: "uv_split", target: "uv_msg_b", sourceHandle: "b" },
+          { id: "e4", source: "uv_msg_a", target: "uv_tag_a", sourceHandle: "default" },
+          { id: "e5", source: "uv_msg_b", target: "uv_tag_b", sourceHandle: "default" },
+          { id: "e6", source: "uv_tag_a", target: "uv_wait_a", sourceHandle: "default" },
+          { id: "e7", source: "uv_tag_b", target: "uv_wait_b", sourceHandle: "default" },
+          { id: "e8", source: "uv_wait_a", target: "uv_follow_a", sourceHandle: "default" },
+          { id: "e9", source: "uv_wait_b", target: "uv_follow_b", sourceHandle: "default" },
+        ]
+
       } else {
         // Default: follow-up 24h
         name = req.body.template || "Follow-up - resposta em 24h"
