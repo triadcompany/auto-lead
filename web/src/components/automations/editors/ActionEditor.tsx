@@ -30,7 +30,7 @@ const actionTypes = [
   { value: "send_email", label: "Enviar e-mail" },
   { value: "update_lead", label: "Atualizar lead" },
   { value: "create_deal", label: "Criar negócio" },
-  { value: "send_meta_event", label: "📊 Enviar para Meta (CAPI)" },
+  { value: "send_meta_event", label: "📊 Enviar para Meta" },
   { value: "end_automation", label: "Encerrar automação" },
 ];
 
@@ -494,7 +494,7 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
       {config.actionType === "send_meta_event" && (
         <div className="space-y-4 border border-border rounded-lg p-3 bg-muted/30">
           <p className="text-[11px] text-muted-foreground font-poppins">
-            Envia um evento de conversão para a Meta Conversions API (CAPI).
+            Envia um evento de conversão para a Meta Conversions API .
             Configure o Pixel/Dataset ID e Access Token em Configurações → Meta Ads.
           </p>
 
