@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify"
 import { prisma } from "../lib/prisma.js"
 import { orgScope } from "../lib/auth.js"
 import { emit } from "../plugins/socket.js"
-import { findPausedReplyRouterRun, matchReply, resumeRun } from "../lib/automationRunner.js"
+import { findPausedReplyRouterRun, matchReply, resumeRun, fireAutomationTrigger } from "../lib/automationRunner.js"
 
 async function evolutionFetch(path: string, options: RequestInit = {}) {
   const base = process.env.EVOLUTION_API_URL?.replace(/\/$/, "")
@@ -133,6 +133,24 @@ async function syncIncomingMessage(
     emit(orgId, "conversation:created", { id: conv.id })
   } else {
     emit(orgId, "conversation:updated", { id: conv.id })
+  }
+
+  // Dispara automações de "primeira mensagem" apenas para mensagens inbound novas
+  if (!fromMe && isNewConversation) {
+    const lead = await prisma.lead.findFirst({
+      where: { organizationId: orgId, phone: { contains: phone.slice(-8) } },
+      select: { id: true },
+    }).catch(() => null)
+
+    setImmediate(() =>
+      fireAutomationTrigger(orgId, "first_message", lead?.id ?? null, {
+        phone,
+        message_text: body || "",
+        channel: "whatsapp",
+        instance_name: instanceName,
+        lead_phone: phone,
+      }).catch((e) => console.error("[whatsapp] automation trigger error:", e))
+    )
   }
 }
 
