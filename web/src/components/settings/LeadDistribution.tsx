@@ -5,13 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Separator } from '@/components/ui/separator';
 import {
   Settings, Users, Loader2, Save, Megaphone, MessageCircle, UserCheck, RefreshCw,
-  Zap, ArrowRight, GitBranch,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,7 +16,6 @@ import { useSupabaseProfiles } from '@/hooks/useSupabaseProfiles';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DistributionScheduleManager } from './DistributionScheduleManager';
-import { useNavigate } from 'react-router-dom';
 
 interface BucketSettings {
   id?: string;
@@ -29,12 +25,6 @@ interface BucketSettings {
   mode: 'auto' | 'fixed_user';
   auto_assign_user_ids: string[];
   fixed_user_id: string | null;
-}
-
-interface GlobalSettings {
-  id?: string;
-  organization_id: string;
-  enabled: boolean;
 }
 
 interface RoutingState {
@@ -55,7 +45,6 @@ const LeadDistribution: React.FC = () => {
   const { profile, isAdmin, orgId: authOrgId } = useAuth();
   const { profiles } = useSupabaseProfiles();
   const orgId = profile?.organization_id || authOrgId || '';
-  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,8 +55,6 @@ const LeadDistribution: React.FC = () => {
   const [trafficSettings, setTrafficSettings] = useState<BucketSettings>(DEFAULT_BUCKET('traffic', orgId));
   const [nonTrafficSettings, setNonTrafficSettings] = useState<BucketSettings>(DEFAULT_BUCKET('non_traffic', orgId));
   const [routingStates, setRoutingStates] = useState<RoutingState[]>([]);
-  // 'settings' = use the config below | 'automation' = bypass, handled by automations
-  const [distributionMode, setDistributionMode] = useState<'settings' | 'automation'>('settings');
 
   const fetchData = useCallback(async () => {
     if (!orgId) { setLoading(false); return; }
@@ -75,7 +62,7 @@ const LeadDistribution: React.FC = () => {
     try {
       const { data: globalData } = await supabase
         .from('whatsapp_routing_settings')
-        .select('id, enabled, transfer_intro_message, distribution_mode')
+        .select('id, enabled, transfer_intro_message')
         .eq('organization_id', orgId)
         .maybeSingle();
 
@@ -83,7 +70,6 @@ const LeadDistribution: React.FC = () => {
         setGlobalEnabled(globalData.enabled);
         setGlobalSettingsId(globalData.id);
         setTransferIntroMessage((globalData as any).transfer_intro_message ?? '');
-        setDistributionMode(((globalData as any).distribution_mode as any) || 'settings');
       }
 
       const { data: bucketData } = await supabase
@@ -126,36 +112,22 @@ const LeadDistribution: React.FC = () => {
     if (!orgId || !isAdmin) return;
     setSaving(true);
     try {
-      // When automation mode, force enabled = false so the legacy routing doesn't fire
-      const effectiveEnabled = distributionMode === 'automation' ? false : globalEnabled;
-
       if (globalSettingsId) {
         const { error } = await supabase
           .from('whatsapp_routing_settings')
-          .update({
-            enabled: effectiveEnabled,
-            transfer_intro_message: transferIntroMessage || null,
-            distribution_mode: distributionMode,
-            updated_at: new Date().toISOString(),
-          } as any)
+          .update({ enabled: globalEnabled, transfer_intro_message: transferIntroMessage || null, updated_at: new Date().toISOString() } as any)
           .eq('id', globalSettingsId);
         if (error) { toast.error('Erro ao salvar: ' + error.message); setSaving(false); return; }
       } else {
         const { data, error } = await supabase
           .from('whatsapp_routing_settings')
-          .insert({
-            organization_id: orgId,
-            enabled: effectiveEnabled,
-            transfer_intro_message: transferIntroMessage || null,
-            distribution_mode: distributionMode,
-          } as any)
+          .insert({ organization_id: orgId, enabled: globalEnabled, transfer_intro_message: transferIntroMessage || null } as any)
           .select('id')
           .single();
         if (error) { toast.error('Erro ao inserir: ' + error.message); setSaving(false); return; }
         if (data) setGlobalSettingsId(data.id);
       }
 
-      // Save each bucket (only relevant when mode = settings, but save anyway to persist config)
       for (const settings of [trafficSettings, nonTrafficSettings]) {
         const payload = {
           organization_id: orgId,
@@ -196,7 +168,6 @@ const LeadDistribution: React.FC = () => {
     }
   };
 
-  // Resolve user_id or id or clerk_user_id → display name
   const getUserName = (userId: string) => {
     if (!userId) return 'Usuário';
     const p = profiles.find(
@@ -270,7 +241,6 @@ const LeadDistribution: React.FC = () => {
 
     return (
       <div className="space-y-5 pt-2">
-        {/* Enable bucket */}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label className="text-sm font-medium">Bucket ativo</Label>
@@ -289,7 +259,6 @@ const LeadDistribution: React.FC = () => {
 
         {settings.enabled && (
           <>
-            {/* Mode */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">Modo de distribuição</Label>
               <RadioGroup
@@ -319,15 +288,12 @@ const LeadDistribution: React.FC = () => {
               </RadioGroup>
             </div>
 
-            {/* Auto mode: user list */}
             {settings.mode === 'auto' && (
               <div className="space-y-3">
                 <Label className="text-sm font-medium flex items-center gap-2">
                   <Users className="h-4 w-4" />
                   Usuários que recebem leads
-                  <span className="text-xs text-muted-foreground font-normal">
-                    (salve após selecionar)
-                  </span>
+                  <span className="text-xs text-muted-foreground font-normal">(salve após selecionar)</span>
                 </Label>
                 <div className="space-y-1.5 max-h-52 overflow-y-auto">
                   {profiles.length === 0 ? (
@@ -392,7 +358,6 @@ const LeadDistribution: React.FC = () => {
               </div>
             )}
 
-            {/* Fixed user mode */}
             {settings.mode === 'fixed_user' && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium flex items-center gap-2">
@@ -431,203 +396,91 @@ const LeadDistribution: React.FC = () => {
 
   return (
     <div className="space-y-6">
-
-      {/* ── Modo de distribuição ── */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
+          <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
-            Modo de Distribuição
+            Distribuição Automática de Leads
           </CardTitle>
           <CardDescription>
-            Escolha como os leads do WhatsApp são atribuídos aos vendedores.
+            Configure como os leads do WhatsApp são distribuídos automaticamente para os vendedores.
+            Leads de tráfego pago (Meta Ads) e leads orgânicos têm filas independentes.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <RadioGroup
-            value={distributionMode}
-            onValueChange={(v) => setDistributionMode(v as 'settings' | 'automation')}
-            disabled={readOnly}
-            className="space-y-3"
-          >
-            {/* Opção: Via Configurações */}
-            <label className={`flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-              distributionMode === 'settings'
-                ? 'border-primary bg-primary/5'
-                : 'border-border hover:border-border/80 hover:bg-accent/30'
-            } ${readOnly ? 'opacity-60 cursor-not-allowed' : ''}`}>
-              <RadioGroupItem value="settings" id="mode-settings" className="mt-0.5" />
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <GitBranch className="h-4 w-4 text-primary" />
-                  <span className="font-semibold text-sm font-poppins">Via Configurações</span>
-                  {distributionMode === 'settings' && (
-                    <Badge className="text-xs bg-primary/10 text-primary border-0">Ativo</Badge>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground font-poppins leading-relaxed">
-                  Round-robin ou usuário fixo. Configure abaixo quem recebe cada tipo de lead.
-                  Ideal para equipes com regras simples.
-                </p>
-              </div>
-            </label>
-
-            {/* Opção: Via Automações */}
-            <label className={`flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-              distributionMode === 'automation'
-                ? 'border-orange-500 bg-orange-500/5'
-                : 'border-border hover:border-border/80 hover:bg-accent/30'
-            } ${readOnly ? 'opacity-60 cursor-not-allowed' : ''}`}>
-              <RadioGroupItem value="automation" id="mode-automation" className="mt-0.5" />
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <Zap className="h-4 w-4 text-orange-500" />
-                  <span className="font-semibold text-sm font-poppins">Via Automações</span>
-                  {distributionMode === 'automation' && (
-                    <Badge className="text-xs bg-orange-500/10 text-orange-600 border-0">Ativo</Badge>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground font-poppins leading-relaxed">
-                  Use o bloco <strong className="text-foreground">Atribuir Responsável</strong> nas
-                  suas automações para ter controle total: distribua por fonte, horário, tag ou qualquer
-                  condição. A distribuição acima fica pausada.
-                </p>
-              </div>
-            </label>
-          </RadioGroup>
-
-          {/* Info card when automation mode is active */}
-          {distributionMode === 'automation' && (
-            <div className="mt-4 p-4 rounded-xl bg-orange-500/8 border border-orange-500/20 space-y-3">
-              <p className="text-sm font-semibold font-poppins text-foreground">
-                A distribuição via Configurações está pausada
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label>Distribuição Automática</Label>
+              <p className="text-sm text-muted-foreground">
+                Quando ativada, novos leads são atribuídos automaticamente conforme as regras por bucket
               </p>
-              <p className="text-xs text-muted-foreground font-poppins leading-relaxed">
-                Para que os leads sejam atribuídos automaticamente, crie uma automação com o gatilho
-                <strong className="text-foreground"> Lead criado</strong> e adicione o bloco
-                <strong className="text-foreground"> Atribuir Responsável</strong> com o usuário desejado.
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-2 text-xs font-poppins border-orange-500/30 text-orange-600 hover:bg-orange-500/10"
-                  onClick={() => navigate('/automacoes')}
-                >
-                  Ver Automações
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Button>
-              </div>
             </div>
-          )}
+            <Switch
+              checked={globalEnabled}
+              onCheckedChange={setGlobalEnabled}
+              disabled={readOnly}
+            />
+          </div>
         </CardContent>
       </Card>
 
-      {/* ── Config (only visible in settings mode) ── */}
-      {distributionMode === 'settings' && (
-        <>
-          {/* Global toggle */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Settings className="h-4 w-4" />
-                Distribuição Automática
-              </CardTitle>
-              <CardDescription>
-                Configure como os leads são distribuídos entre os vendedores.
-                Leads de tráfego pago (Meta Ads) e leads orgânicos têm filas independentes.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <Label>Ativar distribuição automática</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Quando ativada, novos leads são atribuídos automaticamente conforme as regras por bucket
-                  </p>
-                </div>
-                <Switch
-                  checked={globalEnabled}
-                  onCheckedChange={setGlobalEnabled}
-                  disabled={readOnly}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Per-bucket configuration */}
-          {globalEnabled && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Users className="h-5 w-5" />
-                  Configuração por Bucket
-                </CardTitle>
-                <CardDescription>
-                  Tráfego = leads com marcador de anúncio (palavra "anuncio" na mensagem).
-                  Não-tráfego = leads orgânicos e clientes antigos.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="traffic">
-                  <TabsList className="w-full">
-                    <TabsTrigger value="traffic" className="flex-1 gap-2">
-                      <Megaphone className="h-4 w-4" />
-                      Tráfego (Ads)
-                    </TabsTrigger>
-                    <TabsTrigger value="non_traffic" className="flex-1 gap-2">
-                      <MessageCircle className="h-4 w-4" />
-                      Não-tráfego
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="traffic">
-                    {renderBucketTab('traffic')}
-                  </TabsContent>
-                  <TabsContent value="non_traffic">
-                    {renderBucketTab('non_traffic')}
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Time-based schedule rules */}
-          {globalEnabled && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  Regras de Horário
-                </CardTitle>
-                <CardDescription>
-                  Defina diferentes conjuntos de usuários para cada período do dia.
-                  Quando uma regra de horário se aplica, ela substitui a lista padrão do round-robin.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DistributionScheduleManager
-                  orgId={orgId}
-                  profiles={profiles}
-                  isAdmin={isAdmin}
-                />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* How it works info */}
-          {globalEnabled && (
-            <div className="rounded-xl bg-muted/40 border border-border p-4 text-xs text-muted-foreground font-poppins space-y-1.5">
-              <p className="font-semibold text-foreground text-sm mb-2">Como funciona a distribuição</p>
-              <p>1. Ao chegar um lead pelo WhatsApp, o sistema identifica se é <strong>tráfego</strong> (mensagem contém "anuncio") ou <strong>orgânico</strong>.</p>
-              <p>2. Verifica se há uma <strong>regra de horário ativa</strong> para o momento atual — se houver, usa os usuários daquela regra.</p>
-              <p>3. Se não há regra de horário aplicável, usa a <strong>lista padrão do bucket</strong> em round-robin.</p>
-              <p>4. No modo <strong>round-robin</strong>, cada novo lead vai para o próximo usuário da fila em sequência circular.</p>
-              <p>5. Leads já atribuídos, clientes ou oportunidades ganhas <strong>não são redistribuídos</strong>.</p>
-            </div>
-          )}
-        </>
+      {globalEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Configuração por Bucket
+            </CardTitle>
+            <CardDescription>
+              Tráfego = leads com marcador de anúncio (palavra "anuncio" na mensagem).
+              Não-tráfego = leads orgânicos e clientes antigos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="traffic">
+              <TabsList className="w-full">
+                <TabsTrigger value="traffic" className="flex-1 gap-2">
+                  <Megaphone className="h-4 w-4" />
+                  Tráfego (Ads)
+                </TabsTrigger>
+                <TabsTrigger value="non_traffic" className="flex-1 gap-2">
+                  <MessageCircle className="h-4 w-4" />
+                  Não-tráfego
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="traffic">{renderBucketTab('traffic')}</TabsContent>
+              <TabsContent value="non_traffic">{renderBucketTab('non_traffic')}</TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Transfer intro message (always visible) */}
+      {globalEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">Regras de Horário</CardTitle>
+            <CardDescription>
+              Defina diferentes conjuntos de usuários para cada período do dia.
+              Quando uma regra de horário se aplica, ela substitui a lista padrão do round-robin.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DistributionScheduleManager orgId={orgId} profiles={profiles} isAdmin={isAdmin} />
+          </CardContent>
+        </Card>
+      )}
+
+      {globalEnabled && (
+        <div className="rounded-xl bg-muted/40 border border-border p-4 text-xs text-muted-foreground font-poppins space-y-1.5">
+          <p className="font-semibold text-foreground text-sm mb-2">Como funciona a distribuição</p>
+          <p>1. Ao chegar um lead pelo WhatsApp, o sistema identifica se é <strong>tráfego</strong> (mensagem contém "anuncio") ou <strong>orgânico</strong>.</p>
+          <p>2. Verifica se há uma <strong>regra de horário ativa</strong> para o momento atual — se houver, usa os usuários daquela regra.</p>
+          <p>3. Se não há regra de horário aplicável, usa a <strong>lista padrão do bucket</strong> em round-robin.</p>
+          <p>4. No modo <strong>round-robin</strong>, cada novo lead vai para o próximo usuário da fila em sequência circular.</p>
+          <p>5. Leads já atribuídos, clientes ou oportunidades ganhas <strong>não são redistribuídos</strong>.</p>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -635,12 +488,11 @@ const LeadDistribution: React.FC = () => {
           </CardTitle>
           <CardDescription>
             Enviada automaticamente ao lead quando uma conversa é transferida para um vendedor.
-            Use as variáveis disponíveis para personalizar.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Textarea
-            placeholder="Olá {nome_lead}! Vou te conectar com {nome_vendedor}, nosso consultor especialista. Ele dará continuidade ao seu atendimento."
+            placeholder="Olá {nome_lead}! Vou te conectar com {nome_vendedor}, nosso consultor especialista."
             value={transferIntroMessage}
             onChange={(e) => setTransferIntroMessage(e.target.value)}
             disabled={readOnly}
@@ -659,13 +511,9 @@ const LeadDistribution: React.FC = () => {
               </button>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Deixe em branco para usar a mensagem padrão do sistema.
-          </p>
         </CardContent>
       </Card>
 
-      {/* Save button */}
       {isAdmin && (
         <Button onClick={handleSave} disabled={saving} className="w-full">
           {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
