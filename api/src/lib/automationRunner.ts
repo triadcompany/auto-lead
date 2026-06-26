@@ -328,6 +328,23 @@ async function runFromNode(
       }
     }
 
+    if (actionType === "add_tag") {
+      const tag: string = config.params?.tag || ""
+      if (tag && ctx.lead_id) {
+        const lead = await prisma.lead.findUnique({
+          where: { id: ctx.lead_id },
+          select: { tags: true },
+        }).catch(() => null)
+        const currentTags: string[] = (lead?.tags as string[]) || []
+        if (!currentTags.includes(tag)) {
+          await prisma.lead.update({
+            where: { id: ctx.lead_id },
+            data: { tags: [...currentTags, tag], updatedAt: new Date() },
+          }).catch(() => null)
+        }
+      }
+    }
+
     if (actionType === "send_whatsapp") {
       const text = renderTemplate(config.params?.message || "", ctx)
       const phone: string = ctx.lead_phone || ctx.phone || ""
