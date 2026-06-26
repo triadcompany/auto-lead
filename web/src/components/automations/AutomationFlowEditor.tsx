@@ -26,6 +26,8 @@ import { ActionNode } from "./nodes/ActionNode";
 import { WaitForReplyNode } from "./nodes/WaitForReplyNode";
 import { ReplyRouterNode } from "./nodes/ReplyRouterNode";
 import { FollowupNode } from "./nodes/FollowupNode";
+import { BusinessHoursNode } from "./nodes/BusinessHoursNode";
+import { AbSplitNode } from "./nodes/AbSplitNode";
 import { BlocksSidebar } from "./BlocksSidebar";
 import { NodeInspector } from "./NodeInspector";
 import { useToast } from "@/hooks/use-toast";
@@ -39,6 +41,8 @@ const nodeTypes = {
   wait_for_reply: WaitForReplyNode,
   reply_router: ReplyRouterNode,
   followup: FollowupNode,
+  business_hours: BusinessHoursNode,
+  ab_split: AbSplitNode,
 };
 
 interface AutomationFlowEditorProps {
