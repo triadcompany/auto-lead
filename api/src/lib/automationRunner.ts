@@ -1,4 +1,5 @@
 import { prisma } from "./prisma.js"
+import { createHash } from "crypto"
 
 export interface ReplyRouterConfig {
   yes_keywords: string[]
@@ -265,8 +266,25 @@ async function runFromNode(
       }).catch(() => null)
     }
 
+  } else if (nodeType === "wait_for_reply") {
+    // identical to reply_router — pause and wait for inbound message
+    const timeoutMs = toMs(config.timeout_amount || 24, config.timeout_unit || "hours")
+    const nextRunAt = new Date(Date.now() + timeoutMs)
+    await prisma.automationRun.update({
+      where: { id: runId },
+      data: {
+        status: "paused",
+        currentNodeId: nodeId,
+        nextRunAt,
+        context: { ...ctx, router_config: config } as any,
+        updatedAt: new Date(),
+      },
+    }).catch(() => null)
+    setTimeout(() => handleRouterTimeout(runId, nodeId).catch(console.error), timeoutMs)
+
   } else if (nodeType === "action") {
     const actionType: string = config.actionType || ""
+
     if (actionType === "end_automation") {
       await prisma.automationRun.update({
         where: { id: runId },
@@ -274,7 +292,65 @@ async function runFromNode(
       }).catch(() => null)
       return
     }
-    // other actions: skip and continue
+
+    if (actionType === "move_stage") {
+      const stageId: string | undefined = config.params?.stage_id
+      if (stageId && ctx.lead_id) {
+        await prisma.lead.update({
+          where: { id: ctx.lead_id },
+          data: { stageId, updatedAt: new Date() },
+        }).catch(() => null)
+      }
+    }
+
+    if (actionType === "assign_owner") {
+      const sellerId: string | undefined = config.params?.owner_id
+      if (sellerId && sellerId !== "auto" && ctx.lead_id) {
+        await prisma.lead.update({
+          where: { id: ctx.lead_id },
+          data: { sellerId, updatedAt: new Date() },
+        }).catch(() => null)
+      }
+    }
+
+    if (actionType === "update_lead") {
+      const updates: Record<string, any> = {}
+      if (config.params?.name) updates.name = renderTemplate(config.params.name, ctx)
+      if (config.params?.email) updates.email = renderTemplate(config.params.email, ctx)
+      if (config.params?.interest) updates.interest = renderTemplate(config.params.interest, ctx)
+      if (config.params?.observations) updates.observations = renderTemplate(config.params.observations, ctx)
+      if (config.params?.valor_negocio != null) updates.valorNegocio = Number(config.params.valor_negocio)
+      if (ctx.lead_id && Object.keys(updates).length > 0) {
+        await prisma.lead.update({
+          where: { id: ctx.lead_id },
+          data: { ...updates, updatedAt: new Date() },
+        }).catch(() => null)
+      }
+    }
+
+    if (actionType === "send_whatsapp") {
+      const text = renderTemplate(config.params?.message || "", ctx)
+      const phone: string = ctx.lead_phone || ctx.phone || ""
+      const instanceName: string = ctx.instance_name || ""
+      if (phone && instanceName && text) {
+        await sendWhatsAppText(instanceName, phone, text)
+      }
+    }
+
+    if (actionType === "send_meta_event") {
+      const eventName: string = config.params?.event_name || "Lead"
+      const value = config.params?.value
+        ? parseFloat(renderTemplate(String(config.params.value), ctx)) || undefined
+        : undefined
+      const currency: string = config.params?.currency || "BRL"
+      const orgId: string = ctx.organization_id || ""
+      const leadId: string | undefined = ctx.lead_id
+      if (orgId && leadId) {
+        await sendMetaCapiForLead(orgId, leadId, eventName, value, currency).catch(() => null)
+      }
+    }
+
+    // continue to next node
     const nextEdge = edges.find((e: any) => e.source === nodeId)
     if (nextEdge) {
       await runFromNode(runId, nextEdge.target, flow, ctx, depth + 1)
@@ -306,6 +382,207 @@ async function handleRouterTimeout(runId: string, nodeId: string): Promise<void>
   if (!run || run.status !== "paused" || run.currentNodeId !== nodeId) return
 
   await resumeRun(runId, "timeout", "")
+}
+
+// ── meta capi helper ──────────────────────────────────────────────────────────
+
+async function sha256(text: string): Promise<string> {
+  return createHash("sha256").update(text).digest("hex")
+}
+
+async function sendMetaCapiForLead(
+  orgId: string,
+  leadId: string,
+  eventName: string,
+  value?: number,
+  currency?: string,
+  extraParams?: Record<string, string>
+): Promise<void> {
+  const settings = await (prisma as any).metaCapiSettings?.findFirst?.({
+    where: { organizationId: orgId, enabled: true },
+  }).catch(() => null)
+  if (!settings?.pixelId || !settings?.accessToken) return
+
+  const lead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    select: { name: true, phone: true, email: true, valorNegocio: true },
+  }).catch(() => null)
+  if (!lead) return
+
+  const userData: Record<string, unknown> = {}
+  if (lead.email) userData.em = [await sha256(lead.email.toLowerCase().trim())]
+  if (lead.phone) userData.ph = [await sha256(lead.phone.replace(/\D/g, ""))]
+  if (lead.name) {
+    const parts = lead.name.trim().split(" ")
+    userData.fn = [await sha256(parts[0].toLowerCase())]
+    if (parts.length > 1) userData.ln = [await sha256(parts[parts.length - 1].toLowerCase())]
+  }
+
+  const customData: Record<string, unknown> = {
+    currency: currency || "BRL",
+    ...extraParams,
+  }
+  if (value != null) customData.value = value
+  else if (eventName === "Purchase" && lead.valorNegocio) customData.value = lead.valorNegocio
+
+  const eventId = `${leadId}_${eventName}_${Date.now()}`
+  const payload: Record<string, unknown> = {
+    data: [{
+      event_name: eventName,
+      event_time: Math.floor(Date.now() / 1000),
+      event_id: eventId,
+      action_source: "other",
+      user_data: userData,
+      custom_data: customData,
+    }],
+  }
+  if (settings.testEventCode) payload.test_event_code = settings.testEventCode
+
+  await fetch(
+    `https://graph.facebook.com/v18.0/${settings.pixelId}/events?access_token=${settings.accessToken}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
+  ).catch((e) => console.error("[automationRunner] Meta CAPI error:", e))
+}
+
+// ── fire automation trigger ───────────────────────────────────────────────────
+
+export async function fireAutomationTrigger(
+  orgId: string,
+  triggerType: string,
+  leadId: string | null,
+  extraCtx: Record<string, any> = {}
+): Promise<void> {
+  const automations = await prisma.automation.findMany({
+    where: { organizationId: orgId, isActive: true },
+    select: { id: true },
+  }).catch(() => [] as { id: string }[])
+
+  if (automations.length === 0) return
+
+  // Build lead context
+  let leadCtx: Record<string, any> = {}
+  if (leadId) {
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: { id: true, name: true, phone: true, email: true, valorNegocio: true, stageId: true },
+    }).catch(() => null)
+    if (lead) {
+      leadCtx = {
+        lead_id: lead.id,
+        lead_phone: lead.phone,
+        lead_email: lead.email || "",
+        nome: lead.name,
+        telefone: lead.phone,
+        email: lead.email || "",
+        valor_negocio: lead.valorNegocio ?? 0,
+        etapa: lead.stageId || "",
+      }
+    }
+  }
+
+  // Get WhatsApp instance
+  const wapp = await (prisma as any).whatsappIntegration?.findFirst?.({
+    where: { organizationId: orgId },
+    select: { instanceName: true },
+  }).catch(() => null)
+
+  const baseCtx: Record<string, any> = {
+    ...leadCtx,
+    ...extraCtx,
+    organization_id: orgId,
+    instance_name: wapp?.instanceName || extraCtx.instance_name || "",
+  }
+
+  for (const { id: automationId } of automations) {
+    const flow = await prisma.automationFlow.findFirst({
+      where: { automationId },
+      orderBy: { version: "desc" },
+    }).catch(() => null)
+    if (!flow) continue
+
+    const nodes = (flow.nodes as any[]) || []
+    const edges = (flow.edges as any[]) || []
+
+    const triggerNode = nodes.find(
+      (n: any) => n.type === "trigger" && n.data?.config?.triggerType === triggerType
+    )
+    if (!triggerNode) continue
+
+    const cfg = triggerNode.data?.config || {}
+
+    // first_message: keyword filter + deduplication per phone
+    if (triggerType === "first_message") {
+      const phone: string = baseCtx.lead_phone || extraCtx.phone || ""
+      const channel: string = extraCtx.channel || "whatsapp"
+
+      if (cfg.channel && cfg.channel !== "all" && cfg.channel !== channel) continue
+
+      if (cfg.useKeyword && cfg.keyword) {
+        const msgText: string = extraCtx.message_text || ""
+        let matched = false
+        const normalize = (s: string) =>
+          (cfg.ignore_accents_case ?? true)
+            ? s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim()
+            : s.trim()
+        const normMsg = normalize(msgText)
+        const normKw = normalize(cfg.keyword)
+        const matchType = cfg.matchType || "contains"
+        if (matchType === "contains") matched = normMsg.includes(normKw)
+        else if (matchType === "equals") matched = normMsg === normKw
+        else if (matchType === "starts_with") matched = normMsg.startsWith(normKw)
+        else if (matchType === "regex") {
+          try { matched = new RegExp(cfg.keyword, "i").test(msgText) } catch {}
+        }
+        if (!matched) continue
+      }
+
+      if (phone) {
+        const already = await (prisma as any).automationFirstContact?.findFirst?.({
+          where: { automationId, organizationId: orgId, phone },
+        }).catch(() => null)
+        if (already) continue
+        await (prisma as any).automationFirstContact?.create?.({
+          data: { automationId, organizationId: orgId, phone },
+        }).catch(() => null)
+      }
+    }
+
+    // deal_stage_changed / lead_stage_changed: match specific stage
+    if (triggerType === "deal_stage_changed" || triggerType === "lead_stage_changed") {
+      if (cfg.stage_id && cfg.stage_id !== extraCtx.to_stage_id) continue
+    }
+
+    // tag_added: match specific tag
+    if (triggerType === "tag_added") {
+      if (cfg.tag && cfg.tag !== extraCtx.tag) continue
+    }
+
+    const outEdge = edges.find((e: any) => e.source === triggerNode.id)
+    if (!outEdge) continue
+
+    const run = await prisma.automationRun.create({
+      data: {
+        organizationId: orgId,
+        automationId,
+        leadId: leadId || null,
+        entityType: "lead",
+        entityId: leadId || null,
+        status: "running",
+        currentNodeId: outEdge.target,
+        context: baseCtx as any,
+        startedAt: new Date(),
+      },
+    }).catch((e: Error) => {
+      console.error("[automationRunner] Failed to create run:", e.message)
+      return null
+    })
+    if (!run) continue
+
+    setImmediate(() =>
+      runFromNode(run.id, outEdge.target, flow, baseCtx)
+        .catch((e) => console.error("[automationRunner] runFromNode error:", e))
+    )
+  }
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
