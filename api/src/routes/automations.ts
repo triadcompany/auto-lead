@@ -406,6 +406,94 @@ export default async function automationsRoutes(fastify: FastifyInstance) {
           },
         ]
         edges = [{ id: "e1", source: "kw_trigger", target: "kw_action", sourceHandle: "default" }]
+
+      } else if (template === "welcome_business_hours") {
+        name = "Boas-vindas com Horário Comercial"
+        description = "Envia boas-vindas para novos contatos dentro do horário comercial; fora do horário, avisa quando retornará."
+        nodes = [
+          { id: "wbh_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Primeira mensagem recebida", config: { triggerType: "first_message" } } },
+          { id: "wbh_bh", type: "business_hours", position: { x: 250, y: 160 }, data: { label: "Horário Comercial", config: { timezone: "America/Sao_Paulo", schedule: { mon: { enabled: true, start: "09:00", end: "18:00" }, tue: { enabled: true, start: "09:00", end: "18:00" }, wed: { enabled: true, start: "09:00", end: "18:00" }, thu: { enabled: true, start: "09:00", end: "18:00" }, fri: { enabled: true, start: "09:00", end: "18:00" }, sat: { enabled: false, start: "09:00", end: "13:00" }, sun: { enabled: false, start: "09:00", end: "12:00" } } } } },
+          { id: "wbh_msg1", type: "message", position: { x: 60, y: 320 }, data: { label: "Boas-vindas", config: { messageType: "text", text: "Olá, {{lead.name}}! 👋 Seja bem-vindo(a)!\n\nComo posso te ajudar hoje?" } } },
+          { id: "wbh_msg2", type: "message", position: { x: 60, y: 480 }, data: { label: "Menu de opções", config: { messageType: "text", text: "Escolha uma opção:\n\n1️⃣ Quero conhecer os produtos\n2️⃣ Já sou cliente\n3️⃣ Falar com um atendente" } } },
+          { id: "wbh_off", type: "message", position: { x: 440, y: 320 }, data: { label: "Fora do horário", config: { messageType: "text", text: "Olá, {{lead.name}}! 🌙 Recebemos sua mensagem.\n\nNosso horário de atendimento é:\n*Segunda a Sexta: 9h às 18h*\n\nRetornaremos em breve! ✨" } } },
+        ]
+        edges = [
+          { id: "e1", source: "wbh_trigger", target: "wbh_bh", sourceHandle: "default" },
+          { id: "e2", source: "wbh_bh", target: "wbh_msg1", sourceHandle: "within" },
+          { id: "e3", source: "wbh_msg1", target: "wbh_msg2", sourceHandle: "default" },
+          { id: "e4", source: "wbh_bh", target: "wbh_off", sourceHandle: "outside" },
+        ]
+
+      } else if (template === "followup_24h") {
+        name = "Follow-up 24h após contato"
+        description = "Envia uma mensagem de acompanhamento 24 horas após o primeiro contato do lead."
+        nodes = [
+          { id: "fu_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Primeira mensagem recebida", config: { triggerType: "first_message" } } },
+          { id: "fu_msg1", type: "message", position: { x: 250, y: 160 }, data: { label: "Primeiro contato", config: { messageType: "text", text: "Olá, {{lead.name}}! 👋 Vi que você entrou em contato conosco.\n\nPosso te ajudar com alguma informação?" } } },
+          { id: "fu_wait", type: "wait", position: { x: 250, y: 310 }, data: { label: "Aguardar 24h", config: { duration: 24, unit: "hours" } } },
+          { id: "fu_bh", type: "business_hours", position: { x: 250, y: 450 }, data: { label: "Horário Comercial", config: { timezone: "America/Sao_Paulo", schedule: { mon: { enabled: true, start: "09:00", end: "18:00" }, tue: { enabled: true, start: "09:00", end: "18:00" }, wed: { enabled: true, start: "09:00", end: "18:00" }, thu: { enabled: true, start: "09:00", end: "18:00" }, fri: { enabled: true, start: "09:00", end: "18:00" }, sat: { enabled: false, start: "09:00", end: "13:00" }, sun: { enabled: false, start: "09:00", end: "12:00" } } } } },
+          { id: "fu_followup", type: "message", position: { x: 100, y: 600 }, data: { label: "Lembrete", config: { messageType: "text", text: "Oi, {{lead.name}}! 😊 Passando para ver se ficou alguma dúvida.\n\nEstamos aqui para ajudar! Pode falar à vontade." } } },
+          { id: "fu_action", type: "action", position: { x: 380, y: 600 }, data: { label: "Mover etapa", config: { actionType: "move_stage", params: { stage_name: "Follow-up" } } } },
+        ]
+        edges = [
+          { id: "e1", source: "fu_trigger", target: "fu_msg1", sourceHandle: "default" },
+          { id: "e2", source: "fu_msg1", target: "fu_wait", sourceHandle: "default" },
+          { id: "e3", source: "fu_wait", target: "fu_bh", sourceHandle: "default" },
+          { id: "e4", source: "fu_bh", target: "fu_followup", sourceHandle: "within" },
+          { id: "e5", source: "fu_bh", target: "fu_action", sourceHandle: "outside" },
+        ]
+
+      } else if (template === "notify_new_lead") {
+        name = "Novo lead → Notificar equipe"
+        description = "Quando um novo lead entra, atribui ao responsável e envia notificação interna pelo WhatsApp."
+        nodes = [
+          { id: "nnl_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Lead criado", config: { triggerType: "lead_created" } } },
+          { id: "nnl_assign", type: "action", position: { x: 250, y: 160 }, data: { label: "Atribuir responsável", config: { actionType: "assign_owner", params: { strategy: "round_robin" } } } },
+          { id: "nnl_notify", type: "action", position: { x: 250, y: 310 }, data: { label: "Notificação interna", config: { actionType: "internal_notification", memberId: null, role: "admin", message: "🔔 Novo lead chegou!\n\nNome: {{lead.name}}\nTelefone: {{lead.phone}}\nFonte: {{lead.source}}\n\nAcesse o CRM para atender." } } },
+          { id: "nnl_msg", type: "message", position: { x: 250, y: 460 }, data: { label: "Boas-vindas ao lead", config: { messageType: "text", text: "Olá, {{lead.name}}! 👋 Obrigado por entrar em contato.\n\nUm de nossos atendentes irá te responder em breve!" } } },
+        ]
+        edges = [
+          { id: "e1", source: "nnl_trigger", target: "nnl_assign", sourceHandle: "default" },
+          { id: "e2", source: "nnl_assign", target: "nnl_notify", sourceHandle: "default" },
+          { id: "e3", source: "nnl_notify", target: "nnl_msg", sourceHandle: "default" },
+        ]
+
+      } else if (template === "deal_won_capi") {
+        name = "Venda Fechada → Meta CAPI + Parabéns"
+        description = "Quando o lead é marcado como Ganho no Kanban, dispara evento de Purchase no Meta CAPI e envia mensagem de parabéns."
+        nodes = [
+          { id: "dwc_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Lead movido no Kanban", config: { triggerType: "deal_stage_changed" } } },
+          { id: "dwc_capi", type: "action", position: { x: 250, y: 160 }, data: { label: "Meta CAPI – Purchase", config: { actionType: "send_meta_event", params: { event_name: "Purchase", value: 0, currency: "BRL" } } } },
+          { id: "dwc_msg", type: "message", position: { x: 250, y: 310 }, data: { label: "Mensagem de parabéns", config: { messageType: "text", text: "🎉 Parabéns, {{lead.name}}!\n\nFicamos muito felizes em confirmar sua compra. Em breve entraremos em contato com os próximos passos.\n\nObrigado pela confiança! 🙏" } } },
+          { id: "dwc_note", type: "action", position: { x: 250, y: 460 }, data: { label: "Criar nota", config: { actionType: "create_note", content: "Venda fechada em {{date}}. Evento de Purchase enviado ao Meta CAPI." } } },
+          { id: "dwc_status", type: "action", position: { x: 250, y: 610 }, data: { label: "Marcar como Ganho", config: { actionType: "set_lead_status", status: "won" } } },
+        ]
+        edges = [
+          { id: "e1", source: "dwc_trigger", target: "dwc_capi", sourceHandle: "default" },
+          { id: "e2", source: "dwc_capi", target: "dwc_msg", sourceHandle: "default" },
+          { id: "e3", source: "dwc_msg", target: "dwc_note", sourceHandle: "default" },
+          { id: "e4", source: "dwc_note", target: "dwc_status", sourceHandle: "default" },
+        ]
+
+      } else if (template === "ab_test_welcome") {
+        name = "A/B Test – Mensagem de boas-vindas"
+        description = "Testa duas versões de mensagem de boas-vindas para ver qual converte melhor."
+        nodes = [
+          { id: "ab_trigger", type: "trigger", position: { x: 250, y: 30 }, data: { label: "Primeira mensagem recebida", config: { triggerType: "first_message" } } },
+          { id: "ab_split", type: "ab_split", position: { x: 250, y: 160 }, data: { label: "A/B Split", config: { split_a: 50 } } },
+          { id: "ab_msg_a", type: "message", position: { x: 60, y: 320 }, data: { label: "Variante A", config: { messageType: "text", text: "Olá, {{lead.name}}! 👋 Que bom ter você aqui!\n\nSou da equipe de atendimento. Como posso te ajudar hoje?" } } },
+          { id: "ab_msg_b", type: "message", position: { x: 440, y: 320 }, data: { label: "Variante B", config: { messageType: "text", text: "Oi, {{lead.name}}! 😊\n\nVi que você entrou em contato. Pode me contar um pouco mais sobre o que você precisa?" } } },
+          { id: "ab_tag_a", type: "action", position: { x: 60, y: 480 }, data: { label: "Tag: variante-a", config: { actionType: "add_tag", params: { tag: "ab-variante-a" } } } },
+          { id: "ab_tag_b", type: "action", position: { x: 440, y: 480 }, data: { label: "Tag: variante-b", config: { actionType: "add_tag", params: { tag: "ab-variante-b" } } } },
+        ]
+        edges = [
+          { id: "e1", source: "ab_trigger", target: "ab_split", sourceHandle: "default" },
+          { id: "e2", source: "ab_split", target: "ab_msg_a", sourceHandle: "a" },
+          { id: "e3", source: "ab_split", target: "ab_msg_b", sourceHandle: "b" },
+          { id: "e4", source: "ab_msg_a", target: "ab_tag_a", sourceHandle: "default" },
+          { id: "e5", source: "ab_msg_b", target: "ab_tag_b", sourceHandle: "default" },
+        ]
+
       } else {
         // Default: follow-up 24h
         name = req.body.template || "Follow-up - resposta em 24h"
