@@ -24,6 +24,8 @@ import {
   HeadphonesIcon,
   StickyNote,
   CheckCircle,
+  BellRing,
+  Shuffle,
 } from "lucide-react";
 
 interface BlockItem {
@@ -252,6 +254,14 @@ const blocks: BlockCategory[] = [
         color: "text-orange-500 bg-orange-500/10",
         config: { actionType: "send_email", params: {} },
       },
+      {
+        type: "action",
+        label: "Notificação Interna",
+        desc: "Avisa membro da equipe",
+        icon: BellRing,
+        color: "text-orange-500 bg-orange-500/10",
+        config: { actionType: "internal_notification", params: { message: "" } },
+      },
     ],
   },
   {
@@ -272,6 +282,21 @@ const blocks: BlockCategory[] = [
         icon: XCircle,
         color: "text-red-500 bg-red-500/10",
         config: { actionType: "end_automation", params: {} },
+      },
+      {
+        type: "business_hours",
+        label: "Horário Comercial",
+        desc: "Bifurca por hora do dia",
+        icon: Clock,
+        color: "text-teal-500 bg-teal-500/10",
+      },
+      {
+        type: "ab_split",
+        label: "A/B Split",
+        desc: "Divide aleatoriamente por %",
+        icon: Shuffle,
+        color: "text-pink-500 bg-pink-500/10",
+        config: { split_a: 50 },
       },
     ],
   },
