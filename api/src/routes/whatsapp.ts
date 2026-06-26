@@ -17,6 +17,127 @@ async function evolutionFetch(path: string, options: RequestInit = {}) {
   })
 }
 
+// ── Sincroniza mensagem recebida do webhook no banco de dados ─────────────────
+
+async function syncIncomingMessage(
+  orgId: string,
+  instanceName: string,
+  message: any
+): Promise<void> {
+  const jid: string = message?.key?.remoteJid || ""
+  if (!jid || jid.endsWith("@g.us")) return // ignora grupos por ora
+
+  const phone = jid.replace("@s.whatsapp.net", "").replace(/[^0-9]/g, "")
+  if (!phone) return
+
+  const fromMe: boolean = message?.key?.fromMe === true
+  const direction = fromMe ? "outbound" : "inbound"
+  const externalId: string | null = message?.key?.id || null
+  const contactName: string | null = message?.pushName || null
+  const timestamp = message?.messageTimestamp
+    ? new Date(Number(message.messageTimestamp) * 1000)
+    : new Date()
+
+  // Extrai conteúdo e tipo
+  const msg = message?.message || {}
+  let body: string | null = null
+  let messageType = "text"
+
+  if (msg.conversation) {
+    body = msg.conversation
+  } else if (msg.extendedTextMessage?.text) {
+    body = msg.extendedTextMessage.text
+  } else if (msg.imageMessage) {
+    body = msg.imageMessage.caption || null
+    messageType = "image"
+  } else if (msg.videoMessage) {
+    body = msg.videoMessage.caption || null
+    messageType = "video"
+  } else if (msg.audioMessage || msg.pttMessage) {
+    messageType = "audio"
+  } else if (msg.documentMessage) {
+    body = msg.documentMessage.fileName || null
+    messageType = "document"
+  } else if (msg.stickerMessage) {
+    messageType = "sticker"
+  } else {
+    return // tipo desconhecido, ignora
+  }
+
+  // Busca ou cria conversa
+  let conv = await prisma.conversation.findFirst({
+    where: { organizationId: orgId, instanceName, contactPhone: phone },
+    select: { id: true, contactName: true, unreadCount: true },
+  }).catch(() => null)
+
+  let isNewConversation = false
+  if (!conv) {
+    conv = await prisma.conversation.create({
+      data: {
+        organizationId: orgId,
+        instanceName,
+        contactPhone: phone,
+        contactName: contactName || null,
+        channel: "whatsapp",
+        lastMessageAt: timestamp,
+        lastMessagePreview: body?.substring(0, 100) || `[${messageType}]`,
+        unreadCount: fromMe ? 0 : 1,
+      },
+      select: { id: true, contactName: true, unreadCount: true },
+    }).catch(() => null)
+    isNewConversation = true
+  }
+
+  if (!conv) return
+
+  // Deduplicação por externalId
+  if (externalId) {
+    const exists = await prisma.message.findFirst({
+      where: { conversationId: conv.id, externalMessageId: externalId },
+      select: { id: true },
+    }).catch(() => null)
+    if (exists) return
+  }
+
+  // Salva mensagem
+  const saved = await prisma.message.create({
+    data: {
+      organizationId: orgId,
+      conversationId: conv.id,
+      direction,
+      body,
+      messageType,
+      externalMessageId: externalId,
+      channel: "whatsapp",
+      senderName: fromMe ? null : contactName,
+      createdAt: timestamp,
+    },
+  }).catch(() => null)
+
+  if (!saved) return
+
+  // Atualiza metadados da conversa
+  await prisma.conversation.update({
+    where: { id: conv.id },
+    data: {
+      lastMessageAt: timestamp,
+      lastMessagePreview: body?.substring(0, 100) || `[${messageType}]`,
+      ...(fromMe ? {} : { unreadCount: { increment: 1 } }),
+      ...(contactName && !conv.contactName ? { contactName } : {}),
+    },
+  }).catch(() => null)
+
+  // Emite eventos de socket para o inbox atualizar em tempo real
+  emit(orgId, "message:created", { conversationId: conv.id, message: saved })
+  if (isNewConversation) {
+    emit(orgId, "conversation:created", { id: conv.id })
+  } else {
+    emit(orgId, "conversation:updated", { id: conv.id })
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default async function whatsappRoutes(fastify: FastifyInstance) {
   // GET /whatsapp/me — status da instância da org autenticada
   fastify.get("/whatsapp/me", async (req, reply) => {
@@ -229,9 +350,14 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
 
     if (event === "messages.upsert") {
       const message = body.data
-      emit(orgId, "message:received", { source: "whatsapp", instance: instanceName, message })
 
-      // resume paused reply_router automations when lead replies
+      // Salva mensagem no DB e sincroniza conversa (fire-and-forget)
+      setImmediate(() =>
+        syncIncomingMessage(orgId, instanceName, message)
+          .catch((e) => console.error("[whatsapp] syncIncomingMessage error:", e))
+      )
+
+      // Resume automações pausadas (reply_router) quando lead responde
       const isInbound = message?.key?.fromMe === false
       const rawPhone: string = (message?.key?.remoteJid || "").replace("@s.whatsapp.net", "")
       const messageText: string =
