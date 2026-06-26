@@ -263,6 +263,8 @@ export function createApi(getToken: () => Promise<string | null>) {
       deleteIntegration: (id: string) => del(`/meta/integrations/${id}`),
       sendEvent: (data: { lead_id: string; event_name: string; stage_name?: string }) =>
         post<any>("/meta/events", data),
+      capiEvents: () => get<any[]>("/meta/capi-events"),
+      testConnection: () => post<any>("/meta/test-connection", {}),
     },
 
     // ── Automations ──────────────────────────────────────────────────────────
