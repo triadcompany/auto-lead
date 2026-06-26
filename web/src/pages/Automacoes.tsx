@@ -389,26 +389,6 @@ export default function Automacoes() {
           <Button
             variant="outline"
             className="font-poppins gap-2"
-            onClick={async () => {
-              const result = await createFromTemplate("keyword_lead");
-              if (result) setEditingAutomation(result);
-            }}
-          >
-            <Megaphone className="h-4 w-4" /> Template Palavra-chave
-          </Button>
-          <Button
-            variant="outline"
-            className="font-poppins gap-2"
-            onClick={async () => {
-              const result = await createFromTemplate();
-              if (result) setEditingAutomation(result);
-            }}
-          >
-            <FileText className="h-4 w-4" /> Template Follow-up
-          </Button>
-          <Button
-            variant="outline"
-            className="font-poppins gap-2"
             onClick={() => navigate("/automacoes/guia")}
           >
             <BookOpen className="h-4 w-4" /> Guia de Blocos
