@@ -105,7 +105,7 @@ export function Settings() {
     { id: "usuarios", label: "Usuários", icon: Users },
     { id: "pipeline", label: "Pipeline", icon: GitBranch },
     { id: "keyword-automation", label: "Automação Palavra-chave", icon: Bell },
-    { id: "meta-ads", label: "Meta Ads (CAPI)", icon: BarChart3 },
+    { id: "meta-ads", label: "Meta Ads", icon: BarChart3 },
     { id: "whatsapp-evolution", label: "WhatsApp (Evolution)", icon: MessageSquare },
     { id: "inbox-routing", label: "Inbox (Distribuição)", icon: Inbox },
     { id: "whatsapp-notifications", label: "Notificações WhatsApp", icon: Bell },
