@@ -547,32 +547,7 @@ export default function Automacoes() {
                   rows={2}
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label className="font-poppins font-medium">
-                  Gatilho <span className="text-muted-foreground text-xs">(opcional — pode configurar depois)</span>
-                </Label>
-                <Select value={newTriggerType} onValueChange={setNewTriggerType}>
-                  <SelectTrigger className="font-poppins">
-                    <SelectValue placeholder="Selecione como a automação será disparada" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TRIGGER_OPTIONS.map((t) => (
-                      <SelectItem key={t.value} value={t.value} className="font-poppins">
-                        <div className="flex items-center gap-2">
-                          <t.icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <span>{t.label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {newTriggerType && (() => {
-                  const opt = TRIGGER_OPTIONS.find(t => t.value === newTriggerType);
-                  return opt ? (
-                    <p className="text-xs text-muted-foreground font-poppins pl-1">{opt.description}</p>
-                  ) : null;
-                })()}
-              </div>
+
             </div>
             <DialogFooter className="gap-2">
               <Button variant="outline" onClick={() => setCreateDialog(false)} className="font-poppins">Cancelar</Button>
