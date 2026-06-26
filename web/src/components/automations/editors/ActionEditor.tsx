@@ -24,6 +24,8 @@ const actionTypes = [
   { value: "move_stage", label: "Mover etapa" },
   { value: "assign_owner", label: "Atribuir responsável" },
   { value: "transfer_to_agent", label: "Transferir para atendente" },
+  { value: "create_note", label: "Criar nota" },
+  { value: "set_lead_status", label: "Marcar como ganho / perdido" },
   { value: "send_whatsapp", label: "Enviar WhatsApp" },
   { value: "send_email", label: "Enviar e-mail" },
   { value: "update_lead", label: "Atualizar lead" },
@@ -408,6 +410,42 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
               Enviada via WhatsApp antes de encerrar o bot.
             </p>
           </div>
+        </div>
+      )}
+
+      {config.actionType === "create_note" && (
+        <div>
+          <Label className="font-poppins text-sm">Conteúdo da nota</Label>
+          <Textarea
+            className="mt-1.5 min-h-[100px] text-sm font-poppins"
+            placeholder="Ex: Lead qualificado pela automação. Interesse em produto X."
+            value={params.content || ""}
+            onChange={(e) => updateParams("content", e.target.value)}
+          />
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Variáveis disponíveis: {"{{lead.name}}"}, {"{{lead.phone}}"}, {"{{org.name}}"}
+          </p>
+        </div>
+      )}
+
+      {config.actionType === "set_lead_status" && (
+        <div>
+          <Label className="font-poppins text-sm">Status</Label>
+          <Select
+            value={params.status || "won"}
+            onValueChange={(v) => updateParams("status", v)}
+          >
+            <SelectTrigger className="mt-1.5">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="won">Ganho</SelectItem>
+              <SelectItem value="lost">Perdido</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Fecha o negócio no CRM. Não dispara automações adicionais.
+          </p>
         </div>
       )}
 
