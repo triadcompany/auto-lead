@@ -557,25 +557,20 @@ export async function fireAutomationTrigger(
       if (cfg.tag && cfg.tag !== extraCtx.tag) continue
     }
 
-    // lead_inactive: check days since last conversation activity
+    // lead_inactive: use lastInboundMessageAt from Lead model
     if (triggerType === "lead_inactive") {
+      if (!leadId) continue
       const inactiveDays = Number(cfg.inactive_days) || 7
       const cutoff = new Date(Date.now() - inactiveDays * 86_400_000)
-      const phone: string = baseCtx.lead_phone || ""
-      if (phone) {
-        const conv = await prisma.conversation.findFirst({
-          where: { organizationId: orgId, contactPhone: { contains: phone.slice(-8) } },
-          orderBy: { lastMessageAt: "desc" },
-          select: { lastMessageAt: true },
-        }).catch(() => null)
-        if (conv?.lastMessageAt && conv.lastMessageAt > cutoff) continue
-      }
-      if (leadId) {
-        const recent = await prisma.automationRun.findFirst({
-          where: { organizationId: orgId, automationId, leadId, startedAt: { gt: cutoff } },
-        }).catch(() => null)
-        if (recent) continue
-      }
+      const leadActivity = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { lastInboundMessageAt: true },
+      }).catch(() => null)
+      if (leadActivity?.lastInboundMessageAt && leadActivity.lastInboundMessageAt > cutoff) continue
+      const recent = await prisma.automationRun.findFirst({
+        where: { organizationId: orgId, automationId, leadId, startedAt: { gt: cutoff } },
+      }).catch(() => null)
+      if (recent) continue
     }
 
     // owner_assigned: optionally filter by specific seller
@@ -635,24 +630,21 @@ export async function runInactiveLeadCheck(orgId: string): Promise<void> {
     const inactiveDays = Number(triggerNode.data?.config?.inactive_days) || 7
     const cutoff = new Date(Date.now() - inactiveDays * 86_400_000)
 
+    // find leads with no inbound message in the last N days (using lastInboundMessageAt)
     const leads = await prisma.lead.findMany({
       where: {
         organizationId: orgId,
         createdAt: { lt: cutoff },
-        status: { notIn: ["won", "lost"] },
+        OR: [
+          { lastInboundMessageAt: null },
+          { lastInboundMessageAt: { lt: cutoff } },
+        ],
       },
       select: { id: true, phone: true },
       take: 200,
     }).catch(() => [] as { id: string; phone: string | null }[])
 
     for (const lead of leads) {
-      const conv = await prisma.conversation.findFirst({
-        where: { organizationId: orgId, contactPhone: { contains: (lead.phone || "").slice(-8) } },
-        orderBy: { lastMessageAt: "desc" },
-        select: { lastMessageAt: true },
-      }).catch(() => null)
-      if (conv?.lastMessageAt && conv.lastMessageAt > cutoff) continue
-
       const alreadyRan = await prisma.automationRun.findFirst({
         where: { organizationId: orgId, automationId, leadId: lead.id, startedAt: { gt: cutoff } },
       }).catch(() => null)
