@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify"
 import { prisma } from "../lib/prisma.js"
 import { orgScope } from "../lib/auth.js"
 import { emit } from "../plugins/socket.js"
+import { fireAutomationTrigger, runInactiveLeadCheck } from "../lib/automationRunner.js"
 
 const INITIAL_NODES = [
   {
@@ -415,5 +416,57 @@ export default async function automationsRoutes(fastify: FastifyInstance) {
       return { queued: true, automationId: req.params.id }
     }
   )
+
+  // ── Public webhook endpoint ───────────────────────────────────────────────
+  // POST /automations/webhook/:automationId — dispara gatilho webhook_received
+
+  fastify.post<{ Params: { automationId: string }; Body: Record<string, unknown> }>(
+    "/automations/webhook/:automationId",
+    async (req, reply) => {
+      const automation = await prisma.automation.findUnique({
+        where: { id: req.params.automationId },
+        select: { id: true, organizationId: true, isActive: true },
+      }).catch(() => null)
+
+      if (!automation?.isActive) {
+        return reply.code(404).send({ error: "Not found or inactive" })
+      }
+
+      setImmediate(() =>
+        fireAutomationTrigger(automation.organizationId, "webhook_received", null, {
+          webhook_payload: req.body,
+          automation_id: automation.id,
+        }).catch((e) => console.error("[automations] webhook trigger error:", e))
+      )
+
+      return { received: true }
+    }
+  )
+
+  // ── Cron: check inactive leads ────────────────────────────────────────────
+  // POST /automations/cron/inactive-check — chamado por cron externo a cada hora
+
+  fastify.post("/automations/cron/inactive-check", async (req, reply) => {
+    const secret = req.headers["x-cron-secret"]
+    if (process.env.CRON_SECRET && secret !== process.env.CRON_SECRET) {
+      return reply.code(401).send({ error: "Unauthorized" })
+    }
+
+    const orgs = await prisma.automation.findMany({
+      where: { isActive: true },
+      select: { organizationId: true },
+      distinct: ["organizationId"],
+    }).catch(() => [] as { organizationId: string }[])
+
+    setImmediate(async () => {
+      for (const { organizationId } of orgs) {
+        await runInactiveLeadCheck(organizationId).catch((e) =>
+          console.error("[cron] inactive check error for org", organizationId, e)
+        )
+      }
+    })
+
+    return { queued: true, orgs: orgs.length }
+  })
 
 }
