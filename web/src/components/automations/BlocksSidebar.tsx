@@ -22,6 +22,8 @@ import {
   Globe,
   Timer,
   HeadphonesIcon,
+  StickyNote,
+  CheckCircle,
 } from "lucide-react";
 
 interface BlockItem {
@@ -203,6 +205,22 @@ const blocks: BlockCategory[] = [
         icon: PenLine,
         color: "text-emerald-500 bg-emerald-500/10",
         config: { actionType: "update_lead", params: {} },
+      },
+      {
+        type: "action",
+        label: "Criar Nota",
+        desc: "Registra anotação no histórico",
+        icon: StickyNote,
+        color: "text-emerald-500 bg-emerald-500/10",
+        config: { actionType: "create_note", params: { content: "" } },
+      },
+      {
+        type: "action",
+        label: "Marcar como Ganho / Perdido",
+        desc: "Fecha o negócio no CRM",
+        icon: CheckCircle,
+        color: "text-emerald-500 bg-emerald-500/10",
+        config: { actionType: "set_lead_status", params: { status: "won" } },
       },
     ],
   },
