@@ -258,6 +258,47 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
     return { success: true }
   })
 
+  // PATCH /leads/:id/tags — adiciona ou remove tag
+  fastify.patch<{ Params: { id: string }; Body: { action: "add" | "remove"; tag: string } }>(
+    "/leads/:id/tags",
+    async (req, reply) => {
+      const { action, tag } = req.body
+      if (!tag?.trim()) return reply.code(400).send({ error: "tag required" })
+
+      const existing = await prisma.lead.findFirst({
+        where: { id: req.params.id, ...orgScope(req) },
+        select: { id: true, tags: true },
+      })
+      if (!existing) return reply.code(404).send({ error: "Not found" })
+
+      const currentTags: string[] = (existing.tags as string[]) || []
+      let newTags: string[]
+
+      if (action === "add") {
+        if (currentTags.includes(tag)) return { success: true, tags: currentTags }
+        newTags = [...currentTags, tag]
+      } else {
+        newTags = currentTags.filter((t) => t !== tag)
+      }
+
+      await prisma.lead.update({
+        where: { id: req.params.id },
+        data: { tags: newTags, updatedAt: new Date() },
+      })
+
+      emit(req.auth.orgId, "lead:updated", { id: req.params.id, tags: newTags })
+
+      if (action === "add") {
+        setImmediate(() =>
+          fireAutomationTrigger(req.auth.orgId, "tag_added", req.params.id, { tag })
+            .catch((e) => console.error("[leads] automation trigger error:", e))
+        )
+      }
+
+      return { success: true, tags: newTags }
+    }
+  )
+
   // POST /leads/webhook — rota pública para webhooks externos (N8N, etc.)
   fastify.post<{ Body: Record<string, unknown> }>("/leads/webhook", async (req, reply) => {
     const signature = req.headers["x-n8n-signature"] as string | undefined
