@@ -177,6 +177,7 @@ export function AutomationFlowEditor({
       event.preventDefault();
       const type = event.dataTransfer.getData("application/reactflow-type");
       const label = event.dataTransfer.getData("application/reactflow-label");
+      const configRaw = event.dataTransfer.getData("application/reactflow-config");
       if (!type || !reactFlowInstance) return;
 
       const position = reactFlowInstance.screenToFlowPosition({
@@ -184,11 +185,16 @@ export function AutomationFlowEditor({
         y: event.clientY,
       });
 
+      const presetConfig = configRaw ? JSON.parse(configRaw) : null;
+      const config = presetConfig
+        ? { ...getDefaultConfig(type), ...presetConfig }
+        : getDefaultConfig(type);
+
       const newNode: Node = {
         id: `${type}_${Date.now()}`,
         type,
         position,
-        data: { label, config: getDefaultConfig(type) },
+        data: { label, config },
       };
       setNodes((nds) => nds.concat(newNode));
     },
