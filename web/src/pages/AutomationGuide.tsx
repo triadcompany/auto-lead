@@ -568,20 +568,22 @@ export default function AutomationGuide() {
         {/* Conteúdo principal */}
         <div className="flex-1 overflow-y-auto p-6">
           {activeCategory === "exemplos" ? (
-            <div className="max-w-3xl space-y-4">
-              <div className="mb-6">
+            <div className="space-y-4">
+              <div className="mb-4">
                 <h2 className="font-poppins font-bold text-xl mb-1">Exemplos de Automações</h2>
                 <p className="text-sm text-muted-foreground font-poppins">
                   Fluxos prontos que você pode replicar para casos de uso comuns.
                 </p>
               </div>
-              {EXAMPLES.map((ex, i) => (
-                <ExampleFlowCard key={i} flow={ex} />
-              ))}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {EXAMPLES.map((ex, i) => (
+                  <ExampleFlowCard key={i} flow={ex} />
+                ))}
+              </div>
             </div>
           ) : (
-            <div className="max-w-3xl space-y-4">
-              <div className="mb-6">
+            <div className="space-y-4">
+              <div className="mb-4">
                 <h2 className={`font-poppins font-bold text-xl mb-1 ${current.accent}`}>
                   {current.label}
                 </h2>
@@ -594,9 +596,11 @@ export default function AutomationGuide() {
                 </p>
               </div>
 
-              {current.blocks.map((block, i) => (
-                <BlockCard key={i} block={block} />
-              ))}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {current.blocks.map((block, i) => (
+                  <BlockCard key={i} block={block} />
+                ))}
+              </div>
             </div>
           )}
         </div>
