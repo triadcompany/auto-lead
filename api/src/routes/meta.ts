@@ -383,4 +383,28 @@ export default async function metaRoutes(fastify: FastifyInstance) {
     if (!deleted?.count) return reply.code(404).send({ error: "Not found" })
     return { success: true }
   })
+
+  // ── CAPI Events log ──
+  fastify.get("/meta/capi-events", async (req) => {
+    const events = await (prisma as any).metaCapiEvent?.findMany?.({
+      where: { organizationId: req.auth.orgId },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }).catch(() => [])
+    return events || []
+  })
+
+  // ── Test connection ──
+  fastify.post("/meta/test-connection", async (req, reply) => {
+    const integration = await (prisma as any).metaIntegration?.findFirst?.({
+      where: { organizationId: req.auth.orgId, isActive: true },
+    }).catch(() => null)
+    if (!integration) return reply.code(404).send({ error: "No active integration" })
+    const res = await fetch(
+      `https://graph.facebook.com/v18.0/${integration.pixelId}?access_token=${integration.accessToken}&fields=id,name`
+    )
+    const data = await res.json() as any
+    if (res.ok && data.id) return { ok: true, pixel_name: data.name || data.id }
+    return reply.code(400).send({ ok: false, error: data.error?.message || "Unknown error" })
+  })
 }
