@@ -120,7 +120,7 @@ export function MetaIntegration() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Integre seu CRM com a Meta Conversions API (CAPI) para enviar eventos de conversão diretamente para o Facebook/Instagram,
+          Integre seu CRM com a Meta Conversions API  para enviar eventos de conversão diretamente para o Facebook/Instagram,
           otimizando suas campanhas com dados reais.
         </AlertDescription>
       </Alert>
