@@ -59,6 +59,41 @@ async function sendWhatsAppText(
   }).catch((e) => console.error("[automationRunner] sendText failed:", e))
 }
 
+async function sendWhatsAppMedia(
+  instanceName: string,
+  phone: string,
+  mediaType: "image" | "video" | "document" | "audio",
+  mediaUrl: string,
+  opts: { caption?: string; filename?: string; asVoiceNote?: boolean } = {}
+): Promise<void> {
+  const base = process.env.EVOLUTION_API_URL?.replace(/\/$/, "") || ""
+  const apiKey = process.env.EVOLUTION_API_KEY || ""
+  const headers = { "Content-Type": "application/json", apikey: apiKey }
+
+  if (mediaType === "audio" && opts.asVoiceNote !== false) {
+    await fetch(`${base}/message/sendWhatsAppAudio/${instanceName}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ number: phone, audio: mediaUrl }),
+    }).catch((e) => console.error("[automationRunner] sendAudio failed:", e))
+    return
+  }
+
+  const body: Record<string, any> = {
+    number: phone,
+    mediatype: mediaType,
+    media: mediaUrl,
+  }
+  if (opts.caption) body.caption = opts.caption
+  if (opts.filename) body.fileName = opts.filename
+
+  await fetch(`${base}/message/sendMedia/${instanceName}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  }).catch((e) => console.error("[automationRunner] sendMedia failed:", e))
+}
+
 // ── find paused run ───────────────────────────────────────────────────────────
 
 export async function findPausedReplyRouterRun(
@@ -184,11 +219,27 @@ async function runFromNode(
   }).catch(() => null)
 
   if (nodeType === "message") {
-    const text = renderTemplate(config.text || "", ctx)
     const phone: string = ctx.lead_phone || ctx.phone || ""
     const instanceName: string = ctx.instance_name || ""
+    const msgType: string = config.messageType || "text"
+
     if (phone && instanceName) {
-      await sendWhatsAppText(instanceName, phone, text)
+      if (msgType === "text") {
+        const text = renderTemplate(config.text || "", ctx)
+        await sendWhatsAppText(instanceName, phone, text)
+      } else if (msgType === "image" || msgType === "video") {
+        const mediaUrl: string = config.mediaUrl || ""
+        const caption = renderTemplate(config.caption || "", ctx)
+        if (mediaUrl) await sendWhatsAppMedia(instanceName, phone, msgType, mediaUrl, { caption })
+      } else if (msgType === "audio") {
+        const mediaUrl: string = config.mediaUrl || ""
+        if (mediaUrl) await sendWhatsAppMedia(instanceName, phone, "audio", mediaUrl, { asVoiceNote: config.asVoiceNote ?? true })
+      } else if (msgType === "document") {
+        const mediaUrl: string = config.mediaUrl || ""
+        const caption: string = config.caption || ""
+        const filename: string = config.filename || ""
+        if (mediaUrl) await sendWhatsAppMedia(instanceName, phone, "document", mediaUrl, { caption, filename })
+      }
     }
     // continue to next node
     const nextEdge = edges.find((e: any) => e.source === nodeId)
