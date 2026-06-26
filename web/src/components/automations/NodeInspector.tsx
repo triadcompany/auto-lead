@@ -33,6 +33,7 @@ const nodeTypeInfo: Record<string, { label: string; icon: React.ElementType; col
   followup: { label: "Follow-up", icon: Bell, color: "text-green-500" },
   business_hours: { label: "Horário Comercial", icon: Clock, color: "text-teal-500" },
   ab_split: { label: "A/B Split", icon: Shuffle, color: "text-pink-500" },
+  wait: { label: "Aguardar", icon: Clock, color: "text-purple-500" },
 };
 
 export function NodeInspector({ node, onUpdate, onDelete, onClose }: NodeInspectorProps) {
@@ -52,6 +53,11 @@ export function NodeInspector({ node, onUpdate, onDelete, onClose }: NodeInspect
         return <TriggerEditor config={config} onChange={handleConfigChange} />;
       case "delay":
         return <DelayEditor config={config} onChange={handleConfigChange} />;
+      case "wait":
+        return <DelayEditor
+          config={{ amount: config.duration ?? config.amount, unit: config.unit }}
+          onChange={(c) => handleConfigChange({ ...config, duration: c.amount, unit: c.unit })}
+        />;
       case "message":
         return <MessageEditor config={config} onChange={handleConfigChange} />;
       case "condition":
