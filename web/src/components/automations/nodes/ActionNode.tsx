@@ -12,6 +12,12 @@ const actionLabels: Record<string, string> = {
   send_whatsapp: "Enviar WhatsApp",
   send_email: "Enviar e-mail",
   end_automation: "Encerrar automação",
+  transfer_to_agent: "Transferir para Atendente",
+  create_note: "Criar Nota",
+  set_lead_status: "Marcar como Ganho / Perdido",
+  internal_notification: "Notificação Interna",
+  send_meta_event: "Meta CAPI",
+  webhook: "Webhook HTTP",
 };
 
 export const ActionNode = memo(({ data, selected }: NodeProps) => {
