@@ -15,7 +15,7 @@ import {
 import {
   Plus, Zap, Play, Pause, Copy, Trash2, ArrowLeft, Loader2,
   MessageSquare, AlertTriangle, RotateCw, FileText, Pencil, Check, X,
-  Megaphone, UserPlus, GitBranch, Instagram, Phone, Radio, Tag, FormInput, Activity,
+  Megaphone, UserPlus, GitBranch, Instagram, Phone, Radio, Tag, FormInput, Activity, BookOpen,
 } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -405,6 +405,13 @@ export default function Automacoes() {
             }}
           >
             <FileText className="h-4 w-4" /> Template Follow-up
+          </Button>
+          <Button
+            variant="outline"
+            className="font-poppins gap-2"
+            onClick={() => navigate("/automacoes/guia")}
+          >
+            <BookOpen className="h-4 w-4" /> Guia de Blocos
           </Button>
           <Button className="btn-gradient text-white font-poppins gap-2" onClick={() => setCreateDialog(true)}>
             <Plus className="h-4 w-4" /> Nova Automação
