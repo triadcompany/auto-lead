@@ -15,7 +15,7 @@ import {
 import {
   Plus, Zap, Play, Pause, Copy, Trash2, ArrowLeft, Loader2,
   MessageSquare, AlertTriangle, RotateCw, FileText, Pencil, Check, X,
-  Megaphone, UserPlus, GitBranch, Instagram, Phone, Radio, Tag, FormInput, Activity, BookOpen,
+  Megaphone, UserPlus, GitBranch, Instagram, Phone, Radio, Tag, FormInput, Activity, BookOpen, LayoutTemplate,
 } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -27,6 +27,7 @@ import { AutomationRunsPanel } from "@/components/automations/AutomationRunsPane
 import { AutomationExecutionsPanel } from "@/components/automations/AutomationExecutionsPanel";
 import { AutomationStatsCards } from "@/components/automations/AutomationStatsCards";
 import { MetaCapiAutomations } from "@/components/automations/MetaCapiAutomations";
+import { AutomationTemplatesModal } from "@/components/automations/AutomationTemplatesModal";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Node, Edge } from "@xyflow/react";
@@ -58,6 +59,7 @@ export default function Automacoes() {
   const [currentFlow, setCurrentFlow] = useState<AutomationFlow | null>(null);
   const [flowLoading, setFlowLoading] = useState(false);
   const [createDialog, setCreateDialog] = useState(false);
+  const [templatesDialog, setTemplatesDialog] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newTriggerType, setNewTriggerType] = useState("");
@@ -393,6 +395,13 @@ export default function Automacoes() {
           >
             <BookOpen className="h-4 w-4" /> Guia de Blocos
           </Button>
+          <Button
+            variant="outline"
+            className="font-poppins gap-2"
+            onClick={() => setTemplatesDialog(true)}
+          >
+            <LayoutTemplate className="h-4 w-4" /> Templates
+          </Button>
           <Button className="btn-gradient text-white font-poppins gap-2" onClick={() => setCreateDialog(true)}>
             <Plus className="h-4 w-4" /> Nova Automação
           </Button>
@@ -497,6 +506,15 @@ export default function Automacoes() {
             <MetaCapiAutomations />
           </TabsContent>
         </Tabs>
+
+        <AutomationTemplatesModal
+          open={templatesDialog}
+          onClose={() => setTemplatesDialog(false)}
+          onCreate={async (templateId) => {
+            const result = await createFromTemplate(templateId);
+            if (result) setEditingAutomation(result);
+          }}
+        />
 
         {/* Create Dialog */}
         <Dialog open={createDialog} onOpenChange={(open) => {
