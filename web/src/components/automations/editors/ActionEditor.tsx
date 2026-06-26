@@ -22,7 +22,6 @@ interface ActionEditorProps {
 const actionTypes = [
   { value: "add_tag", label: "Adicionar tag" },
   { value: "move_stage", label: "Mover etapa" },
-  { value: "assign_owner", label: "Atribuir responsável" },
   { value: "transfer_to_agent", label: "Transferir para atendente" },
   { value: "create_note", label: "Criar nota" },
   { value: "set_lead_status", label: "Marcar como ganho / perdido" },
@@ -328,38 +327,6 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
               </SelectContent>
             </Select>
           </div>
-        </div>
-      )}
-
-      {config.actionType === "assign_owner" && (
-        <div>
-          <Label className="font-poppins text-sm">Responsável</Label>
-          <Select
-            value={params.owner_id || "auto"}
-            onValueChange={(v) => {
-              if (v === "auto") {
-                onChange({ ...config, params: { ...params, owner_id: "", owner: "" } });
-              } else {
-                const member = members.find((m) => m.id === v);
-                onChange({ ...config, params: { ...params, owner_id: v, owner: member?.name || "" } });
-              }
-            }}
-          >
-            <SelectTrigger className="mt-1.5">
-              <SelectValue placeholder="Selecione o responsável" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto">Distribuição automática</SelectItem>
-              {members.map((m) => (
-                <SelectItem key={m.id} value={m.id}>
-                  {m.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-[10px] text-muted-foreground mt-1">
-            Se escolher distribuição automática, o sistema atribui via round-robin ou fallback.
-          </p>
         </div>
       )}
 
