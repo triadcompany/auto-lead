@@ -135,13 +135,16 @@ async function syncIncomingMessage(
     emit(orgId, "conversation:updated", { id: conv.id })
   }
 
+  // Busca lead pelo telefone (usado em múltiplos triggers abaixo)
+  const lead = !fromMe
+    ? await prisma.lead.findFirst({
+        where: { organizationId: orgId, phone: { contains: phone.slice(-8) } },
+        select: { id: true },
+      }).catch(() => null)
+    : null
+
   // Dispara automações de "primeira mensagem" apenas para mensagens inbound novas
   if (!fromMe && isNewConversation) {
-    const lead = await prisma.lead.findFirst({
-      where: { organizationId: orgId, phone: { contains: phone.slice(-8) } },
-      select: { id: true },
-    }).catch(() => null)
-
     setImmediate(() =>
       fireAutomationTrigger(orgId, "first_message", lead?.id ?? null, {
         phone,
@@ -151,6 +154,41 @@ async function syncIncomingMessage(
         lead_phone: phone,
       }).catch((e) => console.error("[whatsapp] automation trigger error:", e))
     )
+  }
+
+  // Detecta resposta a campanha broadcast
+  if (!fromMe && body) {
+    const recipient = await (prisma as any).broadcastRecipient?.findFirst?.({
+      where: {
+        organizationId: orgId,
+        phone: { contains: phone.slice(-8) },
+        status: "sent",
+        responseReceived: false,
+      },
+      orderBy: { sentAt: "desc" },
+      select: { id: true, campaignId: true },
+    }).catch(() => null)
+
+    if (recipient) {
+      await (prisma as any).broadcastRecipient?.update?.({
+        where: { id: recipient.id },
+        data: { responseReceived: true, responseAt: timestamp },
+      }).catch(() => null)
+
+      await (prisma as any).broadcastCampaign?.update?.({
+        where: { id: recipient.campaignId },
+        data: { respondedCount: { increment: 1 } },
+      }).catch(() => null)
+
+      setImmediate(() =>
+        fireAutomationTrigger(orgId, "broadcast_response", lead?.id ?? null, {
+          phone,
+          campaign_id: recipient.campaignId,
+          message_text: body || "",
+          lead_phone: phone,
+        }).catch((e) => console.error("[whatsapp] broadcast_response trigger error:", e))
+      )
+    }
   }
 }
 
