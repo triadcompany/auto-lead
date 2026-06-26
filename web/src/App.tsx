@@ -30,6 +30,7 @@ import Onboarding from "./pages/Onboarding";
 import InboxPage from "./pages/Inbox";
 import TreinarAgente from "./pages/TreinarAgente";
 import AdminDebugAutomations from "./pages/AdminDebugAutomations";
+import AutomationGuide from "./pages/AutomationGuide";
 import AdminDiagnostico from "./pages/AdminDiagnostico";
 import Broadcasts from "./pages/Broadcasts";
 import BroadcastDetail from "./pages/BroadcastDetail";
@@ -120,6 +121,7 @@ const App = () => {
                       <Route path="/pipelines" element={<ErrorBoundary><Pipelines /></ErrorBoundary>} />
                       <Route path="/tarefas" element={<ErrorBoundary><Tasks /></ErrorBoundary>} />
                       <Route path="/automacoes" element={<ErrorBoundary><Automacoes /></ErrorBoundary>} />
+                      <Route path="/automacoes/guia" element={<ErrorBoundary><AutomationGuide /></ErrorBoundary>} />
                       <Route path="/inbox" element={<ErrorBoundary><InboxPage /></ErrorBoundary>} />
                       <Route path="/broadcasts" element={<ErrorBoundary><Broadcasts /></ErrorBoundary>} />
                       <Route path="/broadcasts/:id" element={<ErrorBoundary><BroadcastDetail /></ErrorBoundary>} />
