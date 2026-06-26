@@ -9,10 +9,11 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import { AI_EVENT_OPTIONS } from "@/services/automationEventBus";
 import { useAuth } from "@/contexts/AuthContext";
 import { useApi } from "@/hooks/useApi";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronDown } from "lucide-react";
 
 interface TriggerEditorProps {
   config: any;
@@ -48,6 +49,7 @@ export function TriggerEditor({ config, onChange }: TriggerEditorProps) {
   const [stages, setStages] = useState<{ id: string; name: string; position: number }[]>([]);
   const [loadingPipelines, setLoadingPipelines] = useState(false);
   const [loadingStages, setLoadingStages] = useState(false);
+  const [changingType, setChangingType] = useState(!config.triggerType);
 
   // Load pipelines when trigger type is deal_stage_changed
   useEffect(() => {
@@ -79,25 +81,53 @@ export function TriggerEditor({ config, onChange }: TriggerEditorProps) {
       .finally(() => setLoadingStages(false));
   }, [config.pipeline_id]);
 
+  const currentType = triggerTypes.find((t) => t.value === config.triggerType);
+
   return (
     <div className="space-y-4">
+      {/* Trigger type — badge + optional change dropdown */}
       <div>
-        <Label className="font-poppins text-sm font-medium">Tipo de gatilho</Label>
-        <Select
-          value={config.triggerType || ""}
-          onValueChange={(v) => onChange({ ...config, triggerType: v })}
-        >
-          <SelectTrigger className="mt-1.5">
-            <SelectValue placeholder="Selecione o gatilho" />
-          </SelectTrigger>
-          <SelectContent>
-            {triggerTypes.map((t) => (
-              <SelectItem key={t.value} value={t.value}>
-                {t.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {!changingType && currentType ? (
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] text-muted-foreground font-poppins uppercase tracking-wider mb-1">Gatilho</p>
+              <span className="inline-flex items-center gap-1.5 text-sm font-poppins font-semibold text-amber-500">
+                {currentType.label}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground h-7 px-2 gap-1"
+              onClick={() => setChangingType(true)}
+            >
+              <ChevronDown className="h-3 w-3" />
+              Trocar
+            </Button>
+          </div>
+        ) : (
+          <div>
+            <Label className="font-poppins text-sm font-medium">Tipo de gatilho</Label>
+            <Select
+              value={config.triggerType || ""}
+              onValueChange={(v) => {
+                onChange({ ...config, triggerType: v });
+                setChangingType(false);
+              }}
+            >
+              <SelectTrigger className="mt-1.5">
+                <SelectValue placeholder="Selecione o gatilho" />
+              </SelectTrigger>
+              <SelectContent>
+                {triggerTypes.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* ── First Message trigger config ── */}
