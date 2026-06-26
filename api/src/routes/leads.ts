@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js"
 import { orgScope } from "../lib/auth.js"
 import { emit } from "../plugins/socket.js"
 import crypto from "node:crypto"
+import { fireAutomationTrigger } from "../lib/automationRunner.js"
 
 export default async function leadsRoutes(fastify: FastifyInstance) {
   // GET /leads — lista leads da org com filtros (substitui get_org_leads RPC)
@@ -108,6 +109,13 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
       },
     })
     emit(req.auth.orgId, "lead:created", { ...lead, stage_name: null })
+    setImmediate(() =>
+      fireAutomationTrigger(req.auth.orgId, "lead_created", lead.id, {
+        phone: lead.phone,
+        nome: lead.name,
+        telefone: lead.phone,
+      }).catch((e) => console.error("[leads] automation trigger error:", e))
+    )
     return reply.code(201).send(lead)
   })
 
@@ -168,6 +176,17 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         lead,
         fromStageId: existing.stageId,
         toStageId: req.body.stage_id,
+      })
+      const stageCtx = {
+        from_stage_id: existing.stageId || "",
+        to_stage_id: req.body.stage_id,
+        pipeline_id: req.body.pipeline_id || existing.pipelineId || "",
+      }
+      setImmediate(() => {
+        fireAutomationTrigger(req.auth.orgId, "deal_stage_changed", lead.id, stageCtx)
+          .catch((e) => console.error("[leads] automation trigger error:", e))
+        fireAutomationTrigger(req.auth.orgId, "lead_stage_changed", lead.id, stageCtx)
+          .catch((e) => console.error("[leads] automation trigger error:", e))
       })
       return lead
     }
