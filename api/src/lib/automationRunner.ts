@@ -557,6 +557,32 @@ export async function fireAutomationTrigger(
       if (cfg.tag && cfg.tag !== extraCtx.tag) continue
     }
 
+    // lead_inactive: check days since last conversation activity
+    if (triggerType === "lead_inactive") {
+      const inactiveDays = Number(cfg.inactive_days) || 7
+      const cutoff = new Date(Date.now() - inactiveDays * 86_400_000)
+      const phone: string = baseCtx.lead_phone || ""
+      if (phone) {
+        const conv = await prisma.conversation.findFirst({
+          where: { organizationId: orgId, contactPhone: { contains: phone.slice(-8) } },
+          orderBy: { lastMessageAt: "desc" },
+          select: { lastMessageAt: true },
+        }).catch(() => null)
+        if (conv?.lastMessageAt && conv.lastMessageAt > cutoff) continue
+      }
+      if (leadId) {
+        const recent = await prisma.automationRun.findFirst({
+          where: { organizationId: orgId, automationId, leadId, startedAt: { gt: cutoff } },
+        }).catch(() => null)
+        if (recent) continue
+      }
+    }
+
+    // owner_assigned: optionally filter by specific seller
+    if (triggerType === "owner_assigned") {
+      if (cfg.seller_id && cfg.seller_id !== extraCtx.new_seller_id) continue
+    }
+
     const outEdge = edges.find((e: any) => e.source === triggerNode.id)
     if (!outEdge) continue
 
@@ -582,6 +608,61 @@ export async function fireAutomationTrigger(
       runFromNode(run.id, outEdge.target, flow, baseCtx)
         .catch((e) => console.error("[automationRunner] runFromNode error:", e))
     )
+  }
+}
+
+// ── inactive lead cron check ──────────────────────────────────────────────────
+
+export async function runInactiveLeadCheck(orgId: string): Promise<void> {
+  const automations = await prisma.automation.findMany({
+    where: { organizationId: orgId, isActive: true },
+    select: { id: true },
+  }).catch(() => [] as { id: string }[])
+
+  for (const { id: automationId } of automations) {
+    const flow = await prisma.automationFlow.findFirst({
+      where: { automationId },
+      orderBy: { version: "desc" },
+    }).catch(() => null)
+    if (!flow) continue
+
+    const nodes = (flow.nodes as any[]) || []
+    const triggerNode = nodes.find(
+      (n: any) => n.type === "trigger" && n.data?.config?.triggerType === "lead_inactive"
+    )
+    if (!triggerNode) continue
+
+    const inactiveDays = Number(triggerNode.data?.config?.inactive_days) || 7
+    const cutoff = new Date(Date.now() - inactiveDays * 86_400_000)
+
+    const leads = await prisma.lead.findMany({
+      where: {
+        organizationId: orgId,
+        createdAt: { lt: cutoff },
+        status: { notIn: ["won", "lost"] },
+      },
+      select: { id: true, phone: true },
+      take: 200,
+    }).catch(() => [] as { id: string; phone: string | null }[])
+
+    for (const lead of leads) {
+      const conv = await prisma.conversation.findFirst({
+        where: { organizationId: orgId, contactPhone: { contains: (lead.phone || "").slice(-8) } },
+        orderBy: { lastMessageAt: "desc" },
+        select: { lastMessageAt: true },
+      }).catch(() => null)
+      if (conv?.lastMessageAt && conv.lastMessageAt > cutoff) continue
+
+      const alreadyRan = await prisma.automationRun.findFirst({
+        where: { organizationId: orgId, automationId, leadId: lead.id, startedAt: { gt: cutoff } },
+      }).catch(() => null)
+      if (alreadyRan) continue
+
+      await fireAutomationTrigger(orgId, "lead_inactive", lead.id, {
+        phone: lead.phone || "",
+        inactive_days: inactiveDays,
+      })
+    }
   }
 }
 
