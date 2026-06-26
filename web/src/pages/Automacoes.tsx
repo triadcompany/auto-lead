@@ -411,7 +411,7 @@ export default function Automacoes() {
           <TabsList className="font-poppins">
             <TabsTrigger value="automations">Automações</TabsTrigger>
             <TabsTrigger value="executions">Execuções</TabsTrigger>
-            <TabsTrigger value="meta-capi">Meta Ads (CAPI)</TabsTrigger>
+            <TabsTrigger value="meta-capi">Meta Ads</TabsTrigger>
           </TabsList>
 
           <TabsContent value="automations" className="mt-4 space-y-4">
