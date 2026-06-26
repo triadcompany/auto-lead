@@ -198,7 +198,7 @@ export function Dashboard() {
                         <div className="flex items-center space-x-3">
                           <div 
                             className="w-3 h-3 rounded-full shadow-sm"
-                            style={{ backgroundColor: stage.color }}
+                            style={{ backgroundColor: stage.color || '#6366f1' }}
                           />
                           <span className="font-poppins text-sm font-medium">{stage.name}</span>
                         </div>
@@ -208,11 +208,11 @@ export function Dashboard() {
                         </div>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className="h-full rounded-full transition-all duration-500 ease-out"
-                          style={{ 
+                          style={{
                             width: `${percentage}%`,
-                            backgroundColor: stage.color 
+                            backgroundColor: stage.color || '#6366f1'
                           }}
                         />
                       </div>
