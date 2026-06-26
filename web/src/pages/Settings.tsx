@@ -101,7 +101,7 @@ export function Settings() {
             { id: "instagram", icon: Instagram, label: "Instagram" },
             { id: "webhooks", icon: Webhook, label: "Webhooks" },
             { id: "sources", icon: MapPin, label: "Origens de Leads" },
-            { id: "meta-ads", icon: Zap, label: "Meta Ads (CAPI)" },
+            { id: "meta-ads", icon: Zap, label: "Meta Ads" },
             { id: "meta-lead-ads", icon: Zap, label: "Meta Lead Ads" },
           ],
         },
