@@ -148,6 +148,12 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
       if (b.valor_negocio !== undefined) data.valorNegocio = b.valor_negocio
       if (b.valorNegocio !== undefined) data.valorNegocio = b.valorNegocio
       if (b.status !== undefined) data.status = b.status
+      if (b.meta_campaign_name !== undefined) data.metaCampaignName = b.meta_campaign_name
+      if (b.meta_adset_name !== undefined) data.metaAdsetName = b.meta_adset_name
+      if (b.meta_ad_name !== undefined) data.metaAdName = b.meta_ad_name
+      if (b.meta_campaign_id !== undefined) data.metaCampaignId = b.meta_campaign_id
+      if (b.meta_adset_id !== undefined) data.metaAdsetId = b.meta_adset_id
+      if (b.meta_ad_id !== undefined) data.metaAdId = b.meta_ad_id
 
       const lead = await prisma.lead.update({ where: { id: req.params.id }, data })
       emit(req.auth.orgId, "lead:updated", lead)
