@@ -598,11 +598,12 @@ async function sendMetaCapiForLead(
 
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
-    select: { name: true, phone: true, email: true, valorNegocio: true, cidade: true, estado: true },
+    select: { name: true, phone: true, email: true, valorNegocio: true, cidade: true, estado: true, fbc: true, fbp: true },
   }).catch(() => null)
   if (!lead) return
 
   const userData: Record<string, unknown> = {}
+  // Identificadores com hash (SHA256)
   if (lead.email) userData.em = [await sha256(lead.email.toLowerCase().trim())]
   if (lead.phone) userData.ph = [await sha256(lead.phone.replace(/\D/g, ""))]
   if (lead.name) {
@@ -616,6 +617,11 @@ async function sendMetaCapiForLead(
     const stateCode = lead.estado.trim().split(/[\s-]/)[0].toLowerCase()
     userData.st = [await sha256(stateCode)]
   }
+  // external_id — identificador único do lead no nosso sistema (hashed)
+  userData.external_id = [await sha256(leadId)]
+  // Cookies do Facebook Pixel — presentes quando lead vem por formulário de captura
+  if (lead.fbc) userData.fbc = lead.fbc
+  if (lead.fbp) userData.fbp = lead.fbp
 
   const customData: Record<string, unknown> = {
     currency: currency || "BRL",
