@@ -25,6 +25,12 @@ export interface Lead {
   servico?: string;
   cidade?: string;
   estado?: string;
+  meta_campaign_id?: string;
+  meta_campaign_name?: string;
+  meta_adset_id?: string;
+  meta_adset_name?: string;
+  meta_ad_id?: string;
+  meta_ad_name?: string;
   seller_name?: string;
   stage_name?: string;
   stage_position?: number;
@@ -65,6 +71,12 @@ function normalizeLead(l: any): Lead {
     servico: l.servico,
     cidade: l.cidade,
     estado: l.estado,
+    meta_campaign_id: l.metaCampaignId || l.meta_campaign_id,
+    meta_campaign_name: l.metaCampaignName || l.meta_campaign_name,
+    meta_adset_id: l.metaAdsetId || l.meta_adset_id,
+    meta_adset_name: l.metaAdsetName || l.meta_adset_name,
+    meta_ad_id: l.metaAdId || l.meta_ad_id,
+    meta_ad_name: l.metaAdName || l.meta_ad_name,
     seller_name: l.sellerName || l.seller_name,
     stage_name: l.stageName || l.stage_name,
     stage_position: l.stagePosition ?? l.stage_position,
