@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+// N8N credentials and provisioning not available in current API
 
 interface N8nCredentials {
   n8n_url: string;
@@ -21,27 +21,8 @@ interface ProvisionResult {
   credentialId: string;
 }
 
-async function getN8nCredentials(orgId: string): Promise<N8nCredentials> {
-  const { data, error } = await supabase
-    .from("n8n_credentials")
-    .select("n8n_url, api_key_encrypted")
-    .eq("organization_id", orgId)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (error || !data) {
-    throw new Error("N8N credentials not configured for this organization");
-  }
-
-  // Decrypt API key via DB RPC
-  const { data: decrypted, error: decryptError } = await supabase
-    .rpc("decrypt_n8n_api_key", { encrypted_key: data.api_key_encrypted });
-
-  if (decryptError || !decrypted) {
-    throw new Error("Failed to decrypt N8N API key");
-  }
-
-  return { n8n_url: data.n8n_url, api_key: decrypted };
+async function getN8nCredentials(_orgId: string): Promise<N8nCredentials> {
+  throw new Error("N8N credentials not available in current API");
 }
 
 function n8nFetch(baseUrl: string, apiKey: string, path: string, options: RequestInit = {}) {
@@ -181,18 +162,11 @@ return [{ json: {
 }
 
 export async function provisionMetaIntegration(params: ProvisionParams): Promise<ProvisionResult> {
-  // Get org name for folder structure
-  const { data: org } = await supabase
-    .from("organizations")
-    .select("name")
-    .eq("id", params.orgId)
-    .single();
-
-  const orgName = org?.name || params.orgId;
+  const orgName = params.orgId;
 
   const creds = await getN8nCredentials(params.orgId);
 
-  const ingestUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ingest-meta-lead`;
+  const ingestUrl = `${import.meta.env.VITE_API_URL || ''}/webhooks/meta-lead`;
   const ingestSecret = import.meta.env.VITE_N8N_INGEST_SECRET || "";
 
   const folderId = await ensureFolder(creds.n8n_url, creds.api_key, orgName, params.campaignName);
