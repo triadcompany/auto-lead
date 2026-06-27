@@ -5,163 +5,94 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { MessageSquare, Smartphone, Link2, Copy, CheckCircle } from 'lucide-react';
+import { useApi } from '@/hooks/useApi';
+import { MessageSquare, Copy, CheckCircle, Loader2, Wifi, WifiOff, QrCode } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
-interface WhatsAppIntegration {
-  id: string;
-  webhook_url: string;
-  api_key: string;
-  phone_number: string;
-  is_active: boolean;
-  webhook_token: string;
-  evolution_instance_id: string;
-  evolution_api_key: string;
-  n8n_webhook_evolution_notify: string;
-}
-
 export function WhatsAppIntegration() {
-  const [integration, setIntegration] = useState<WhatsAppIntegration | null>(null);
+  const [status, setStatus] = useState<any>(null);
+  const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
-  const { profile, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const { toast } = useToast();
+  const api = useApi();
 
-  const [formData, setFormData] = useState({
-    webhook_url: '',
-    api_key: '',
-    phone_number: '',
-    is_active: true,
-    evolution_instance_id: '',
-    evolution_api_key: '',
-    n8n_webhook_evolution_notify: '',
-  });
-
-  const webhookEndpoint = integration?.webhook_token 
-    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook/${integration.webhook_token}`
-    : 'Configure primeiro para gerar a URL única';
+  const webhookUrl = `${import.meta.env.VITE_API_URL || ''}/whatsapp/webhook`;
 
   useEffect(() => {
-    if (profile?.organization_id) {
-      fetchIntegration();
-    }
-  }, [profile?.organization_id]);
+    fetchStatus();
+  }, []);
 
-  const fetchIntegration = async () => {
+  const fetchStatus = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('whatsapp_integrations')
-        .select('*')
-        .eq('organization_id', profile?.organization_id)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
-
-      if (data) {
-        setIntegration(data);
-        setFormData({
-          webhook_url: data.webhook_url || '',
-          api_key: data.api_key || '',
-          phone_number: data.phone_number || '',
-          is_active: data.is_active,
-          evolution_instance_id: data.evolution_instance_id || '',
-          evolution_api_key: data.evolution_api_key || '',
-          n8n_webhook_evolution_notify: data.n8n_webhook_evolution_notify || '',
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar configuração do WhatsApp",
-        variant: "destructive",
-      });
+      const [statusRes, settingsRes] = await Promise.all([
+        api.whatsapp.me().catch(() => null),
+        api.whatsappSettings.get().catch(() => null),
+      ]);
+      setStatus(statusRes);
+      setSettings(settingsRes?.integration || null);
+    } catch {
+      // silent
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSave = async () => {
-    if (!profile?.organization_id || !isAdmin) {
-      toast({
-        title: "Erro",
-        description: "Apenas administradores podem salvar configurações",
-        variant: "destructive",
-      });
-      return;
+  const handleConnect = async () => {
+    setConnecting(true);
+    try {
+      await api.whatsapp.meConnect();
+      await fetchStatus();
+      toast({ title: "Conectando...", description: "Aguarde o QR Code aparecer." });
+    } catch (err: any) {
+      toast({ title: "Erro ao conectar", description: err?.message, variant: "destructive" });
+    } finally {
+      setConnecting(false);
     }
+  };
 
+  const handleDisconnect = async () => {
+    setDisconnecting(true);
+    try {
+      await api.whatsapp.meDisconnect();
+      await fetchStatus();
+      toast({ title: "Desconectado", description: "WhatsApp desconectado com sucesso." });
+    } catch (err: any) {
+      toast({ title: "Erro ao desconectar", description: err?.message, variant: "destructive" });
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  const handleToggleActive = async (value: boolean) => {
     setSaving(true);
     try {
-      const integrationData = {
-        organization_id: profile.organization_id,
-        webhook_url: formData.webhook_url,
-        api_key: formData.api_key,
-        phone_number: formData.phone_number,
-        is_active: formData.is_active,
-        evolution_instance_id: formData.evolution_instance_id,
-        evolution_api_key: formData.evolution_api_key,
-        n8n_webhook_evolution_notify: formData.n8n_webhook_evolution_notify,
-        instance_name: formData.evolution_instance_id || `legacy-${profile.organization_id.substring(0, 8)}`,
-      };
-
-      if (integration) {
-        // Update existing
-        const { error } = await supabase
-          .from('whatsapp_integrations')
-          .update(integrationData)
-          .eq('id', integration.id);
-
-        if (error) throw error;
-      } else {
-        // Create new
-        const { data, error } = await supabase
-          .from('whatsapp_integrations')
-          .insert(integrationData)
-          .select()
-          .single();
-
-        if (error) throw error;
-        setIntegration(data);
-      }
-
-      toast({
-        title: "Sucesso",
-        description: "Configuração do WhatsApp salva com sucesso",
-      });
-
-      await fetchIntegration();
-    } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: "Erro ao salvar configuração",
-        variant: "destructive",
-      });
+      await api.whatsappSettings.update({ is_active: value });
+      setSettings((prev: any) => ({ ...prev, is_active: value }));
+      toast({ title: "Salvo", description: `Integração ${value ? 'ativada' : 'desativada'}.` });
+    } catch {
+      toast({ title: "Erro ao salvar", variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
 
-  const copyWebhookUrl = async () => {
+  const copyWebhook = async () => {
     try {
-      await navigator.clipboard.writeText(webhookEndpoint);
+      await navigator.clipboard.writeText(webhookUrl);
       setCopied(true);
-      toast({
-        title: "Copiado!",
-        description: "URL do webhook copiada para a área de transferência",
-      });
+      toast({ title: "Copiado!", description: "URL do webhook copiada." });
       setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao copiar URL",
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: "Erro ao copiar", variant: "destructive" });
     }
   };
 
@@ -170,9 +101,9 @@ export function WhatsAppIntegration() {
       <Card className="card-gradient border-0">
         <CardContent className="p-6">
           <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-muted rounded w-1/4"></div>
-            <div className="h-10 bg-muted rounded"></div>
-            <div className="h-10 bg-muted rounded"></div>
+            <div className="h-4 bg-muted rounded w-1/4" />
+            <div className="h-10 bg-muted rounded" />
+            <div className="h-10 bg-muted rounded" />
           </div>
         </CardContent>
       </Card>
@@ -185,14 +116,16 @@ export function WhatsAppIntegration() {
         <CardContent className="p-6">
           <Alert>
             <MessageSquare className="h-4 w-4" />
-            <AlertDescription>
-              Apenas administradores podem configurar integrações do WhatsApp.
-            </AlertDescription>
+            <AlertDescription>Apenas administradores podem configurar integrações do WhatsApp.</AlertDescription>
           </Alert>
         </CardContent>
       </Card>
     );
   }
+
+  const isConnected = status?.status === 'connected' || status?.connection?.status === 'connected';
+  const isConnecting = status?.status === 'connecting' || status?.status === 'qr';
+  const qrCode = status?.connection?.qr_code;
 
   return (
     <div className="space-y-6">
@@ -203,217 +136,104 @@ export function WhatsAppIntegration() {
             <span>Integração WhatsApp</span>
           </CardTitle>
           <CardDescription className="font-poppins">
-            Configure a integração com Evolution API e n8n para automaticamente criar leads quando receber mensagens no WhatsApp
+            Conecte seu WhatsApp via Evolution API para receber e enviar mensagens automaticamente.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Webhook URL Display */}
-          <div className="space-y-2">
-            <Label className="font-poppins font-medium">URL do Webhook Única da Organização</Label>
-            <div className="flex items-center space-x-2">
-              <Input
-                value={webhookEndpoint}
-                readOnly
-                className="font-mono text-sm"
+
+          {/* Status */}
+          <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+            <div className="flex items-center gap-3">
+              {isConnected ? (
+                <Wifi className="h-5 w-5 text-emerald-500" />
+              ) : (
+                <WifiOff className="h-5 w-5 text-muted-foreground" />
+              )}
+              <div>
+                <p className="font-poppins font-medium text-sm">Status da Conexão</p>
+                <p className="text-xs text-muted-foreground font-poppins">
+                  {status?.connection?.phone_number
+                    ? `Número: ${status.connection.phone_number}`
+                    : status?.connection?.instance_name || 'Nenhuma instância configurada'}
+                </p>
+              </div>
+            </div>
+            <Badge
+              variant="outline"
+              className={isConnected
+                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200'
+                : 'bg-muted text-muted-foreground'
+              }
+            >
+              {isConnected ? 'Conectado' : isConnecting ? 'Conectando...' : 'Desconectado'}
+            </Badge>
+          </div>
+
+          {/* QR Code */}
+          {qrCode && (
+            <div className="flex flex-col items-center gap-3 p-4 border rounded-lg">
+              <div className="flex items-center gap-2 text-sm font-poppins text-muted-foreground">
+                <QrCode className="h-4 w-4" />
+                Escaneie o QR Code com seu WhatsApp
+              </div>
+              <img src={qrCode} alt="QR Code" className="w-48 h-48 rounded" />
+            </div>
+          )}
+
+          {/* Connect / Disconnect */}
+          <div className="flex gap-3">
+            {!isConnected ? (
+              <Button onClick={handleConnect} disabled={connecting} className="gap-2">
+                {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wifi className="h-4 w-4" />}
+                {connecting ? 'Conectando...' : 'Conectar WhatsApp'}
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={handleDisconnect} disabled={disconnecting} className="gap-2">
+                {disconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <WifiOff className="h-4 w-4" />}
+                {disconnecting ? 'Desconectando...' : 'Desconectar'}
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={fetchStatus} className="font-poppins">
+              Atualizar status
+            </Button>
+          </div>
+
+          <Separator />
+
+          {/* Active toggle */}
+          {settings && (
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="font-poppins font-medium">Integração Ativa</Label>
+                <p className="text-xs text-muted-foreground font-poppins mt-0.5">
+                  Ativa ou desativa o recebimento de mensagens via WhatsApp
+                </p>
+              </div>
+              <Switch
+                checked={settings.is_active ?? true}
+                onCheckedChange={handleToggleActive}
+                disabled={saving}
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={copyWebhookUrl}
-                className="flex items-center space-x-1"
-                disabled={!integration?.webhook_token}
-              >
-                {copied ? (
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-                <span>{copied ? 'Copiado' : 'Copiar'}</span>
+            </div>
+          )}
+
+          <Separator />
+
+          {/* Webhook URL */}
+          <div className="space-y-2">
+            <Label className="font-poppins font-medium">URL do Webhook (Evolution API)</Label>
+            <div className="flex items-center gap-2">
+              <Input value={webhookUrl} readOnly className="font-mono text-sm" />
+              <Button variant="outline" size="sm" onClick={copyWebhook} className="gap-1 shrink-0">
+                {copied ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                {copied ? 'Copiado' : 'Copiar'}
               </Button>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {integration?.webhook_token 
-                ? 'Esta é a URL única da sua organização. Use no n8n para enviar webhooks.'
-                : 'Salve as configurações primeiro para gerar a URL única da organização.'
-              }
+            <p className="text-xs text-muted-foreground font-poppins">
+              Configure esta URL na sua instância Evolution API como destino dos webhooks.
             </p>
           </div>
 
-          <Separator />
-
-          {/* Configuration Form */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="phone_number" className="font-poppins font-medium">
-                <Smartphone className="h-4 w-4 inline mr-1" />
-                Número do WhatsApp
-              </Label>
-              <Input
-                id="phone_number"
-                value={formData.phone_number}
-                onChange={(e) => setFormData(prev => ({ ...prev, phone_number: e.target.value }))}
-                placeholder="5511999999999"
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                Número completo com código do país (sem símbolos)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="api_key" className="font-poppins font-medium">
-                <Link2 className="h-4 w-4 inline mr-1" />
-                API Key (Opcional)
-              </Label>
-              <Input
-                id="api_key"
-                type="password"
-                value={formData.api_key}
-                onChange={(e) => setFormData(prev => ({ ...prev, api_key: e.target.value }))}
-                placeholder="Sua chave da API"
-              />
-              <p className="text-xs text-muted-foreground">
-                Para autenticação adicional se necessário
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="webhook_url" className="font-poppins font-medium">
-              URL do Webhook do n8n (Receber Leads - Opcional)
-            </Label>
-            <Input
-              id="webhook_url"
-              value={formData.webhook_url}
-              onChange={(e) => setFormData(prev => ({ ...prev, webhook_url: e.target.value }))}
-              placeholder="https://seu-n8n.com/webhook/whatsapp"
-            />
-            <p className="text-xs text-muted-foreground">
-              URL para notificar seu n8n quando um lead for criado via WhatsApp
-            </p>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-4">
-            <h3 className="font-poppins font-semibold text-sm">Configuração Evolution API (Notificações)</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="evolution_instance_id" className="font-poppins font-medium">
-                  ID da Instância Evolution
-                </Label>
-                <Input
-                  id="evolution_instance_id"
-                  value={formData.evolution_instance_id}
-                  onChange={(e) => setFormData(prev => ({ ...prev, evolution_instance_id: e.target.value }))}
-                  placeholder="instance-12345"
-                />
-                <p className="text-xs text-muted-foreground">
-                  ID da instância Evolution da sua organização
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="evolution_api_key" className="font-poppins font-medium">
-                  API Key Evolution
-                </Label>
-                <Input
-                  id="evolution_api_key"
-                  type="password"
-                  value={formData.evolution_api_key}
-                  onChange={(e) => setFormData(prev => ({ ...prev, evolution_api_key: e.target.value }))}
-                  placeholder="sua-api-key"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Chave da API Evolution para enviar mensagens
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="n8n_webhook_evolution_notify" className="font-poppins font-medium">
-                Webhook n8n para Notificações (Enviar via Evolution)
-              </Label>
-              <Input
-                id="n8n_webhook_evolution_notify"
-                value={formData.n8n_webhook_evolution_notify}
-                onChange={(e) => setFormData(prev => ({ ...prev, n8n_webhook_evolution_notify: e.target.value }))}
-                placeholder="https://seu-n8n.com/webhook/notify-user"
-              />
-              <p className="text-xs text-muted-foreground">
-                URL do webhook n8n que receberá requisições para enviar notificações via Evolution quando um lead for atribuído
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="is_active"
-              checked={formData.is_active}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked }))}
-            />
-            <Label htmlFor="is_active" className="font-poppins">
-              Integração ativa
-            </Label>
-          </div>
-
-          <div className="flex justify-end space-x-2">
-            <Button
-              variant="outline"
-              onClick={fetchIntegration}
-              disabled={saving}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className="btn-gradient text-white"
-            >
-              {saving ? 'Salvando...' : 'Salvar Configuração'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Instructions Card */}
-      <Card className="card-gradient border-0">
-        <CardHeader>
-          <CardTitle className="font-poppins">Como Configurar</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3 text-sm">
-            <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">1</div>
-              <div>
-                <p className="font-medium">Configure seu Evolution API</p>
-                <p className="text-muted-foreground">Configure a Evolution API para enviar webhooks quando receber mensagens</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">2</div>
-              <div>
-                <p className="font-medium">Crie um workflow no n8n</p>
-                <p className="text-muted-foreground">Configure o n8n para processar as mensagens e enviar para a URL do webhook acima</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">3</div>
-              <div>
-                <p className="font-medium">Configure o número do WhatsApp</p>
-                <p className="text-muted-foreground">Certifique-se de inserir o número correto com código do país</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">4</div>
-              <div>
-                <p className="font-medium">Teste a integração</p>
-                <p className="text-muted-foreground">Envie uma mensagem para o WhatsApp e verifique se o lead foi criado automaticamente</p>
-              </div>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
