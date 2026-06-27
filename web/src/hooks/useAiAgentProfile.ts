@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApi } from '@/hooks/useApi';
 import { toast } from 'sonner';
 
 export interface ProductService {
@@ -183,6 +183,7 @@ const nicheTemplates: Record<string, Partial<AiAgentProfile>> = {
 
 export function useAiAgentProfile() {
   const { profile: userProfile, orgId: authOrgId } = useAuth();
+  const api = useApi();
   const [agentProfile, setAgentProfile] = useState<AiAgentProfile>(defaultProfile);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -198,49 +199,32 @@ export function useAiAgentProfile() {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('ai_agent_profiles')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .eq('is_active', true)
-        .order('version', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
+      const data = await api.aiAgentProfile.get().catch(() => null);
 
       if (data) {
-        setAgentProfile({
-          ...data,
-          products_services: (data.products_services as any) || [],
+        const mapped = {
+          ...defaultProfile,
+          id: data.id,
+          organization_id: data.organizationId || organizationId,
+          niche: data.niche || defaultProfile.niche,
+          agent_name: data.agentName || defaultProfile.agent_name,
+          agent_role: data.agentRole || defaultProfile.agent_role,
+          personality: data.personality || defaultProfile.personality,
+          tone: data.tone || defaultProfile.tone,
+          business_description: data.businessDescription || null,
+          products_services: (data.productsServices as any) || [],
           rules: (data.rules as any) || {},
-          funnel_rules: (data.funnel_rules as any) || {},
-          qualification_rules: (data.qualification_rules as any) || { qualified_when: { intents: [], urgency_level: [], sentiment: [] } },
-          prioritization_rules: (data.prioritization_rules as any) || { priority_when: { intents: [], urgency_level: [] } },
-          autonomous_rules: (data.autonomous_rules as any) || { mode: 'all', only_outside_business_hours: false, pause_after_qualification: false },
+          funnel_rules: (data.funnelRules as any) || {},
           examples: (data.examples as any) || [],
-        });
+          response_time: data.responseTime || defaultProfile.response_time,
+          questions_per_message: data.questionsPerMessage ?? defaultProfile.questions_per_message,
+          response_length: data.responseLength || defaultProfile.response_length,
+          is_active: data.isActive ?? true,
+          version: data.version || 1,
+        };
+        setAgentProfile(mapped);
         setHasExisting(true);
-      }
-
-      // Fetch all versions
-      const { data: allVersions } = await supabase
-        .from('ai_agent_profiles')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .order('version', { ascending: false });
-
-      if (allVersions) {
-        setVersions(allVersions.map(v => ({
-          ...v,
-          products_services: (v.products_services as any) || [],
-          rules: (v.rules as any) || {},
-          funnel_rules: (v.funnel_rules as any) || {},
-          qualification_rules: (v.qualification_rules as any) || { qualified_when: { intents: [], urgency_level: [], sentiment: [] } },
-          prioritization_rules: (v.prioritization_rules as any) || { priority_when: { intents: [], urgency_level: [] } },
-          autonomous_rules: (v.autonomous_rules as any) || { mode: 'all', only_outside_business_hours: false, pause_after_qualification: false },
-          examples: (v.examples as any) || [],
-        })));
+        setVersions([mapped]);
       }
     } catch (err) {
       console.error('Error fetching AI agent profile:', err);
@@ -257,44 +241,23 @@ export function useAiAgentProfile() {
     if (!organizationId || !userProfile) return;
     setSaving(true);
     try {
-      const newVersion = hasExisting ? agentProfile.version + 1 : 1;
+      await api.aiAgentProfile.update({
+        niche: agentProfile.niche,
+        agent_name: agentProfile.agent_name,
+        agent_role: agentProfile.agent_role,
+        personality: agentProfile.personality,
+        tone: agentProfile.tone,
+        business_description: agentProfile.business_description || null,
+        products_services: agentProfile.products_services,
+        rules: agentProfile.rules,
+        funnel_rules: agentProfile.funnel_rules,
+        examples: agentProfile.examples,
+        response_time: agentProfile.response_time,
+        questions_per_message: agentProfile.questions_per_message,
+        response_length: agentProfile.response_length,
+        is_active: true,
+      });
 
-      // Deactivate old versions
-      if (hasExisting) {
-        await supabase
-          .from('ai_agent_profiles')
-          .update({ is_active: false })
-          .eq('organization_id', organizationId);
-      }
-
-      const { error } = await supabase
-        .from('ai_agent_profiles')
-        .insert({
-          organization_id: organizationId,
-          niche: agentProfile.niche,
-          agent_name: agentProfile.agent_name,
-          agent_role: agentProfile.agent_role,
-          personality: agentProfile.personality,
-          tone: agentProfile.tone,
-          business_description: agentProfile.business_description || null,
-          products_services: agentProfile.products_services as any,
-          rules: agentProfile.rules as any,
-          funnel_rules: agentProfile.funnel_rules as any,
-          qualification_rules: agentProfile.qualification_rules as any,
-          prioritization_rules: agentProfile.prioritization_rules as any,
-          autonomous_rules: agentProfile.autonomous_rules as any,
-          examples: agentProfile.examples as any,
-          response_time: agentProfile.response_time,
-          questions_per_message: agentProfile.questions_per_message,
-          response_length: agentProfile.response_length,
-          is_active: true,
-          version: newVersion,
-          created_by: userProfile.user_id,
-        });
-
-      if (error) throw error;
-
-      setAgentProfile(prev => ({ ...prev, version: newVersion }));
       setHasExisting(true);
       toast.success('Treinamento salvo e aplicado com sucesso!');
       await fetchProfile();
