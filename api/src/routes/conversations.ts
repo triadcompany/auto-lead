@@ -267,4 +267,67 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
       return { success: true }
     }
   )
+
+  // PATCH /conversations/:id/ai-state — atualiza modo IA da conversa
+  fastify.patch<{ Params: { id: string }; Body: { state: string } }>(
+    "/conversations/:id/ai-state",
+    async (req, reply) => {
+      const updated = await prisma.conversation.updateMany({
+        where: { id: req.params.id, ...orgScope(req) },
+        data: { aiMode: req.body.state as any, updatedAt: new Date() },
+      })
+      if (updated.count === 0) return reply.code(404).send({ error: "Not found" })
+      return { ok: true }
+    }
+  )
+
+  // GET /conversations/:id/tasks — tarefas vinculadas à conversa
+  fastify.get<{ Params: { id: string } }>("/conversations/:id/tasks", async (req) => {
+    return prisma.task.findMany({
+      where: { conversationId: req.params.id, ...orgScope(req) },
+      orderBy: { createdAt: "asc" },
+      include: { assignee: { select: { id: true, name: true } } },
+    })
+  })
+
+  // POST /conversations/:id/tasks — cria tarefa para a conversa
+  fastify.post<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    "/conversations/:id/tasks",
+    async (req, reply) => {
+      const b = req.body as any
+      const task = await prisma.task.create({
+        data: {
+          organizationId: req.auth.orgId,
+          leadId: b.lead_id || null,
+          conversationId: req.params.id,
+          titulo: b.titulo,
+          descricao: b.descricao || null,
+          priority: (b.prioridade || "media") as any,
+          status: "pendente" as any,
+          dueDate: b.data_hora ? new Date(b.data_hora) : null,
+          assignedTo: b.responsavel_id || null,
+          createdBy: req.auth.userId,
+        },
+      })
+      return reply.code(201).send(task)
+    }
+  )
+
+  // GET /conversations/:id/appointments — stub (sem modelo por ora)
+  fastify.get<{ Params: { id: string } }>("/conversations/:id/appointments", async () => [])
+
+  // POST /conversations/:id/appointments — stub
+  fastify.post<{ Params: { id: string } }>("/conversations/:id/appointments", async (req, reply) =>
+    reply.code(201).send({ ok: true })
+  )
+
+  // GET /conversations/:id/ai-jobs — último job de IA bloqueado
+  fastify.get<{ Params: { id: string } }>("/conversations/:id/ai-jobs", async (req) => {
+    const job = await (prisma as any).aiAutoReplyJob?.findFirst?.({
+      where: { conversationId: req.params.id, status: "blocked", ...orgScope(req) },
+      select: { id: true, status: true, error: true, result: true, processedAt: true },
+      orderBy: { processedAt: "desc" },
+    }).catch(() => null)
+    return job || null
+  })
 }
