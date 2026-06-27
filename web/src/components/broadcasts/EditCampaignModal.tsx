@@ -22,6 +22,7 @@ import {
 import { Info, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApi } from '@/hooks/useApi';
 import {
   BroadcastCampaign,
   useBroadcasts,
@@ -64,6 +65,7 @@ export function EditCampaignModal({ campaign, onClose }: Props) {
     campaign.enable_automation ?? false,
   );
   const [automationId, setAutomationId] = useState<string>(campaign.automation_id || '');
+  const api = useApi();
 
   const [scheduledAt, setScheduledAt] = useState<string>(
     campaign.scheduled_at
@@ -83,26 +85,7 @@ export function EditCampaignModal({ campaign, onClose }: Props) {
     enabled: !!orgId && enableAutomation,
     staleTime: 0,
     refetchOnMount: 'always',
-    queryFn: async () => {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/automations-api`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({ action: 'list', organization_id: orgId }),
-        },
-      );
-      const json = await res.json();
-      return (json?.automations || []) as Array<{
-        id: string;
-        name: string;
-        is_active: boolean;
-      }>;
-    },
+    queryFn: () => api.automations.list().catch(() => [] as any[]),
   });
 
   const handleSave = async () => {
