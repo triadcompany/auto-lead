@@ -598,7 +598,7 @@ async function sendMetaCapiForLead(
 
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
-    select: { name: true, phone: true, email: true, valorNegocio: true },
+    select: { name: true, phone: true, email: true, valorNegocio: true, cidade: true, estado: true },
   }).catch(() => null)
   if (!lead) return
 
@@ -609,6 +609,12 @@ async function sendMetaCapiForLead(
     const parts = lead.name.trim().split(" ")
     userData.fn = [await sha256(parts[0].toLowerCase())]
     if (parts.length > 1) userData.ln = [await sha256(parts[parts.length - 1].toLowerCase())]
+  }
+  if (lead.cidade) userData.ct = [await sha256(lead.cidade.toLowerCase().trim())]
+  if (lead.estado) {
+    // Meta espera código de 2 letras (ex: "sc"). Aceita "SC - Santa Catarina" ou "SC"
+    const stateCode = lead.estado.trim().split(/[\s-]/)[0].toLowerCase()
+    userData.st = [await sha256(stateCode)]
   }
 
   const customData: Record<string, unknown> = {
