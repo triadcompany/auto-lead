@@ -422,13 +422,27 @@ export default async function miscRoutes(fastify: FastifyInstance) {
       estado?: string
       fbc?: string
       fbp?: string
+      // Rastreamento Meta Ads — via IDs diretos ou UTMs
+      campaign_id?: string
+      campaign_name?: string
+      adset_id?: string
+      adset_name?: string
+      ad_id?: string
+      ad_name?: string
+      utm_campaign?: string
+      utm_content?: string
+      utm_term?: string
       [key: string]: unknown
     }
   }>("/webhooks/lead", async (req, reply) => {
     const orgId = req.query.org || (req.body as any).organization_id
     if (!orgId) return reply.code(400).send({ error: "org query param ou organization_id no body é obrigatório" })
 
-    const { name, phone, email, source, interest, observations, cidade, estado, fbc, fbp } = req.body
+    const {
+      name, phone, email, source, interest, observations, cidade, estado, fbc, fbp,
+      campaign_id, campaign_name, adset_id, adset_name, ad_id, ad_name,
+      utm_campaign, utm_content, utm_term,
+    } = req.body
 
     if (!name || !phone) return reply.code(400).send({ error: "name e phone são obrigatórios" })
 
@@ -445,6 +459,12 @@ export default async function miscRoutes(fastify: FastifyInstance) {
         estado: estado || null,
         fbc: fbc || null,
         fbp: fbp || null,
+        metaCampaignId: campaign_id || null,
+        metaCampaignName: campaign_name || utm_campaign || null,
+        metaAdsetId: adset_id || null,
+        metaAdsetName: adset_name || utm_term || null,
+        metaAdId: ad_id || null,
+        metaAdName: ad_name || utm_content || null,
       },
     })
 
