@@ -62,7 +62,7 @@ export function TriggerEditor({ config, onChange }: TriggerEditorProps) {
     setLoadingPipelines(true);
     api.pipelines.list()
       .then((data) => {
-        setPipelines((data || []).filter((p: any) => p.is_active).map((p: any) => ({ id: p.id, name: p.name })));
+        setPipelines((data || []).map((p: any) => ({ id: p.id, name: p.name })));
       })
       .finally(() => setLoadingPipelines(false));
   }, [config.triggerType, orgId]);
@@ -78,8 +78,7 @@ export function TriggerEditor({ config, onChange }: TriggerEditorProps) {
       .then((data) => {
         setStages(
           (data || [])
-            .filter((s: any) => s.is_active)
-            .map((s: any) => ({ id: s.id, name: s.name, position: s.position }))
+            .map((s: any) => ({ id: s.id, name: s.name, position: s.position ?? 0 }))
             .sort((a: any, b: any) => a.position - b.position)
         );
       })
