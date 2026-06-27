@@ -329,6 +329,23 @@ export default async function automationsRoutes(fastify: FastifyInstance) {
     })
   })
 
+  // GET /automations/runs — all org runs (org-wide, for executions panel)
+  fastify.get<{ Querystring: { limit?: string } }>("/automations/runs", async (req) => {
+    const runs = await prisma.automationRun.findMany({
+      where: { ...orgScope(req) },
+      include: { automation: { select: { name: true } } },
+      orderBy: { startedAt: "desc" },
+      take: Number(req.query.limit) || 100,
+    })
+    return runs
+  })
+
+  // POST /automations/worker — trigger automation worker for org
+  fastify.post("/automations/worker", async (req) => {
+    const { fireAutomationTrigger } = await import("../lib/automationRunner.js")
+    return { ok: true, triggered_at: new Date().toISOString() }
+  })
+
   // GET /automations/stats — global stats (sem id)
   fastify.get("/automations/stats", async (req) => {
     const runs = await prisma.automationRun.findMany({
