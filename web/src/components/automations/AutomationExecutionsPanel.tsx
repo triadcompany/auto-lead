@@ -13,7 +13,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
 
 interface Run {
   id: string;
@@ -38,6 +38,7 @@ interface Props {
 
 export function AutomationExecutionsPanel({ organizationId }: Props) {
   const { isAdmin } = useAuth();
+  const api = useApi();
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState(true);
   const [workerRunning, setWorkerRunning] = useState(false);
