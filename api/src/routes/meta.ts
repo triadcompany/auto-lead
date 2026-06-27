@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js"
 import { orgScope } from "../lib/auth.js"
 import { emit } from "../plugins/socket.js"
 import { createHmac, createHash } from "crypto"
+import { enrichLeadFromCtwa } from "../lib/metaCtwa.js"
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -217,6 +218,17 @@ export default async function metaRoutes(fastify: FastifyInstance) {
     }).catch(() => null)
 
     emit(orgId, "lead:created", { lead, source: "meta_lead_ads" })
+
+    // Se tem ad_id mas não tem nome, busca nomes na Graph API em background
+    const adIdForEnrich = (lead_data.ad_id as string | null) || null
+    const missingNames = !lead_data.ad_name && !lead_data.campaign_name
+    if (adIdForEnrich && missingNames) {
+      const accountToken = integration.metaAccount?.accessToken || null
+      setImmediate(() =>
+        enrichLeadFromCtwa(orgId, lead.id, adIdForEnrich, { accessToken: accountToken })
+          .catch((e) => console.error("[meta] ad name enrichment failed:", e))
+      )
+    }
 
     return reply.code(201).send({ success: true, lead_id: lead.id })
   })
