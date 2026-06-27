@@ -263,19 +263,7 @@ const { getToken } = useClerkAuth();
     enabled: !!orgId,
     staleTime: 0,
     refetchOnMount: 'always',
-    queryFn: async () => {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/automations-api`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ action: 'list', organization_id: orgId }),
-      });
-      const json = await res.json();
-      return (json?.automations || []) as Array<{ id: string; name: string; is_active: boolean }>;
-    },
+    queryFn: () => api.automations.list().catch(() => [] as any[]),
   });
 
   // ── Storage upload — converte para base64 e armazena no payload da campanha ──
@@ -565,12 +553,18 @@ const { getToken } = useClerkAuth();
     if (!orgId) return;
     setInboxLoading(true); setInboxSearched(true);
     try {
-      const { data, error } = await (supabase as any).rpc('get_inbox_contacts_for_broadcast', {
-        p_status: inboxFilters.status,
-        p_seller_id: inboxFilters.sellerId,
-      });
-      if (error) throw error;
-      setInboxContacts(data || []);
+      const data = await api.conversations.list({
+        ...(inboxFilters.status && { status: inboxFilters.status }),
+        ...(inboxFilters.sellerId && { assigned_to: inboxFilters.sellerId }),
+        limit: 200,
+      } as any);
+      setInboxContacts((data || []).map((c: any) => ({
+        id: c.id,
+        name: c.contactName || c.contact_name || '',
+        phone: c.contactPhone || c.contact_phone || '',
+        seller_id: c.assignedTo || c.assigned_to || null,
+        status: c.status,
+      })));
     } catch (err) { console.error('Erro buscando contatos do inbox:', err); setInboxContacts([]); toast.error('Erro ao buscar contatos do inbox'); }
     finally { setInboxLoading(false); }
   };
