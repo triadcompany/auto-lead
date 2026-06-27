@@ -128,7 +128,7 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
             orderBy: { createdAt: "desc" },
           })
           if (conv?.ctwaAdId) {
-            await enrichLeadFromCtwa(req.auth.orgId, lead.id, conv.ctwaAdId, conv.ctwaClid)
+            await enrichLeadFromCtwa(req.auth.orgId, lead.id, conv.ctwaAdId, { fbc: conv.ctwaClid })
           }
         } catch (e) {
           console.error("[leads] CTWA enrichment error:", e)
