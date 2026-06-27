@@ -20,7 +20,6 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { useBroadcasts } from '@/hooks/useBroadcasts';
-import { supabase } from '@/integrations/supabase/client';
 import { useApi } from '@/hooks/useApi';
 import { useQuery } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
