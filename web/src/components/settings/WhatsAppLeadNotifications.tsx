@@ -73,43 +73,38 @@ export function WhatsAppLeadNotifications() {
 
   const fetchData = async () => {
     try {
-      // Fetch WhatsApp integration
-      const { data: integrationData, error: integrationError } = await supabase
-        .from('whatsapp_integrations')
-        .select('*')
-        .eq('organization_id', profile?.organization_id)
-        .maybeSingle();
+      const [settingsRes, usersData] = await Promise.all([
+        api.whatsappSettings.get().catch(() => null),
+        api.users.list().catch(() => [] as any[]),
+      ]);
 
-      if (integrationError && integrationError.code !== 'PGRST116') {
-        throw integrationError;
+      if (settingsRes?.integration) {
+        setIntegration({
+          id: settingsRes.integration.id,
+          phone_number: settingsRes.integration.phone_number || '',
+          evolution_instance_id: settingsRes.integration.instance_name || '',
+          evolution_api_key: '',
+          n8n_webhook_evolution_notify: '',
+          is_active: settingsRes.integration.is_active,
+        });
       }
 
-      setIntegration(integrationData);
+      const mapped = (usersData || []).map((u: any) => ({
+        id: u.id,
+        user_id: u.id,
+        name: u.name,
+        email: u.email,
+        whatsapp_e164: u.whatsappE164 || u.whatsapp_e164 || null,
+      }));
+      setUsers(mapped);
 
-      // Fetch all users from organization
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, user_id, name, email, whatsapp_e164')
-        .eq('organization_id', profile?.organization_id)
-        .order('name');
-
-      if (profilesError) throw profilesError;
-
-      setUsers(profilesData || []);
-
-      // Initialize user status
       const initialStatus: Record<string, 'success' | 'error' | 'untested'> = {};
-      (profilesData || []).forEach(user => {
+      mapped.forEach((user: any) => {
         initialStatus[user.id] = user.whatsapp_e164 ? 'untested' : 'error';
       });
       setUserStatus(initialStatus);
-
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar dados",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: "Erro ao carregar dados", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -117,21 +112,10 @@ export function WhatsAppLeadNotifications() {
 
   const fetchLogs = async () => {
     try {
-      const { data, error } = await supabase
-        .from('lead_distribution_audit')
-        .select('*')
-        .or('event.eq.lead.assigned_notify,event.eq.test_notification')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
+      const data = await api.leadDistributionAudit.list({ limit: 50 }).catch(() => []);
       setLogs(data || []);
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar logs",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: "Erro ao carregar logs", variant: "destructive" });
     }
   };
 
@@ -232,12 +216,7 @@ export function WhatsAppLeadNotifications() {
 
   const updateUserWhatsApp = async (userId: string, whatsappNumber: string) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ whatsapp_e164: whatsappNumber || null })
-        .eq('id', userId);
-
-      if (error) throw error;
+      await api.users.updateProfile(userId, { whatsapp_e164: whatsappNumber || null });
 
       setUsers(prev =>
         prev.map(u => u.id === userId ? { ...u, whatsapp_e164: whatsappNumber || null } : u)
