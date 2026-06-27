@@ -4,6 +4,7 @@ import { orgScope } from "../lib/auth.js"
 import { emit } from "../plugins/socket.js"
 import crypto from "node:crypto"
 import { fireAutomationTrigger } from "../lib/automationRunner.js"
+import { enrichLeadFromCtwa } from "../lib/metaCtwa.js"
 
 export default async function leadsRoutes(fastify: FastifyInstance) {
   // GET /leads — lista leads da org com filtros (substitui get_org_leads RPC)
@@ -116,6 +117,24 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         telefone: lead.phone,
       }).catch((e) => console.error("[leads] automation trigger error:", e))
     )
+    // Enriquece com dados CTWA se houver conversa WA com anúncio para este telefone
+    if (lead.phone) {
+      const phoneDigits = lead.phone.replace(/\D/g, "").slice(-8)
+      setImmediate(async () => {
+        try {
+          const conv = await prisma.conversation.findFirst({
+            where: { organizationId: req.auth.orgId, contactPhone: { contains: phoneDigits }, ctwaAdId: { not: null } },
+            select: { ctwaAdId: true, ctwaClid: true },
+            orderBy: { createdAt: "desc" },
+          })
+          if (conv?.ctwaAdId) {
+            await enrichLeadFromCtwa(req.auth.orgId, lead.id, conv.ctwaAdId, conv.ctwaClid)
+          }
+        } catch (e) {
+          console.error("[leads] CTWA enrichment error:", e)
+        }
+      })
+    }
     return reply.code(201).send(lead)
   })
 
