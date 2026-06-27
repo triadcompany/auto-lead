@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+const _API_URL = (import.meta.env.VITE_API_URL as string) || '';
 
 interface Lead {
   id: string;
@@ -23,18 +23,12 @@ export async function triggerN8nWebhook(
   stageChange: StageChange
 ): Promise<void> {
   try {
-    // Buscar configuração n8n da organização
-    const { data: workflow, error } = await supabase
-      .from('n8n_workflows')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .eq('is_active', true)
-      .maybeSingle();
+    // N8N workflows now stub — skip if no API available
+    const workflows = await fetch(`${_API_URL}/n8n/workflows`)
+      .then(r => r.ok ? r.json() : [])
+      .catch(() => []) as any[];
 
-    if (error) {
-      console.error('Error fetching n8n config:', error);
-      return;
-    }
+    const workflow = (workflows || []).find((w: any) => w.is_active && w.webhook_url);
 
     if (!workflow || !workflow.webhook_url) {
       console.log('No active n8n webhook configured for this organization');
