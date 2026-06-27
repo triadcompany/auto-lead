@@ -159,7 +159,7 @@ async function syncIncomingMessage(
   // Enriquece lead com dados CTWA se mensagem veio de anúncio Click-to-WhatsApp
   if (!fromMe && ctwaAdId && lead) {
     setImmediate(() =>
-      enrichLeadFromCtwa(orgId, lead.id, ctwaAdId, ctwaClid)
+      enrichLeadFromCtwa(orgId, lead.id, ctwaAdId, { fbc: ctwaClid })
         .catch((e) => console.error("[whatsapp] CTWA enrichment error:", e))
     )
   }
