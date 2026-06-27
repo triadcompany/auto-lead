@@ -6,6 +6,7 @@ import { Sparkles, Send, X, Loader2, Lightbulb, ArrowRight, Check } from 'lucide
 import { toast } from 'sonner';
 import { useApi } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { cn } from '@/lib/utils';
 import { publishAutomationEvent, AI_EVENTS } from '@/services/automationEventBus';
 
@@ -60,6 +61,7 @@ export function AiSuggestionPanel({
 }: AiSuggestionPanelProps) {
   const api = useApi();
   const { profile } = useAuth();
+  const { getToken } = useClerkAuth();
   const [loading, setLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<AiSuggestion | null>(null);
   const [editedReply, setEditedReply] = useState('');
@@ -122,6 +124,7 @@ export function AiSuggestionPanel({
           ? AI_EVENTS.LEAD_FOLLOWUP_NEEDED_BY_AI
           : AI_EVENTS.LEAD_STAGE_CHANGED_BY_AI;
 
+      const token = await getToken().catch(() => null);
       await publishAutomationEvent({
         organizationId,
         eventName,
@@ -142,10 +145,8 @@ export function AiSuggestionPanel({
         },
         source: 'ai',
         sourceAiInteractionId: suggestion.ai_interaction_id || undefined,
-        idempotencyParts: [
-          conversationId,
-          suggestion.suggested_stage_id,
-        ],
+        idempotencyParts: [conversationId, suggestion.suggested_stage_id],
+        token,
       });
 
       setStageApplied(true);
