@@ -82,7 +82,7 @@ export function ClerkMigration() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/migrate-users-to-clerk`,
+        `${import.meta.env.VITE_API_URL || ''}/admin/migrate-users-to-clerk`,
         {
           method: 'POST',
           headers: {
