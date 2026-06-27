@@ -22,7 +22,7 @@ import { AddLeadModal } from "@/components/modals/AddLeadModal";
 import { EditLeadModal } from "@/components/modals/EditLeadModal";
 import { EditObservationsModal } from "@/components/modals/EditObservationsModal";
 import { AddTaskModal } from "@/components/tasks/AddTaskModal";
-import { supabase } from "@/integrations/supabase/client";
+import { useApi } from "@/hooks/useApi";
 import { MobileHeader } from "@/components/mobile/MobileHeader";
 import { PageHeader } from "@/components/layout/PageHeader";
 
@@ -44,25 +44,19 @@ export function Leads() {
   
   const { leads, loading, updateLead, addLead, deleteLead, refreshLeads } = useSupabaseLeads();
   const { isAdmin } = useAuth();
+  const api = useApi();
 
   // Fetch sellers for filter (only for admins)
   useEffect(() => {
     const fetchSellers = async () => {
       if (!isAdmin) return;
-      
       try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, name, email')
-          .order('name');
-        
-        if (error) throw error;
-        setSellers(data || []);
+        const data = await api.users.list();
+        setSellers((data || []).map((u: any) => ({ id: u.id, name: u.name, email: u.email })));
       } catch (error) {
         console.error('Error fetching sellers:', error);
       }
     };
-
     fetchSellers();
   }, [isAdmin]);
 
