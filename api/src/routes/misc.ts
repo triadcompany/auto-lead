@@ -178,4 +178,45 @@ export default async function miscRoutes(fastify: FastifyInstance) {
     })
     return reply.code(201).send(prospect)
   })
+
+  // POST /automation-events — publica evento no event bus
+  fastify.post<{ Body: Record<string, unknown> }>("/automation-events", async (req, reply) => {
+    const b = req.body as any
+    const event = await (prisma as any).automationEvent?.create?.({
+      data: {
+        organizationId: req.auth.orgId,
+        eventName: b.event_name,
+        entityType: b.entity_type || null,
+        entityId: b.entity_id || null,
+        conversationId: b.conversation_id || null,
+        leadId: b.lead_id || null,
+        opportunityId: b.opportunity_id || null,
+        payload: b.payload || {},
+        source: b.source || "system",
+        sourceAiInteractionId: b.source_ai_interaction_id || null,
+        idempotencyKey: b.idempotency_key || null,
+        status: "pending",
+      },
+      select: { id: true },
+    }).catch((e: any) => {
+      if (e?.code === "P2002") return { id: null }
+      throw e
+    })
+    return { ok: true, event_id: event?.id || null }
+  })
+
+  // GET /lead-distribution/audit — logs de auditoria de distribuição
+  fastify.get<{ Querystring: { limit?: string; event?: string } }>(
+    "/lead-distribution/audit",
+    async (req) => {
+      return (prisma as any).leadDistributionAudit?.findMany?.({
+        where: {
+          ...orgScope(req),
+          ...(req.query.event && { event: req.query.event }),
+        },
+        orderBy: { createdAt: "desc" },
+        take: Number(req.query.limit) || 50,
+      }).catch(() => []) || []
+    }
+  )
 }
