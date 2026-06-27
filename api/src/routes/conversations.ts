@@ -274,7 +274,7 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
     async (req, reply) => {
       const updated = await prisma.conversation.updateMany({
         where: { id: req.params.id, ...orgScope(req) },
-        data: { aiMode: req.body.state as any, updatedAt: new Date() },
+        data: { aiMode: req.body.state as any },
       })
       if (updated.count === 0) return reply.code(404).send({ error: "Not found" })
       return { ok: true }
