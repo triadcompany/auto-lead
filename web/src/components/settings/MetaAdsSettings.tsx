@@ -12,7 +12,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { toast } from "sonner";
@@ -53,24 +52,30 @@ interface QueueItem {
 // ═══════════ API URL ═══════════
 const API_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000';
 
+async function capiPost(body: Record<string, unknown>, token: string | null) {
+  const res = await fetch(`${API_URL}/meta/capi-settings`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  return { status: res.status, data };
+}
+
+async function capiGet(token: string | null) {
+  const res = await fetch(`${API_URL}/meta/capi-settings`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
 // ═══════════ MAIN COMPONENT ═══════════
 export function MetaAdsSettings() {
   const { profile, role, loading: authLoading, orgId: authOrgId, user } = useAuth();
-  const { getToken } = useClerkAuth();
-
-  const callMetaCapiEndpoint = async (body: Record<string, unknown>) => {
-    const token = await getToken();
-    const res = await fetch(`${API_URL}/meta/capi-settings`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    return { status: res.status, data };
-  };
   const orgId = profile?.organization_id || authOrgId;
   const profileId = profile?.id || user?.id || null;
   const isAdmin = role === "admin";
@@ -204,6 +209,7 @@ function ErrorDetailModal({
 
 // ═══════════ TECH STATUS CHECKLIST ═══════════
 function TechStatusChecklist({ orgId, profileId }: { orgId: string; profileId: string }) {
+  const { getToken } = useClerkAuth();
   const [status, setStatus] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -211,13 +217,14 @@ function TechStatusChecklist({ orgId, profileId }: { orgId: string; profileId: s
   const check = async () => {
     setLoading(true);
     try {
-      const { status: httpStatus, data } = await callMetaCapiEndpoint({
-        action: "status",
+      const token = await getToken();
+      const { status: httpStatus, data } = await capiPost({
+        action: "check",
         profile_id: profileId,
         organization_id: orgId,
-      });
+      }, token);
       if (data.ok) {
-        setStatus({ ...data.status, api_settings_ok: true, http_status: httpStatus });
+        setStatus({ ...data, api_settings_ok: true, http_status: httpStatus });
       } else {
         setStatus({ api_settings_ok: false, error: data.message, http_status: httpStatus });
       }
@@ -298,6 +305,7 @@ function TechStatusChecklist({ orgId, profileId }: { orgId: string; profileId: s
 
 // ═══════════ CONNECTION CARD ═══════════
 function ConnectionCard({ orgId, profileId, isAdmin }: { orgId: string; profileId: string; isAdmin: boolean }) {
+  const { getToken } = useClerkAuth();
   const [config, setConfig] = useState<CapiSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -313,22 +321,33 @@ function ConnectionCard({ orgId, profileId, isAdmin }: { orgId: string; profileI
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await (supabase as any)
-      .from("meta_capi_settings")
-      .select("*")
-      .eq("organization_id", orgId)
-      .maybeSingle();
-    if (data) {
-      setConfig(data);
-      setPixelId(data.pixel_id || "");
-      setAccessToken(data.access_token || "");
-      setTestEventCode(data.test_event_code || "");
-      setEnabled(data.enabled);
-      setTestMode(data.test_mode || false);
-      setDomain(data.domain || "");
+    try {
+      const token = await getToken();
+      const d = await capiGet(token);
+      if (d) {
+        const mapped = {
+          id: d.id,
+          pixel_id: d.pixelId || d.pixel_id || "",
+          access_token: d.accessToken || d.access_token || "",
+          test_event_code: d.testEventCode || d.test_event_code || null,
+          enabled: d.enabled ?? false,
+          test_mode: d.testMode || d.test_mode || false,
+          domain: d.domain || null,
+        };
+        setConfig(mapped as any);
+        setPixelId(mapped.pixel_id);
+        setAccessToken(mapped.access_token);
+        setTestEventCode(mapped.test_event_code || "");
+        setEnabled(mapped.enabled);
+        setTestMode(mapped.test_mode);
+        setDomain(mapped.domain || "");
+      }
+    } catch {
+      // no settings yet
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [orgId]);
+  }, [orgId, getToken]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -351,12 +370,13 @@ function ConnectionCard({ orgId, profileId, isAdmin }: { orgId: string; profileI
     }
     setSaving(true);
     try {
-      const { status, data } = await callMetaCapiEndpoint({
+      const token = await getToken();
+      const { status, data } = await capiPost({
         action: "save",
         profile_id: profileId,
         organization_id: orgId,
         payload: { pixel_id: pixelId, access_token: accessToken, test_event_code: testEventCode || null, enabled, test_mode: testMode, domain: domain || null },
-      });
+      }, token);
       if (data.ok) {
         toast.success("Configurações salvas!");
         setSettingsSaved(true);
@@ -379,11 +399,12 @@ function ConnectionCard({ orgId, profileId, isAdmin }: { orgId: string; profileI
     }
     setTesting(true);
     try {
-      const { status, data } = await callMetaCapiEndpoint({
+      const token = await getToken();
+      const { status, data } = await capiPost({
         action: "test",
         profile_id: profileId,
         organization_id: orgId,
-      });
+      }, token);
       if (data.ok) {
         toast.success(
           `${data.message || "Conexão funcionando!"} Verifique em Gerenciador de Eventos → Teste de Eventos.`,
@@ -418,10 +439,11 @@ function ConnectionCard({ orgId, profileId, isAdmin }: { orgId: string; profileI
     }
     setEnabled(val);
     if (config?.id) {
-      await callMetaCapiEndpoint({
+      const token = await getToken();
+      await capiPost({
         action: "save", profile_id: profileId, organization_id: orgId,
         payload: { pixel_id: pixelId, access_token: accessToken, test_event_code: testEventCode || null, enabled: val, test_mode: testMode, domain: domain || null },
-      });
+      }, token);
     }
   };
 
@@ -566,6 +588,7 @@ function ConnectionCard({ orgId, profileId, isAdmin }: { orgId: string; profileI
 
 // ═══════════ QUEUE LOGS SECTION ═══════════
 function QueueLogsSection({ orgId, profileId, isAdmin }: { orgId: string; profileId: string; isAdmin: boolean }) {
+  const { getToken } = useClerkAuth();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<QueueItem | null>(null);
@@ -573,12 +596,13 @@ function QueueLogsSection({ orgId, profileId, isAdmin }: { orgId: string; profil
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await callMetaCapiEndpoint({
+      const token = await getToken();
+      const { data } = await capiPost({
         action: "queue_logs",
         profile_id: profileId,
         organization_id: orgId,
         payload: { status: "all", period: "30d" },
-      });
+      }, token);
       if (data.ok) {
         setItems(data.items || []);
       }
@@ -587,7 +611,7 @@ function QueueLogsSection({ orgId, profileId, isAdmin }: { orgId: string; profil
     } finally {
       setLoading(false);
     }
-  }, [orgId, profileId]);
+  }, [orgId, profileId, getToken]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
@@ -597,12 +621,13 @@ function QueueLogsSection({ orgId, profileId, isAdmin }: { orgId: string; profil
       return;
     }
     try {
-      const { data } = await callMetaCapiEndpoint({
+      const token = await getToken();
+      const { data } = await capiPost({
         action: "queue_action",
         profile_id: profileId,
         organization_id: orgId,
         payload: { queue_id: queueId, action_type: actionType },
-      });
+      }, token);
       if (data.ok) {
         toast.success(data.message);
         fetchLogs();
