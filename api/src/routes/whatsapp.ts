@@ -443,4 +443,37 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
 
     return { received: true }
   })
+
+  // GET /whatsapp/settings — configurações básicas da integração
+  fastify.get("/whatsapp/settings", async (req) => {
+    const i = await (prisma as any).whatsappIntegration?.findFirst?.({
+      where: { organizationId: req.auth.orgId },
+    }).catch(() => null)
+    if (!i) return { ok: false, integration: null }
+    return {
+      ok: true,
+      integration: {
+        id: i.id,
+        instance_name: i.instanceName,
+        is_active: i.isActive,
+        webhook_token: i.webhookToken,
+        status: i.status,
+        phone_number: i.phoneNumber || null,
+      },
+    }
+  })
+
+  // PATCH /whatsapp/settings — atualiza settings básicos
+  fastify.patch<{ Body: Record<string, unknown> }>("/whatsapp/settings", async (req, reply) => {
+    const b = req.body as any
+    const updated = await (prisma as any).whatsappIntegration?.updateMany?.({
+      where: { organizationId: req.auth.orgId },
+      data: {
+        ...(b.is_active !== undefined && { isActive: b.is_active }),
+        updatedAt: new Date(),
+      },
+    }).catch(() => null)
+    if (!updated?.count) return reply.code(404).send({ error: "Not found" })
+    return { ok: true }
+  })
 }
