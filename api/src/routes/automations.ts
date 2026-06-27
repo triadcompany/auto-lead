@@ -329,6 +329,36 @@ export default async function automationsRoutes(fastify: FastifyInstance) {
     })
   })
 
+  // ── CAPI Event Definitions ─────────────────────────────────────────────────
+
+  fastify.get("/automations/event-definitions", async (req) => {
+    return (prisma as any).capiEventDefinition?.findMany?.({
+      where: { ...orgScope(req) },
+      orderBy: { createdAt: "asc" },
+    }).catch(() => []) || []
+  })
+
+  fastify.post<{ Body: Record<string, unknown> }>("/automations/event-definitions", async (req, reply) => {
+    const body = req.body as any
+    const data = await (prisma as any).capiEventDefinition?.create?.({
+      data: {
+        organizationId: req.auth.orgId,
+        name: body.name,
+        metaEventName: body.meta_event_name,
+        defaultCurrency: body.default_currency || "BRL",
+        sendValue: body.send_value ?? true,
+        sendUserData: body.send_user_data ?? true,
+        sendLocation: body.send_location ?? true,
+        active: body.active ?? true,
+      },
+    }).catch((e: Error) => reply.code(500).send({ error: e.message }))
+    return reply.code(201).send({
+      id: data?.id,
+      name: data?.name,
+      meta_event_name: data?.metaEventName,
+    })
+  })
+
   // GET /automations/runs — all org runs (org-wide, for executions panel)
   fastify.get<{ Querystring: { limit?: string } }>("/automations/runs", async (req) => {
     const runs = await prisma.automationRun.findMany({
