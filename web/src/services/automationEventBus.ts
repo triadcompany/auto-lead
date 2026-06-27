@@ -8,7 +8,7 @@
  * an AI suggestion (click "Aplicar etapa"). No automatic publishing.
  */
 
-import { supabase } from '@/integrations/supabase/client';
+const _API_URL = import.meta.env.VITE_API_URL as string;
 
 // ── Official event names ──
 export const AI_EVENTS = {
@@ -60,6 +60,8 @@ interface PublishEventParams {
   sourceAiInteractionId?: string;
   /** Components for building the idempotency key. Will be joined with ":" */
   idempotencyParts?: string[];
+  /** Bearer token for the API call */
+  token?: string | null;
 }
 
 /**
@@ -78,20 +80,23 @@ export async function publishAutomationEvent({
   source,
   sourceAiInteractionId,
   idempotencyParts,
+  token,
 }: PublishEventParams): Promise<{ ok: boolean; eventId?: string; error?: string }> {
   try {
-    // Build idempotency key
-    const dateBucket = new Date().toISOString().split('T')[0]; // daily bucket
+    const dateBucket = new Date().toISOString().split('T')[0];
     const idempotencyKey = idempotencyParts
       ? [organizationId, eventName, ...idempotencyParts, dateBucket].join(':')
       : undefined;
 
-    const { data, error } = await (supabase as any)
-      .from('automation_events')
-      .insert({
-        organization_id: organizationId,
+    const res = await fetch(`${_API_URL}/automation-events`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
         event_name: eventName,
-        entity_type: entityType,
+        entity_type: entityType || null,
         entity_id: entityId || null,
         conversation_id: conversationId || null,
         lead_id: leadId || null,
@@ -100,27 +105,18 @@ export async function publishAutomationEvent({
         source,
         source_ai_interaction_id: sourceAiInteractionId || null,
         idempotency_key: idempotencyKey || null,
-        status: 'pending',
-      })
-      .select('id')
-      .single();
+      }),
+    });
 
-    if (error) {
-      // Idempotency conflict = already published, not an error
-      if (error.code === '23505') {
-        console.log(`[event-bus] Event already published (idempotent): ${eventName}`);
-        return { ok: true, error: 'duplicate' };
-      }
-      throw error;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as any;
+      console.warn('[event-bus] Publish failed:', err);
+      return { ok: false, error: err?.message || 'unknown' };
     }
 
-    const eventId = data?.id;
-    console.log(`[event-bus] Event published: ${eventName} (${eventId})`);
-
-    // Fire-and-forget: invoke the dispatcher
-    supabase.functions.invoke('event-dispatcher', { body: {} }).catch(() => {});
-
-    return { ok: true, eventId };
+    const data = await res.json() as any;
+    console.log(`[event-bus] Event published: ${eventName} (${data?.event_id})`);
+    return { ok: true, eventId: data?.event_id };
   } catch (err: any) {
     console.error('[event-bus] Publish error:', err);
     return { ok: false, error: err.message };
@@ -132,10 +128,15 @@ export async function publishAutomationEvent({
  */
 export async function setConversationAiState(
   conversationId: string,
-  state: 'ai_active' | 'human_active'
+  state: 'ai_active' | 'human_active',
+  token?: string | null,
 ): Promise<void> {
-  await supabase
-    .from('conversations')
-    .update({ ai_state: state } as any)
-    .eq('id', conversationId);
+  await fetch(`${_API_URL}/conversations/${conversationId}/ai-state`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ state }),
+  }).catch(() => {});
 }
