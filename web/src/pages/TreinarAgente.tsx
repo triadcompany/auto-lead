@@ -20,8 +20,8 @@ import {
 } from 'lucide-react';
 import { useAiAgentProfile, type ProductService, type FewShotExample } from '@/hooks/useAiAgentProfile';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApi } from '@/hooks/useApi';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -45,6 +45,7 @@ export default function TreinarAgente() {
   } = useAiAgentProfile();
 
   const { profile: userProfile } = useAuth();
+  const api = useApi();
   const [activeTab, setActiveTab] = useState('identidade');
   const [availableIntents, setAvailableIntents] = useState<{ intent_key: string; intent_label: string }[]>([]);
 
@@ -53,25 +54,15 @@ export default function TreinarAgente() {
   useEffect(() => {
     if (!organizationId) return;
     (async () => {
-      const { data } = await (supabase as any)
-        .from('intent_definitions')
-        .select('intent_key, intent_label, scope_type, scope_id')
-        .or(
-          `and(scope_type.eq.global,scope_id.is.null),and(scope_type.eq.organization,scope_id.eq.${organizationId})`
-        );
-      if (data) {
-        // Also load niche-based intents
-        const niche = agentProfile.niche;
-        const { data: nicheIntents } = await (supabase as any)
-          .from('intent_definitions')
-          .select('intent_key, intent_label')
-          .eq('scope_type', 'niche')
-          .eq('scope_id', niche);
-        
+      const data = await api.intentDefinitions.list().catch(() => []);
+      if (data && data.length > 0) {
         const map = new Map<string, { intent_key: string; intent_label: string }>();
-        for (const i of data) map.set(i.intent_key, { intent_key: i.intent_key, intent_label: i.intent_label });
-        if (nicheIntents) {
-          for (const i of nicheIntents) map.set(i.intent_key, { intent_key: i.intent_key, intent_label: i.intent_label });
+        for (const i of data) {
+          const key = (i as any).intentKey || (i as any).intent_key;
+          const label = (i as any).intentLabel || (i as any).intent_label || key;
+          if (key) map.set(key, { intent_key: key, intent_label: label });
+        }
+        if (true) {
         }
         setAvailableIntents(Array.from(map.values()));
       }
