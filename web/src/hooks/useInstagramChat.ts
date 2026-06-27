@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useApi } from '@/hooks/useApi';
 
 // Note: These tables will be created via SQL migration.
 // Using 'any' casting since types aren't generated yet.
@@ -95,376 +95,94 @@ export interface InstagramUserPermission {
 }
 
 export function useInstagramChat() {
-  const { profile, isAdmin, orgId: authOrgId } = useAuth();
+  const { isAdmin, orgId: authOrgId } = useAuth();
   const { toast } = useToast();
-  const igOrgId = profile?.organization_id || authOrgId;
-  
+  const api = useApi();
+  const igOrgId = authOrgId;
+
   const [connections, setConnections] = useState<InstagramConnection[]>([]);
-  const [conversations, setConversations] = useState<InstagramConversation[]>([]);
-  const [messages, setMessages] = useState<InstagramMessage[]>([]);
-  const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
-  const [tags, setTags] = useState<ConversationTag[]>([]);
+  const [conversations] = useState<InstagramConversation[]>([]);
+  const [messages] = useState<InstagramMessage[]>([]);
+  const [quickReplies] = useState<QuickReply[]>([]);
+  const [tags] = useState<ConversationTag[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<InstagramConversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
-  // Fetch connections
   const fetchConnections = useCallback(async () => {
     if (!igOrgId) return;
-
-    const { data, error } = await (supabase as any)
-      .from('instagram_connections')
-      .select('*')
-      .eq('organization_id', igOrgId)
-      .eq('is_active', true);
-
-    if (error) {
-      console.error('Error fetching connections:', error);
-    } else {
-      setConnections((data || []) as InstagramConnection[]);
-    }
+    const data = await api.instagramConnections.list().catch(() => []);
+    setConnections((data || []).map((c: any) => ({
+      id: c.id,
+      organization_id: c.organizationId || igOrgId,
+      instagram_business_account_id: c.instagramBusinessAccountId || '',
+      page_id: c.pageId || '',
+      page_name: c.pageName || null,
+      instagram_username: c.instagramUsername || null,
+      profile_picture_url: c.profilePictureUrl || null,
+      is_active: c.isActive ?? true,
+      created_at: c.createdAt || '',
+    })) as InstagramConnection[]);
   }, [igOrgId]);
 
-  // Fetch conversations
   const fetchConversations = useCallback(async () => {
-    if (!igOrgId) return;
-
-    // First fetch conversations without the join
-    const { data, error } = await (supabase as any)
-      .from('instagram_conversations')
-      .select('*')
-      .eq('organization_id', igOrgId)
-      .order('last_message_at', { ascending: false, nullsFirst: false });
-
-    if (error) {
-      console.error('Error fetching conversations:', error);
-      return;
-    }
-
-    // Fetch assigned user info separately if needed
-    const conversationsWithData = await Promise.all(
-      (data || []).map(async (conv: any) => {
-        let assigned_user = null;
-        
-        // Fetch assigned user if exists
-        if (conv.assigned_to) {
-          const { data: userData } = await supabase
-            .from('profiles')
-            .select('name, avatar_url')
-            .eq('user_id', conv.assigned_to)
-            .maybeSingle();
-          assigned_user = userData;
-        }
-
-        // Fetch tags
-        const { data: tagAssignments } = await (supabase as any)
-          .from('instagram_conversation_tag_assignments')
-          .select('tag_id, instagram_conversation_tags(id, name, color)')
-          .eq('conversation_id', conv.id);
-
-        return {
-          ...conv,
-          assigned_user,
-          tags: tagAssignments?.map((ta: any) => ta.instagram_conversation_tags) || [],
-        };
-      })
-    );
-
-    setConversations(conversationsWithData as InstagramConversation[]);
-  }, [igOrgId]);
-
-  // Fetch messages for selected conversation
-  const fetchMessages = useCallback(async (conversationId: string) => {
-    // Fetch messages without the problematic join
-    const { data, error } = await (supabase as any)
-      .from('instagram_messages')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .order('sent_at', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching messages:', error);
-      return;
-    }
-
-    // Fetch sender info separately for outgoing messages
-    const messagesWithSender = await Promise.all(
-      (data || []).map(async (msg: any) => {
-        let sender = null;
-        if (msg.sent_by) {
-          const { data: userData } = await supabase
-            .from('profiles')
-            .select('name, avatar_url')
-            .eq('user_id', msg.sent_by)
-            .maybeSingle();
-          sender = userData;
-        }
-        return { ...msg, sender };
-      })
-    );
-
-    setMessages(messagesWithSender as InstagramMessage[]);
-
-    // Mark as read
-    await (supabase as any)
-      .from('instagram_conversations')
-      .update({ unread_count: 0 })
-      .eq('id', conversationId);
+    // instagram_conversations not in current API — return empty
   }, []);
 
-  // Fetch quick replies
+  const fetchMessages = useCallback(async (_conversationId: string) => {
+    // instagram_messages not in current API
+  }, []);
+
   const fetchQuickReplies = useCallback(async () => {
-    if (!igOrgId) return;
+    // instagram_quick_replies not in current API
+  }, []);
 
-    const { data, error } = await (supabase as any)
-      .from('instagram_quick_replies')
-      .select('*')
-      .eq('organization_id', igOrgId)
-      .order('usage_count', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching quick replies:', error);
-    } else {
-      setQuickReplies((data || []) as QuickReply[]);
-    }
-  }, [igOrgId]);
-
-  // Fetch tags
   const fetchTags = useCallback(async () => {
-    if (!igOrgId) return;
+    // instagram_conversation_tags not in current API
+  }, []);
 
-    const { data, error } = await (supabase as any)
-      .from('instagram_conversation_tags')
-      .select('*')
-      .eq('organization_id', igOrgId);
-
-    if (error) {
-      console.error('Error fetching tags:', error);
-    } else {
-      setTags((data || []) as ConversationTag[]);
-    }
-  }, [igOrgId]);
-
-  // Send message
-  const sendMessage = async (content: string, quickReplyId?: string) => {
-    if (!selectedConversation) return;
-
+  const sendMessage = async (_content: string, _quickReplyId?: string) => {
     setSending(true);
-    try {
-      // Instagram DM sending not available in new API
-      toast({
-        title: "Não disponível",
-        description: "Instagram DM não disponível no momento",
-        variant: "destructive",
-      });
-    } catch (error: any) {
-      console.error('Error sending message:', error);
-      toast({
-        title: "Erro ao enviar",
-        description: error.message || "Não foi possível enviar a mensagem",
-        variant: "destructive",
-      });
-    } finally {
-      setSending(false);
-    }
+    toast({ title: "Não disponível", description: "Instagram DM não disponível no momento", variant: "destructive" });
+    setSending(false);
   };
 
-  // Update conversation status
-  const updateConversationStatus = async (conversationId: string, status: 'open' | 'pending' | 'closed') => {
-    const { error } = await (supabase as any)
-      .from('instagram_conversations')
-      .update({ 
-        status, 
-        closed_at: status === 'closed' ? new Date().toISOString() : null,
-        closed_by: status === 'closed' ? profile?.id : null,
-      })
-      .eq('id', conversationId);
-
-    if (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível atualizar o status",
-        variant: "destructive",
-      });
-    } else {
-      await fetchConversations();
-    }
+  const updateConversationStatus = async (_conversationId: string, _status: 'open' | 'pending' | 'closed') => {
+    toast({ title: "Não disponível", description: "Atualização de status Instagram não disponível", variant: "destructive" });
   };
 
-  // Transfer conversation
-  const transferConversation = async (conversationId: string, newUserId: string) => {
-    const { error } = await (supabase as any)
-      .from('instagram_conversations')
-      .update({ assigned_to: newUserId })
-      .eq('id', conversationId);
-
-    if (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível transferir a conversa",
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Conversa transferida",
-        description: "A conversa foi transferida com sucesso",
-      });
-      await fetchConversations();
-    }
+  const transferConversation = async (_conversationId: string, _newUserId: string) => {
+    toast({ title: "Não disponível", description: "Transferência Instagram não disponível", variant: "destructive" });
   };
 
-  // Add tag to conversation
-  const addTagToConversation = async (conversationId: string, tagId: string) => {
-    const { error } = await (supabase as any)
-      .from('instagram_conversation_tag_assignments')
-      .insert({
-        conversation_id: conversationId,
-        tag_id: tagId,
-        assigned_by: profile?.id,
-      });
+  const addTagToConversation = async (_conversationId: string, _tagId: string) => { /* no-op */ };
+  const removeTagFromConversation = async (_conversationId: string, _tagId: string) => { /* no-op */ };
 
-    if (error && error.code !== '23505') { // Ignore duplicate key error
-      toast({
-        title: "Erro",
-        description: "Não foi possível adicionar a tag",
-        variant: "destructive",
-      });
-    } else {
-      await fetchConversations();
-    }
+  const updateConversationLead = async (_conversationId: string, _leadId: string) => {
+    toast({ title: "Não disponível", description: "Vinculação de lead Instagram não disponível", variant: "destructive" });
+    return false;
   };
 
-  // Remove tag from conversation
-  const removeTagFromConversation = async (conversationId: string, tagId: string) => {
-    const { error } = await (supabase as any)
-      .from('instagram_conversation_tag_assignments')
-      .delete()
-      .eq('conversation_id', conversationId)
-      .eq('tag_id', tagId);
-
-    if (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível remover a tag",
-        variant: "destructive",
-      });
-    } else {
-      await fetchConversations();
-    }
+  const createQuickReply = async (_title: string, _content: string, _shortcut?: string, _category?: string) => {
+    toast({ title: "Não disponível", description: "Respostas rápidas Instagram não disponíveis", variant: "destructive" });
   };
 
-  // Update conversation lead
-  const updateConversationLead = async (conversationId: string, leadId: string) => {
-    const { error } = await (supabase as any)
-      .from('instagram_conversations')
-      .update({ lead_id: leadId })
-      .eq('id', conversationId);
-
-    if (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível vincular o lead à conversa",
-        variant: "destructive",
-      });
-      return false;
-    } else {
-      toast({
-        title: "Lead vinculado",
-        description: "O lead foi vinculado à conversa com sucesso",
-      });
-      await fetchConversations();
-      return true;
-    }
+  const createTag = async (_name: string, _color: string) => {
+    toast({ title: "Não disponível", description: "Tags Instagram não disponíveis", variant: "destructive" });
   };
 
-  // Create quick reply
-  const createQuickReply = async (title: string, content: string, shortcut?: string, category?: string) => {
-    const { error } = await (supabase as any)
-      .from('instagram_quick_replies')
-      .insert({
-        organization_id: igOrgId,
-        title,
-        content,
-        shortcut,
-        category,
-        created_by: profile?.id,
-      });
-
-    if (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível criar a resposta rápida",
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Resposta rápida criada",
-        description: "A resposta rápida foi criada com sucesso",
-      });
-      await fetchQuickReplies();
-    }
-  };
-
-  // Create tag
-  const createTag = async (name: string, color: string) => {
-    const { error } = await (supabase as any)
-      .from('instagram_conversation_tags')
-      .insert({
-        organization_id: igOrgId,
-        name,
-        color,
-        created_by: profile?.id,
-      });
-
-    if (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível criar a tag",
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Tag criada",
-        description: "A tag foi criada com sucesso",
-      });
-      await fetchTags();
-    }
-  };
-
-  // Select conversation
   const selectConversation = (conversation: InstagramConversation | null) => {
     setSelectedConversation(conversation);
-    if (conversation) {
-      fetchMessages(conversation.id);
-    } else {
-      setMessages([]);
-    }
+    if (conversation) fetchMessages(conversation.id);
   };
 
-  // Initial load
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      await Promise.all([
-        fetchConnections(),
-        fetchConversations(),
-        fetchQuickReplies(),
-        fetchTags(),
-      ]);
-      setLoading(false);
-    };
-
     if (igOrgId) {
-      loadData();
+      fetchConnections().finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
-  }, [igOrgId, fetchConnections, fetchConversations, fetchQuickReplies, fetchTags]);
-
-  // Real-time subscription for new messages — no-op, handled via Socket.io
-  useEffect(() => {
-    // Instagram realtime subscription not available in new architecture
-  }, [igOrgId, selectedConversation, fetchMessages, fetchConversations]);
+  }, [igOrgId, fetchConnections]);
 
   return {
     connections,
