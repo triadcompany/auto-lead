@@ -58,13 +58,8 @@ export default function AdminDiagnostico() {
     if (!orgId) return;
     setWaLoading(true);
     try {
-      const { data } = await supabase
-        .from('whatsapp_routing_settings')
-        .select('enabled, mode, updated_at')
-        .eq('organization_id', orgId)
-        .limit(1)
-        .maybeSingle();
-      setWaStatus(data ? { instance: data.mode || '—', status: data.enabled ? 'connected' : 'disconnected', updated: data.updated_at } : { status: 'Nenhuma configuração' });
+      const data = await api.routingSettings.get().catch(() => null);
+      setWaStatus(data ? { instance: (data as any).mode || '—', status: (data as any).enabled ? 'connected' : 'disconnected', updated: (data as any).updated_at || (data as any).updatedAt } : { status: 'Nenhuma configuração' });
     } catch { setWaStatus({ status: 'Erro ao buscar' }); }
     setWaLoading(false);
   }, [orgId]);
@@ -95,46 +90,31 @@ export default function AdminDiagnostico() {
 
       switch (idx) {
         case 0: { // update sensitive setting
-          const { error } = await supabase
-            .from('lead_distribution_settings')
-            .update({ updated_at: new Date().toISOString() })
-            .eq('organization_id', orgId!);
-          succeeded = !error;
-          if (error) updateTest(idx, { message: error.message });
+          const result = await api.leadDistribution.update({ updated_at: new Date().toISOString() } as any).catch((e: any) => ({ error: e }));
+          succeeded = !(result as any)?.error;
+          if ((result as any)?.error) updateTest(idx, { message: (result as any).error?.message || 'Erro desconhecido' });
           break;
         }
         case 1: { // create automation
           const dummyName = `Teste Permissão - ${Date.now()}`;
-          const { data, error } = await supabase
-            .from('automations')
-            .insert({ name: dummyName, organization_id: orgId!, created_by: user?.id || 'diag', channel: 'whatsapp' })
-            .select('id')
-            .single();
-          succeeded = !error && !!data;
-          if (error) updateTest(idx, { message: error.message });
-          // cleanup (best-effort)
-          if (data?.id) {
-            try { await api.automations.delete(data.id); } catch {}
+          const created = await api.automations.create({ name: dummyName, channel: 'whatsapp' } as any).catch(() => null);
+          succeeded = !!created?.id;
+          if (!succeeded) updateTest(idx, { message: 'Erro ao criar automação' });
+          if (created?.id) {
+            try { await api.automations.delete(created.id); } catch {}
           }
           break;
         }
         case 2: { // update sale value
-          const { data: opp } = await supabase
-            .from('opportunities')
-            .select('id, value')
-            .eq('organization_id', orgId!)
-            .limit(1)
-            .maybeSingle();
+          const opps = await api.opportunities.list({ limit: 1 } as any).catch(() => []);
+          const opp = (opps || [])[0];
           if (!opp) {
             updateTest(idx, { status: 'error', message: 'Nenhuma oportunidade encontrada para testar', timestamp: ts });
             return;
           }
-          const { error } = await supabase
-            .from('opportunities')
-            .update({ value: opp.value ?? 0 })
-            .eq('id', opp.id);
-          succeeded = !error;
-          if (error) updateTest(idx, { message: error.message });
+          const upd = await api.opportunities.update(opp.id, { value: opp.value ?? 0 } as any).catch((e: any) => ({ error: e }));
+          succeeded = !(upd as any)?.error;
+          if ((upd as any)?.error) updateTest(idx, { message: (upd as any).error?.message || 'Erro desconhecido' });
           break;
         }
         case 3: { // create CAPI event — table not in new schema, no-op
