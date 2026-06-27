@@ -454,14 +454,17 @@ export default async function metaRoutes(fastify: FastifyInstance) {
     }
 
     if (action === "check") {
-      const settings = await (prisma as any).metaCapiSettings?.findFirst?.({
-        where: { organizationId: orgId },
-      }).catch(() => null)
+      const [settings, org] = await Promise.all([
+        (prisma as any).metaCapiSettings?.findFirst?.({ where: { organizationId: orgId } }).catch(() => null),
+        prisma.organization.findFirst({ where: { id: orgId } }).catch(() => null),
+      ])
       return {
         ok: true,
-        has_settings: !!settings,
-        enabled: settings?.enabled ?? false,
-        pixel_id: settings?.pixelId ? `***${settings.pixelId.slice(-4)}` : null,
+        user_id: (req as any).auth?.userId || orgId || null,
+        organization_id: orgId || null,
+        org_exists: !!org,
+        is_admin: true,
+        settings_exists: !!settings,
       }
     }
 
