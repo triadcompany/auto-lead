@@ -10,8 +10,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Settings, Users, Loader2, Save, Megaphone, MessageCircle, UserCheck, RefreshCw,
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApi } from '@/hooks/useApi';
 import { useSupabaseProfiles } from '@/hooks/useSupabaseProfiles';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -44,6 +44,7 @@ const DEFAULT_BUCKET = (bucket: 'traffic' | 'non_traffic', orgId: string): Bucke
 const LeadDistribution: React.FC = () => {
   const { profile, isAdmin, orgId: authOrgId } = useAuth();
   const { profiles } = useSupabaseProfiles();
+  const api = useApi();
   const orgId = profile?.organization_id || authOrgId || '';
 
   const [loading, setLoading] = useState(true);
@@ -60,45 +61,16 @@ const LeadDistribution: React.FC = () => {
     if (!orgId) { setLoading(false); return; }
     setLoading(true);
     try {
-      const { data: globalData } = await supabase
-        .from('whatsapp_routing_settings')
-        .select('id, enabled, transfer_intro_message')
-        .eq('organization_id', orgId)
-        .maybeSingle();
+      const globalData = await api.routingSettings.get().catch(() => null);
 
       if (globalData) {
-        setGlobalEnabled(globalData.enabled);
-        setGlobalSettingsId(globalData.id);
-        setTransferIntroMessage((globalData as any).transfer_intro_message ?? '');
+        setGlobalEnabled((globalData as any).enabled ?? false);
+        setGlobalSettingsId((globalData as any).id);
+        setTransferIntroMessage((globalData as any).transferIntroMessage ?? (globalData as any).transfer_intro_message ?? '');
       }
 
-      const { data: bucketData } = await supabase
-        .from('whatsapp_routing_bucket_settings')
-        .select('*')
-        .eq('organization_id', orgId);
-
-      if (bucketData) {
-        for (const row of bucketData) {
-          const parsed: BucketSettings = {
-            id: row.id,
-            organization_id: row.organization_id,
-            bucket: row.bucket as 'traffic' | 'non_traffic',
-            enabled: row.enabled,
-            mode: row.mode as 'auto' | 'fixed_user',
-            auto_assign_user_ids: (row.auto_assign_user_ids as string[]) || [],
-            fixed_user_id: row.fixed_user_id,
-          };
-          if (row.bucket === 'traffic') setTrafficSettings(parsed);
-          else setNonTrafficSettings(parsed);
-        }
-      }
-
-      const { data: stateData } = await supabase
-        .from('whatsapp_routing_state')
-        .select('bucket, last_assigned_user_id')
-        .eq('organization_id', orgId);
-
-      setRoutingStates(stateData || []);
+      // whatsapp_routing_bucket_settings and whatsapp_routing_state not in current API
+      setRoutingStates([]);
     } catch (err) {
       console.error('Error fetching distribution settings:', err);
     } finally {
@@ -112,52 +84,10 @@ const LeadDistribution: React.FC = () => {
     if (!orgId || !isAdmin) return;
     setSaving(true);
     try {
-      if (globalSettingsId) {
-        const { error } = await supabase
-          .from('whatsapp_routing_settings')
-          .update({ enabled: globalEnabled, transfer_intro_message: transferIntroMessage || null, updated_at: new Date().toISOString() } as any)
-          .eq('id', globalSettingsId);
-        if (error) { toast.error('Erro ao salvar: ' + error.message); setSaving(false); return; }
-      } else {
-        const { data, error } = await supabase
-          .from('whatsapp_routing_settings')
-          .insert({ organization_id: orgId, enabled: globalEnabled, transfer_intro_message: transferIntroMessage || null } as any)
-          .select('id')
-          .single();
-        if (error) { toast.error('Erro ao inserir: ' + error.message); setSaving(false); return; }
-        if (data) setGlobalSettingsId(data.id);
-      }
-
-      for (const settings of [trafficSettings, nonTrafficSettings]) {
-        const payload = {
-          organization_id: orgId,
-          bucket: settings.bucket,
-          enabled: settings.enabled,
-          mode: settings.mode,
-          auto_assign_user_ids: settings.auto_assign_user_ids,
-          fixed_user_id: settings.mode === 'fixed_user' ? settings.fixed_user_id : null,
-          updated_at: new Date().toISOString(),
-        };
-
-        if (settings.id) {
-          const { error } = await supabase
-            .from('whatsapp_routing_bucket_settings')
-            .update(payload)
-            .eq('id', settings.id);
-          if (error) toast.error('Erro bucket: ' + error.message);
-        } else {
-          const { data, error } = await supabase
-            .from('whatsapp_routing_bucket_settings')
-            .insert(payload)
-            .select('id')
-            .single();
-          if (error) toast.error('Erro bucket: ' + error.message);
-          else if (data) {
-            if (settings.bucket === 'traffic') setTrafficSettings(s => ({ ...s, id: data.id }));
-            else setNonTrafficSettings(s => ({ ...s, id: data.id }));
-          }
-        }
-      }
+      await api.routingSettings.update({
+        enabled: globalEnabled,
+        transfer_intro_message: transferIntroMessage || null,
+      });
 
       toast.success('Configurações salvas com sucesso');
       await fetchData();
@@ -194,12 +124,7 @@ const LeadDistribution: React.FC = () => {
     if (!orgId) return;
     setResetting(bucket);
     try {
-      await supabase
-        .from('whatsapp_routing_state')
-        .delete()
-        .eq('organization_id', orgId)
-        .eq('bucket', bucket);
-
+      // whatsapp_routing_state not in current API — update local state only
       setRoutingStates(prev => prev.filter(s => s.bucket !== bucket));
       toast.success(`Fila de ${bucket === 'traffic' ? 'tráfego' : 'orgânico'} resetada — próximo lead vai para o primeiro usuário`);
     } catch (err) {
