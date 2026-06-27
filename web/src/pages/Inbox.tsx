@@ -826,11 +826,7 @@ export default function InboxPage() {
     queryKey: ['conversation-tasks', selectedThreadId],
     queryFn: async () => {
       if (!selectedThreadId) return [];
-      const { data, error } = await (supabase as any).rpc('get_conversation_tasks', {
-        p_conversation_id: selectedThreadId,
-      });
-      if (error) throw error;
-      return (data ?? []) as any[];
+      return api.conversationTasks.list(selectedThreadId).catch(() => []);
     },
     enabled: !!selectedThreadId,
   });
@@ -839,11 +835,7 @@ export default function InboxPage() {
     queryKey: ['conversation-appointments', selectedThreadId],
     queryFn: async () => {
       if (!selectedThreadId) return [];
-      const { data, error } = await (supabase as any).rpc('get_conversation_appointments', {
-        p_conversation_id: selectedThreadId,
-      });
-      if (error) throw error;
-      return (data ?? []) as any[];
+      return api.conversationAppointments.list(selectedThreadId).catch(() => []);
     },
     enabled: !!selectedThreadId,
   });
@@ -867,15 +859,14 @@ export default function InboxPage() {
   }) => {
     if (!selectedThreadId) return;
     try {
-      const { error } = await (supabase as any).rpc('create_conversation_task', {
-        p_conversation_id: selectedThreadId,
-        p_titulo: taskData.titulo,
-        p_data_hora: taskData.data_hora,
-        p_descricao: taskData.descricao ?? null,
-        p_prioridade: taskData.prioridade ?? null,
-        p_responsavel_id: taskData.responsavel_id ?? null,
+      await api.conversationTasks.create(selectedThreadId, {
+        titulo: taskData.titulo,
+        data_hora: taskData.data_hora,
+        descricao: taskData.descricao ?? null,
+        prioridade: taskData.prioridade ?? null,
+        responsavel_id: taskData.responsavel_id ?? null,
+        lead_id: selectedThread?.leadId || selectedThread?.lead_id || null,
       });
-      if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['conversation-tasks', selectedThreadId] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Tarefa criada');
@@ -894,14 +885,12 @@ export default function InboxPage() {
   }) => {
     if (!selectedThreadId) return;
     try {
-      const { error } = await (supabase as any).rpc('create_conversation_appointment', {
-        p_conversation_id: selectedThreadId,
-        p_datetime: apptData.datetime,
-        p_tipo: apptData.tipo,
-        p_duration_minutes: apptData.duration_minutes ?? null,
-        p_anotacoes: apptData.anotacoes ?? null,
+      await api.conversationAppointments.create(selectedThreadId, {
+        datetime: apptData.datetime,
+        tipo: apptData.tipo,
+        duration_minutes: apptData.duration_minutes ?? null,
+        anotacoes: apptData.anotacoes ?? null,
       });
-      if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['conversation-appointments', selectedThreadId] });
       toast.success('Agendamento criado');
     } catch (err: any) {
@@ -915,15 +904,7 @@ export default function InboxPage() {
     queryKey: ['ai-block-reason', selectedThreadId],
     queryFn: async () => {
       if (!selectedThreadId) return null;
-      const { data } = await (supabase as any)
-        .from('ai_auto_reply_jobs')
-        .select('id, status, error, result, processed_at')
-        .eq('conversation_id', selectedThreadId)
-        .eq('status', 'blocked')
-        .order('processed_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      return data;
+      return api.conversationAiJobs.latest(selectedThreadId).catch(() => null);
     },
     enabled: !!selectedThreadId && selectedThread?.ai_mode === 'auto',
     refetchInterval: 15000,
