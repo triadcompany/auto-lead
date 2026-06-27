@@ -598,7 +598,7 @@ async function sendMetaCapiForLead(
 
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
-    select: { name: true, phone: true, email: true, valorNegocio: true, cidade: true, estado: true, fbc: true, fbp: true },
+    select: { name: true, phone: true, email: true, valorNegocio: true, cidade: true, estado: true, fbc: true, fbp: true, metaCampaignId: true, metaAdsetId: true, metaAdId: true },
   }).catch(() => null)
   if (!lead) return
 
@@ -631,15 +631,36 @@ async function sendMetaCapiForLead(
   else if (eventName === "Purchase" && lead.valorNegocio) customData.value = lead.valorNegocio
 
   const eventId = `${leadId}_${eventName}_${Date.now()}`
+  // Referência de anúncio para melhor atribuição
+  const dataEvent: Record<string, unknown> = {
+    event_name: eventName,
+    event_time: Math.floor(Date.now() / 1000),
+    event_id: eventId,
+    action_source: "other",
+    user_data: userData,
+    custom_data: customData,
+  }
+  if (lead.metaCampaignId) {
+    (dataEvent as any).referral_info = {
+      ...(dataEvent as any).referral_info,
+      campaign_id: lead.metaCampaignId,
+    }
+  }
+  if (lead.metaAdsetId) {
+    (dataEvent as any).referral_info = {
+      ...(dataEvent as any).referral_info,
+      adgroup_id: lead.metaAdsetId,
+    }
+  }
+  if (lead.metaAdId) {
+    (dataEvent as any).referral_info = {
+      ...(dataEvent as any).referral_info,
+      ad_id: lead.metaAdId,
+    }
+  }
+
   const payload: Record<string, unknown> = {
-    data: [{
-      event_name: eventName,
-      event_time: Math.floor(Date.now() / 1000),
-      event_id: eventId,
-      action_source: "other",
-      user_data: userData,
-      custom_data: customData,
-    }],
+    data: [dataEvent],
   }
   if (settings.testEventCode) payload.test_event_code = settings.testEventCode
 
