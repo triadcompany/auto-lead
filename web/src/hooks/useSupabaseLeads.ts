@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { useToast } from '@/hooks/use-toast';
 import { useApi } from '@/hooks/useApi';
 import { useSocket } from '@/hooks/useSocket';
@@ -94,6 +95,7 @@ export function useSupabaseLeads(pipelineId?: string) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const api = useApi();
+  const { getToken } = useClerkAuth();
   const { on } = useSocket();
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -218,24 +220,27 @@ export function useSupabaseLeads(pipelineId?: string) {
             fromId: currentLead.stage_id, toId: newStageId }
         );
 
-        publishAutomationEvent({
-          organizationId: profile.organization_id,
-          eventName: AI_EVENTS.DEAL_STAGE_CHANGED as any,
-          entityType: 'lead', entityId: currentLead.id, leadId: currentLead.id,
-          payload: {
-            trace_id: crypto.randomUUID(),
-            lead_id: currentLead.id, phone: currentLead.phone,
-            email: currentLead.email, lead_name: currentLead.name,
-            lead_source: currentLead.source,
-            lead_value: currentLead.valor_negocio || null,
-            from_stage_id: currentLead.stage_id, from_stage_name: oldStage?.name || '',
-            to_stage_id: newStageId, to_stage_name: newStage?.name || '',
-            pipeline_id: pipelineId || '', changed_by_user_id: profile.id,
-            occurred_at: new Date().toISOString(),
-          },
-          source: 'human',
-          idempotencyParts: [currentLead.id, newStageId],
-        }).catch(() => {/* non-blocking */});
+        getToken().then(token =>
+          publishAutomationEvent({
+            organizationId: profile.organization_id,
+            eventName: AI_EVENTS.DEAL_STAGE_CHANGED as any,
+            entityType: 'lead', entityId: currentLead.id, leadId: currentLead.id,
+            payload: {
+              trace_id: crypto.randomUUID(),
+              lead_id: currentLead.id, phone: currentLead.phone,
+              email: currentLead.email, lead_name: currentLead.name,
+              lead_source: currentLead.source,
+              lead_value: currentLead.valor_negocio || null,
+              from_stage_id: currentLead.stage_id, from_stage_name: oldStage?.name || '',
+              to_stage_id: newStageId, to_stage_name: newStage?.name || '',
+              pipeline_id: pipelineId || '', changed_by_user_id: profile.id,
+              occurred_at: new Date().toISOString(),
+            },
+            source: 'human',
+            idempotencyParts: [currentLead.id, newStageId],
+            token,
+          })
+        ).catch(() => {/* non-blocking */});
       }
     },
     onError: (err: Error, _, context) => {
