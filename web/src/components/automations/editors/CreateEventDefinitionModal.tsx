@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useApi } from "@/hooks/useApi";
 
 interface Props {
   open: boolean;
@@ -22,6 +22,7 @@ interface Props {
 
 export function CreateEventDefinitionModal({ open, onClose, organizationId, onCreated }: Props) {
   const { toast } = useToast();
+  const api = useApi();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -43,9 +44,8 @@ export function CreateEventDefinitionModal({ open, onClose, organizationId, onCr
     }
 
     setSaving(true);
-    const { data, error } = await supabase
-      .from("capi_event_definitions" as any)
-      .insert({
+    try {
+      const data = await api.automations.createEventDefinition({
         organization_id: organizationId,
         name: form.name.trim(),
         meta_event_name: form.meta_event_name.trim(),
@@ -54,35 +54,29 @@ export function CreateEventDefinitionModal({ open, onClose, organizationId, onCr
         send_user_data: form.send_user_data,
         send_location: form.send_location,
         active: form.active,
-      })
-      .select("id, name, meta_event_name")
-      .single();
-    setSaving(false);
+      });
 
-    if (error) {
-      const isDuplicate = error.message?.includes("uq_capi_event_def_org_meta_name") || error.code === "23505";
+      toast({ title: "Sucesso", description: "Evento criado com sucesso." });
+      onCreated(data as any);
+      setForm({
+        name: "",
+        meta_event_name: "",
+        default_currency: "BRL",
+        send_value: true,
+        send_user_data: true,
+        send_location: true,
+        active: true,
+      });
+      onClose();
+    } catch (err: any) {
       toast({
         title: "Erro",
-        description: isDuplicate
-          ? "Já existe um evento com esse meta_event_name nesta organização."
-          : error.message,
+        description: err?.message || "Erro ao salvar evento.",
         variant: "destructive",
       });
-      return;
+    } finally {
+      setSaving(false);
     }
-
-    toast({ title: "Sucesso", description: "Evento criado com sucesso." });
-    onCreated(data as any);
-    setForm({
-      name: "",
-      meta_event_name: "",
-      default_currency: "BRL",
-      send_value: true,
-      send_user_data: true,
-      send_location: true,
-      active: true,
-    });
-    onClose();
   };
 
   return (
