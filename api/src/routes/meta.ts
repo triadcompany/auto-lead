@@ -201,6 +201,13 @@ export default async function metaRoutes(fastify: FastifyInstance) {
         email: (mapped.email || lead_data.email || null) as string | null,
         interest: (mapped.interest || null) as string | null,
         observations: (mapped.observations || null) as string | null,
+        // Rastreamento de anúncio — vindos do webhook Meta ou passados pelo n8n
+        metaCampaignId: (lead_data.campaign_id || null) as string | null,
+        metaCampaignName: (lead_data.campaign_name || null) as string | null,
+        metaAdsetId: (lead_data.adset_id || null) as string | null,
+        metaAdsetName: (lead_data.adset_name || null) as string | null,
+        metaAdId: (lead_data.ad_id || null) as string | null,
+        metaAdName: (lead_data.ad_name || null) as string | null,
       },
     })
 
@@ -515,5 +522,53 @@ export default async function metaRoutes(fastify: FastifyInstance) {
     const data = await res.json() as any
     if (res.ok && data.id) return { ok: true, pixel_name: data.name || data.id }
     return reply.code(400).send({ ok: false, error: data.error?.message || "Unknown error" })
+  })
+
+  // ── CAPI Mappings ──
+  fastify.get("/meta/capi-mappings", async (req) => {
+    return prisma.metaCapiMapping.findMany({
+      where: orgScope(req),
+      orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+    })
+  })
+
+  fastify.post<{ Body: Record<string, unknown> }>("/meta/capi-mappings", async (req, reply) => {
+    const b = req.body as any
+    const mapping = await prisma.metaCapiMapping.create({
+      data: {
+        organizationId: req.auth.orgId,
+        pipelineId: b.pipeline_id || null,
+        stageId: b.stage_id,
+        metaEvent: b.meta_event || b.meta_event_name || "Lead",
+        enabled: b.enabled ?? b.is_active ?? true,
+        priority: b.priority ?? 0,
+      },
+    })
+    return reply.code(201).send(mapping)
+  })
+
+  fastify.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    "/meta/capi-mappings/:id",
+    async (req) => {
+      const b = req.body as any
+      await prisma.metaCapiMapping.updateMany({
+        where: { id: req.params.id, ...orgScope(req) },
+        data: {
+          ...(b.pipeline_id !== undefined && { pipelineId: b.pipeline_id }),
+          ...(b.stage_id !== undefined && { stageId: b.stage_id }),
+          ...((b.meta_event !== undefined) && { metaEvent: b.meta_event }),
+          ...((b.meta_event_name !== undefined) && { metaEvent: b.meta_event_name }),
+          ...((b.enabled !== undefined || b.is_active !== undefined) && { enabled: b.enabled ?? b.is_active }),
+          ...(b.priority !== undefined && { priority: b.priority }),
+          updatedAt: new Date(),
+        },
+      })
+      return { ok: true }
+    }
+  )
+
+  fastify.delete<{ Params: { id: string } }>("/meta/capi-mappings/:id", async (req) => {
+    await prisma.metaCapiMapping.deleteMany({ where: { id: req.params.id, ...orgScope(req) } })
+    return { ok: true }
   })
 }
