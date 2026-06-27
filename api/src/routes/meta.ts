@@ -384,6 +384,94 @@ export default async function metaRoutes(fastify: FastifyInstance) {
     return { success: true }
   })
 
+  // ── CAPI Settings (GET + POST action dispatcher) ──
+  fastify.get("/meta/capi-settings", async (req) => {
+    const settings = await (prisma as any).metaCapiSettings?.findFirst?.({
+      where: { organizationId: req.auth.orgId },
+    }).catch(() => null)
+    return settings || null
+  })
+
+  fastify.post<{ Body: Record<string, unknown> }>("/meta/capi-settings", async (req, reply) => {
+    const body = req.body as any
+    const { action, payload, organization_id } = body
+    const orgId = req.auth.orgId || organization_id
+
+    if (action === "get") {
+      const settings = await (prisma as any).metaCapiSettings?.findFirst?.({
+        where: { organizationId: orgId },
+      }).catch(() => null)
+      return settings || null
+    }
+
+    if (action === "save") {
+      const data = {
+        pixelId: payload?.pixel_id,
+        accessToken: payload?.access_token,
+        testEventCode: payload?.test_event_code || null,
+        enabled: payload?.enabled ?? false,
+        updatedAt: new Date(),
+      }
+      const existing = await (prisma as any).metaCapiSettings?.findFirst?.({
+        where: { organizationId: orgId },
+      }).catch(() => null)
+
+      if (existing) {
+        await (prisma as any).metaCapiSettings?.update?.({
+          where: { id: existing.id },
+          data,
+        }).catch((e: Error) => reply.code(500).send({ ok: false, message: e.message }))
+      } else {
+        await (prisma as any).metaCapiSettings?.create?.({
+          data: { ...data, organizationId: orgId },
+        }).catch((e: Error) => reply.code(500).send({ ok: false, message: e.message }))
+      }
+      return { ok: true }
+    }
+
+    if (action === "test") {
+      const settings = await (prisma as any).metaCapiSettings?.findFirst?.({
+        where: { organizationId: orgId },
+      }).catch(() => null)
+      if (!settings) return reply.code(404).send({ ok: false, message: "Configuração não encontrada" })
+
+      const res = await fetch(
+        `https://graph.facebook.com/v18.0/${settings.pixelId}?access_token=${settings.accessToken}&fields=id,name`
+      )
+      const data = (await res.json()) as any
+      if (res.ok && data.id) return { ok: true, message: `Pixel "${data.name || data.id}" conectado com sucesso!` }
+      const errMsg = data.error?.message || "Erro desconhecido"
+      return reply.code(400).send({ ok: false, message: errMsg })
+    }
+
+    if (action === "queue_logs") {
+      const events = await (prisma as any).metaCapiEvent?.findMany?.({
+        where: { organizationId: orgId },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      }).catch(() => [])
+      return { ok: true, items: events || [] }
+    }
+
+    if (action === "check") {
+      const settings = await (prisma as any).metaCapiSettings?.findFirst?.({
+        where: { organizationId: orgId },
+      }).catch(() => null)
+      return {
+        ok: true,
+        has_settings: !!settings,
+        enabled: settings?.enabled ?? false,
+        pixel_id: settings?.pixelId ? `***${settings.pixelId.slice(-4)}` : null,
+      }
+    }
+
+    if (action === "queue_action") {
+      return { ok: true, message: "Ação registrada" }
+    }
+
+    return reply.code(400).send({ ok: false, message: `Unknown action: ${action}` })
+  })
+
   // ── CAPI Events log ──
   fastify.get("/meta/capi-events", async (req) => {
     const events = await (prisma as any).metaCapiEvent?.findMany?.({
