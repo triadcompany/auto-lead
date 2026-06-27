@@ -76,15 +76,16 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
     if (!orgId) return;
 
     const fetchData = async () => {
-      const [pipelines, sources, members] = await Promise.all([
+      const [pipelines, sources, members, eventDefs] = await Promise.all([
         api.pipelines.list(),
         api.leadSources.list(),
         api.users.list(),
+        api.automations.eventDefinitions().catch(() => []),
       ]);
       setPipelines(pipelines || []);
       setSources(sources || []);
       setMembers((members || []).map((m: any) => ({ id: m.id || m.user_id, name: m.name || m.full_name || m.clerk_user_id })));
-      setEventDefs([]); // capi_event_definitions not available in new API
+      setEventDefs((eventDefs || []).map((d: any) => ({ id: d.id, name: d.name, meta_event_name: d.metaEventName || d.meta_event_name })));
     };
     fetchData();
   }, [orgId]);
