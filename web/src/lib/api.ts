@@ -359,6 +359,42 @@ export function createApi(getToken: () => Promise<string | null>) {
       list: (q?: { status?: string }) => get<any[]>("/prospects", q as any),
       create: (data: Record<string, unknown>) => post<any>("/prospects", data),
     },
+
+    // ── Events ───────────────────────────────────────────────────────────────
+    events: {
+      publish: (data: Record<string, unknown>) => post<any>("/automation-events", data),
+    },
+
+    // ── Conversation extras ───────────────────────────────────────────────────
+    conversationTasks: {
+      list: (conversationId: string) => get<any[]>(`/conversations/${conversationId}/tasks`),
+      create: (conversationId: string, data: Record<string, unknown>) =>
+        post<any>(`/conversations/${conversationId}/tasks`, data),
+    },
+    conversationAppointments: {
+      list: (conversationId: string) => get<any[]>(`/conversations/${conversationId}/appointments`),
+      create: (conversationId: string, data: Record<string, unknown>) =>
+        post<any>(`/conversations/${conversationId}/appointments`, data),
+    },
+    conversationAiJobs: {
+      latest: (conversationId: string) => get<any>(`/conversations/${conversationId}/ai-jobs`),
+    },
+    conversationAiState: {
+      set: (conversationId: string, state: string) =>
+        patch(`/conversations/${conversationId}/ai-state`, { state }),
+    },
+
+    // ── WhatsApp settings ─────────────────────────────────────────────────────
+    whatsappSettings: {
+      get: () => get<any>("/whatsapp/settings"),
+      update: (data: Record<string, unknown>) => patch("/whatsapp/settings", data),
+    },
+
+    // ── Lead Distribution Audit ───────────────────────────────────────────────
+    leadDistributionAudit: {
+      list: (q?: { event?: string; limit?: number }) =>
+        get<any[]>("/lead-distribution/audit", q as any),
+    },
   }
 }
 
