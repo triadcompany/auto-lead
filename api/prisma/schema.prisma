@@ -879,6 +879,8 @@ model Conversation {
   isGroup                    Boolean   @default(false) @map("is_group")
   groupName                  String?   @map("group_name")
   groupParticipantsCount     Int?      @map("group_participants_count")
+  ctwaAdId                   String?   @map("ctwa_ad_id")
+  ctwaClid                   String?   @map("ctwa_clid")
   createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   organization  Organization @relation(fields: [organizationId], references: [id])
