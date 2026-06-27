@@ -22,15 +22,15 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PageHeader } from "@/components/layout/PageHeader";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const API_URL = (import.meta.env.VITE_API_URL as string) || '';
 
 async function apiCall(action: string, params: Record<string, unknown>) {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/automations-api`, {
-    method: "POST",
+  // Legacy automations-api action → use Fastify API equivalents
+  const res = await fetch(`${API_URL}/automations`, {
+    method: "GET",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, ...params }),
   });
-  return res.json();
+  return res.ok ? res.json() : { ok: false, items: [] };
 }
 
 // ─── Status badge helper ───
@@ -363,18 +363,11 @@ function MetaCapiTab({ orgId }: { orgId: string }) {
 
   const fetch_ = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/automations-api`, {
-      method: "POST",
+    const res = await fetch(`${API_URL}/meta/capi-events`, {
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "debug_meta_capi", organization_id: orgId, limit: 50 }),
     });
     const data = await res.json();
-    if (data.ok) {
-      setItems(data.items || []);
-    } else {
-      // Fallback: direct query via supabase client won't work from edge, try apiCall
-      setItems([]);
-    }
+    setItems(Array.isArray(data) ? data : []);
     setLoading(false);
   }, [orgId]);
 
@@ -465,10 +458,9 @@ export default function AdminDebugAutomations() {
   const handleRunWorker = async () => {
     setWorkerRunning(true);
     try {
-      await fetch(`${SUPABASE_URL}/functions/v1/automation-worker`, {
+      await fetch(`${API_URL}/automations/worker`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
       });
     } catch { /* ignore */ }
     setTimeout(() => setWorkerRunning(false), 3000);
