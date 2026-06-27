@@ -23,10 +23,10 @@ import { CalendarIcon, MessageCircle } from "lucide-react";
 import { format, addHours, setHours, setMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useApi } from "@/hooks/useApi";
 
 interface CreateFollowupModalProps {
   open: boolean;
@@ -46,6 +46,7 @@ export function CreateFollowupModal({
   const { profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const api = useApi();
   
   const [loading, setLoading] = useState(false);
   const [date, setDate] = useState<Date | undefined>(addHours(new Date(), 1));
@@ -72,20 +73,14 @@ export function CreateFollowupModal({
       const [hours, minutes] = time.split(':').map(Number);
       const scheduledFor = setMinutes(setHours(date, hours), minutes);
 
-      const { error } = await supabase
-        .from('followups')
-        .insert({
-          organization_id: profile.organization_id,
-          lead_id: leadId,
-          assigned_to: sellerId,
-          scheduled_for: scheduledFor.toISOString(),
-          channel,
-          message_custom: message || null,
-          status: 'PENDENTE',
-          created_by: profile.user_id,
-        });
-
-      if (error) throw error;
+      await api.followups.create({
+        lead_id: leadId,
+        assigned_to: sellerId,
+        scheduled_for: scheduledFor.toISOString(),
+        channel,
+        message_custom: message || null,
+        status: 'PENDENTE',
+      });
 
       toast({
         title: "Follow-up criado",
