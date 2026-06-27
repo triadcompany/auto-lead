@@ -435,11 +435,29 @@ export default async function metaRoutes(fastify: FastifyInstance) {
       }).catch(() => null)
       if (!settings) return reply.code(404).send({ ok: false, message: "Configuração não encontrada" })
 
+      // Tokens CAPI são System User tokens — só têm permissão de envio, não de leitura do pixel.
+      // O teste correto é enviar um evento mínimo para a Conversions API.
+      const testPayload: Record<string, unknown> = {
+        data: [{
+          event_name: "Lead",
+          event_time: Math.floor(Date.now() / 1000),
+          event_id: `test_${Date.now()}`,
+          action_source: "other",
+          user_data: { client_user_agent: "test" },
+        }],
+      }
+      if (settings.testEventCode) testPayload.test_event_code = settings.testEventCode
+
       const res = await fetch(
-        `https://graph.facebook.com/v18.0/${settings.pixelId}?access_token=${settings.accessToken}&fields=id,name`
+        `https://graph.facebook.com/v18.0/${settings.pixelId}/events?access_token=${settings.accessToken}`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(testPayload) }
       )
       const data = (await res.json()) as any
-      if (res.ok && data.id) return { ok: true, message: `Pixel "${data.name || data.id}" conectado com sucesso!` }
+      if (res.ok && (data.events_received !== undefined || data.fbtrace_id)) {
+        const received = data.events_received ?? 1
+        const extra = settings.testEventCode ? ` Verifique no Gerenciador de Eventos → Teste de Eventos.` : ""
+        return { ok: true, message: `Conexão OK! ${received} evento(s) aceito(s) pela Meta.${extra}` }
+      }
       const errMsg = data.error?.message || "Erro desconhecido"
       return reply.code(400).send({ ok: false, message: errMsg })
     }
