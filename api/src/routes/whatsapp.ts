@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js"
 import { orgScope } from "../lib/auth.js"
 import { emit } from "../plugins/socket.js"
 import { findPausedReplyRouterRun, matchReply, resumeRun, fireAutomationTrigger } from "../lib/automationRunner.js"
+import { enrichLeadFromCtwa } from "../lib/metaCtwa.js"
 
 async function evolutionFetch(path: string, options: RequestInit = {}) {
   const base = process.env.EVOLUTION_API_URL?.replace(/\/$/, "")
@@ -43,6 +44,11 @@ async function syncIncomingMessage(
   let body: string | null = null
   let messageType = "text"
 
+  // Extrai dados CTWA (Click-to-WhatsApp) — presentes na 1ª mensagem de anúncio
+  const externalAdReply = msg.extendedTextMessage?.contextInfo?.externalAdReply
+  const ctwaAdId: string | null = externalAdReply?.sourceId || null
+  const ctwaClid: string | null = externalAdReply?.ctwaClid || null
+
   if (msg.conversation) {
     body = msg.conversation
   } else if (msg.extendedTextMessage?.text) {
@@ -82,10 +88,17 @@ async function syncIncomingMessage(
         lastMessageAt: timestamp,
         lastMessagePreview: body?.substring(0, 100) || `[${messageType}]`,
         unreadCount: fromMe ? 0 : 1,
+        ...(ctwaAdId ? { ctwaAdId } : {}),
+        ...(ctwaClid ? { ctwaClid } : {}),
       },
       select: { id: true, contactName: true, unreadCount: true },
     }).catch(() => null)
     isNewConversation = true
+  } else if (ctwaAdId) {
+    await prisma.conversation.update({
+      where: { id: conv.id },
+      data: { ...(ctwaAdId ? { ctwaAdId } : {}), ...(ctwaClid ? { ctwaClid } : {}) },
+    }).catch(() => null)
   }
 
   if (!conv) return
@@ -142,6 +155,14 @@ async function syncIncomingMessage(
         select: { id: true },
       }).catch(() => null)
     : null
+
+  // Enriquece lead com dados CTWA se mensagem veio de anúncio Click-to-WhatsApp
+  if (!fromMe && ctwaAdId && lead) {
+    setImmediate(() =>
+      enrichLeadFromCtwa(orgId, lead.id, ctwaAdId, ctwaClid)
+        .catch((e) => console.error("[whatsapp] CTWA enrichment error:", e))
+    )
+  }
 
   // Dispara automações de "primeira mensagem" apenas para mensagens inbound novas
   if (!fromMe && isNewConversation) {
@@ -475,5 +496,35 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     }).catch(() => null)
     if (!updated?.count) return reply.code(404).send({ error: "Not found" })
     return { ok: true }
+  })
+
+  // GET /whatsapp/routing-settings — configurações de distribuição de conversas
+  fastify.get("/whatsapp/routing-settings", async (req) => {
+    return prisma.whatsappRoutingSettings.findFirst({ where: orgScope(req) }) || null
+  })
+
+  // PUT /whatsapp/routing-settings — upsert configurações de roteamento
+  fastify.put<{ Body: Record<string, unknown> }>("/whatsapp/routing-settings", async (req) => {
+    const b = req.body as any
+    const existing = await prisma.whatsappRoutingSettings.findFirst({ where: orgScope(req) })
+    const data: Record<string, unknown> = {
+      ...(b.enabled !== undefined && { enabled: b.enabled }),
+      ...(b.mode !== undefined && { mode: b.mode }),
+      ...(b.assign_on !== undefined && { assignOn: b.assign_on }),
+      ...(b.only_roles !== undefined && { onlyRoles: b.only_roles }),
+      ...(b.business_hours_enabled !== undefined && { businessHoursEnabled: b.business_hours_enabled }),
+      ...(b.business_hours !== undefined && { businessHours: b.business_hours }),
+      ...(b.traffic_enabled !== undefined && { trafficEnabled: b.traffic_enabled }),
+      ...(b.non_traffic_enabled !== undefined && { nonTrafficEnabled: b.non_traffic_enabled }),
+      ...(b.traffic_roles !== undefined && { trafficRoles: b.traffic_roles }),
+      ...(b.non_traffic_roles !== undefined && { nonTrafficRoles: b.non_traffic_roles }),
+      updatedAt: new Date(),
+    }
+    if (existing) {
+      return prisma.whatsappRoutingSettings.update({ where: { id: existing.id }, data })
+    }
+    return prisma.whatsappRoutingSettings.create({
+      data: { organizationId: req.auth.orgId, ...data } as any,
+    })
   })
 }
