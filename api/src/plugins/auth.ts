@@ -19,6 +19,7 @@ const PUBLIC_PREFIXES = [
   "/auth/",
   "/organizations/bootstrap",
   "/leads/webhook",
+  "/webhooks/lead",
   "/whatsapp/webhook",
   "/instagram/webhook",
   "/meta/webhook",
