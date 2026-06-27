@@ -12,8 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useApi } from "@/hooks/useApi";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -39,6 +39,7 @@ interface MetaCapiEvent {
 export function MetaIntegration() {
   const { config, recentEvents, loading, saveConfig, testConnection, refreshEvents } = useMetaIntegration();
   const { profile } = useAuth();
+  const api = useApi();
   const [pixelId, setPixelId] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [testEventCode, setTestEventCode] = useState("");
@@ -59,14 +60,8 @@ export function MetaIntegration() {
     if (!profile?.organization_id) return;
     setLoadingLogs(true);
     try {
-      const { data, error } = await (supabase as any)
-        .from("meta_capi_events")
-        .select("*")
-        .eq("organization_id", profile.organization_id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      setCapiEvents(data || []);
+      const data = await api.metaCapiMappings.list().catch(() => []);
+      setCapiEvents((data || []) as MetaCapiEvent[]);
     } catch (err: any) {
       console.error("Error loading CAPI events:", err);
     } finally {
@@ -104,10 +99,7 @@ export function MetaIntegration() {
 
   const handleResend = async (eventId: string) => {
     try {
-      await (supabase as any)
-        .from("meta_capi_events")
-        .update({ status: "pending", attempts: 0, fail_reason: null })
-        .eq("id", eventId);
+      await api.metaCapiMappings.update(eventId, { status: "pending", attempts: 0, fail_reason: null });
       toast.success("Evento reenfileirado para reenvio");
       loadCapiEvents();
     } catch {
