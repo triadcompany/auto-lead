@@ -442,11 +442,14 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
         message?.message?.conversation ||
         message?.message?.extendedTextMessage?.text ||
         ""
-      if (isInbound && rawPhone && messageText) {
+      if (isInbound && rawPhone) {
         findPausedReplyRouterRun(orgId, rawPhone)
           .then((paused) => {
             if (!paused) return
-            const branch = matchReply(messageText, paused.nodeConfig)
+            // wait_for_reply: qualquer mensagem = "respondeu"; reply_router: match por keywords
+            const branch = paused.nodeType === "wait_for_reply"
+              ? "respondeu"
+              : matchReply(messageText, paused.nodeConfig)
             return resumeRun(paused.runId, branch, messageText)
           })
           .catch((e) => console.error("[whatsapp] automation resume error:", e))
