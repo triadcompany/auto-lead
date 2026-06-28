@@ -127,7 +127,7 @@ export async function findPausedReplyRouterRun(
 
   const nodes = (flow.nodes as any[]) || []
   const node = nodes.find((n: any) => n.id === run.currentNodeId)
-  if (!node || node.type !== "reply_router") return null
+  if (!node || (node.type !== "reply_router" && node.type !== "wait_for_reply")) return null
 
   const nodeConfig: ReplyRouterConfig = node.data?.config || {}
 
@@ -140,6 +140,7 @@ export async function findPausedReplyRouterRun(
   return {
     runId: run.id,
     nodeId: run.currentNodeId,
+    nodeType: node.type as string,
     nodeConfig,
     instanceName: integration?.instanceName || "",
   }
