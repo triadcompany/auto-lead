@@ -446,9 +446,9 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
         findPausedReplyRouterRun(orgId, rawPhone)
           .then((paused) => {
             if (!paused) return
-            // wait_for_reply: qualquer mensagem = "respondeu"; reply_router: match por keywords
+            // wait_for_reply: qualquer mensagem = "replied"; reply_router: match por keywords
             const branch = paused.nodeType === "wait_for_reply"
-              ? "respondeu"
+              ? "replied"
               : matchReply(messageText, paused.nodeConfig)
             return resumeRun(paused.runId, branch, messageText)
           })
