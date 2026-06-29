@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js"
 import { orgScope } from "../lib/auth.js"
 import { emit } from "../plugins/socket.js"
 import { fireAutomationTrigger, runInactiveLeadCheck } from "../lib/automationRunner.js"
+import { checkAutomationLimit } from "../lib/planGate.js"
 
 const INITIAL_NODES = [
   {
@@ -130,6 +131,20 @@ export default async function automationsRoutes(fastify: FastifyInstance) {
     }
   }>("/automations/:id", async (req, reply) => {
     const { name, description, channel, isActive, triggerType, triggerEventName, allowAiTriggers, allowHumanTriggers, throttleSeconds } = req.body
+
+    // Verifica limite do plano ao ativar uma automação
+    if (isActive === true) {
+      const gate = await checkAutomationLimit(req.auth.orgId)
+      if (!gate.allowed) {
+        return reply.code(403).send({
+          error: "Limite de automações ativas atingido",
+          code: "automation_limit_reached",
+          limit: gate.limit,
+          current: gate.current,
+        })
+      }
+    }
+
     const updated = await prisma.automation.updateMany({
       where: { id: req.params.id, ...orgScope(req) },
       data: {
@@ -844,6 +859,85 @@ export default async function automationsRoutes(fastify: FastifyInstance) {
     })
 
     return { queued: true, orgs: orgs.length }
+  })
+
+  // ── Automation Keyword Rules ──
+  fastify.get("/automation/keyword-rules", async (req) => {
+    return prisma.automationKeywordRule.findMany({
+      where: orgScope(req),
+      orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+    })
+  })
+
+  fastify.post<{ Body: Record<string, unknown> }>("/automation/keyword-rules", async (req, reply) => {
+    const b = req.body as any
+    const rule = await prisma.automationKeywordRule.create({
+      data: {
+        organizationId: req.auth.orgId,
+        name: b.name,
+        keyword: b.keyword,
+        matchType: b.match_type || "contains",
+        createLead: b.create_lead ?? false,
+        leadSource: b.lead_source || null,
+        pipelineId: b.pipeline_id || null,
+        stageId: b.stage_id || null,
+        tags: b.tags || null,
+        priority: b.priority ?? 0,
+        isActive: b.is_active ?? true,
+      },
+    })
+    return reply.code(201).send(rule)
+  })
+
+  fastify.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    "/automation/keyword-rules/:id",
+    async (req) => {
+      const b = req.body as any
+      await prisma.automationKeywordRule.updateMany({
+        where: { id: req.params.id, ...orgScope(req) },
+        data: {
+          ...(b.name !== undefined && { name: b.name }),
+          ...(b.keyword !== undefined && { keyword: b.keyword }),
+          ...(b.match_type !== undefined && { matchType: b.match_type }),
+          ...(b.create_lead !== undefined && { createLead: b.create_lead }),
+          ...(b.lead_source !== undefined && { leadSource: b.lead_source }),
+          ...(b.pipeline_id !== undefined && { pipelineId: b.pipeline_id }),
+          ...(b.stage_id !== undefined && { stageId: b.stage_id }),
+          ...(b.tags !== undefined && { tags: b.tags }),
+          ...(b.priority !== undefined && { priority: b.priority }),
+          ...(b.is_active !== undefined && { isActive: b.is_active }),
+          updatedAt: new Date(),
+        },
+      })
+      return { ok: true }
+    }
+  )
+
+  fastify.delete<{ Params: { id: string } }>("/automation/keyword-rules/:id", async (req) => {
+    await prisma.automationKeywordRule.deleteMany({ where: { id: req.params.id, ...orgScope(req) } })
+    return { ok: true }
+  })
+
+  // ── Organization Automation Settings ──
+  fastify.get("/automation/settings", async (req) => {
+    return prisma.organizationAutomationSettings.findFirst({ where: orgScope(req) }) || null
+  })
+
+  fastify.put<{ Body: Record<string, unknown> }>("/automation/settings", async (req) => {
+    const b = req.body as any
+    const existing = await prisma.organizationAutomationSettings.findFirst({ where: orgScope(req) })
+    const data: Record<string, unknown> = {
+      ...(b.meta_ads_keyword_enabled !== undefined && { metaAdsKeywordEnabled: b.meta_ads_keyword_enabled }),
+      ...(b.meta_ads_pipeline_id !== undefined && { metaAdsPipelineId: b.meta_ads_pipeline_id || null }),
+      ...(b.meta_ads_stage_id !== undefined && { metaAdsStageId: b.meta_ads_stage_id || null }),
+      updatedAt: new Date(),
+    }
+    if (existing) {
+      return prisma.organizationAutomationSettings.update({ where: { id: existing.id }, data })
+    }
+    return prisma.organizationAutomationSettings.create({
+      data: { organizationId: req.auth.orgId, ...data } as any,
+    })
   })
 
 }
