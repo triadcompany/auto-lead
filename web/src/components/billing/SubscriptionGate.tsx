@@ -9,9 +9,12 @@ interface SubscriptionGateProps {
 }
 
 export function SubscriptionGate({ children }: SubscriptionGateProps) {
-  const { subscription, loading, isSubscribed, isExpired, trialUsed, startTrial } = useSubscription();
+  const { subscription, loading, error, isSubscribed, isExpired, trialUsed, startTrial } = useSubscription();
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
+
+  // Fail open: erro de rede não bloqueia o app
+  if (error) return <>{children}</>;
 
   if (loading) {
     return (
