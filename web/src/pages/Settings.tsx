@@ -9,7 +9,7 @@ import { useSupabaseProfiles } from "@/hooks/useSupabaseProfiles";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useUserInvites } from "@/hooks/useUserInvites";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Users,
   Bell,
@@ -45,7 +45,6 @@ import { NotificationSettings } from "@/components/settings/NotificationSettings
 import { ClerkSyncPanel } from "@/components/settings/ClerkSyncPanel";
 
 import { useSubscription } from "@/hooks/useSubscription";
-import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/layout/PageHeader";
 import {
   Dialog,
