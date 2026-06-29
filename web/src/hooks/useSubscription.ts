@@ -4,10 +4,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useApi } from '@/hooks/useApi';
 import { toast } from 'sonner';
 
+export type BillingCycle = 'monthly' | 'quarterly' | 'semiannual';
+
 export interface SubscriptionData {
   subscribed: boolean;
   plan: 'start' | 'scale' | null;
-  billing_cycle: 'monthly' | 'yearly' | null;
+  billing_cycle: BillingCycle | null;
   status: 'active' | 'canceled' | 'past_due' | 'inactive' | 'trialing' | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
@@ -17,48 +19,55 @@ export interface SubscriptionData {
 export interface PlanFeatures {
   pipelines: number | 'unlimited';
   users: number | 'unlimited';
-  followups_auto: boolean;
-  leads_auto: boolean;
-  reports_advanced: boolean;
-  permissions: boolean;
-  automations: boolean;
+  automations_limit: number | 'unlimited';
+  broadcasts: boolean;
   ai: boolean;
+  meta_ads: boolean;
+  reports_advanced: boolean;
 }
 
 export const PLAN_FEATURES: Record<'start' | 'scale', PlanFeatures> = {
   start: {
-    pipelines: 1,
+    pipelines: 2,
     users: 3,
-    followups_auto: false,
-    leads_auto: false,
-    reports_advanced: false,
-    permissions: false,
-    automations: false,
+    automations_limit: 2,
+    broadcasts: false,
     ai: false,
+    meta_ads: false,
+    reports_advanced: false,
   },
   scale: {
     pipelines: 'unlimited',
     users: 'unlimited',
-    followups_auto: true,
-    leads_auto: true,
+    automations_limit: 'unlimited',
+    broadcasts: true,
+    ai: true,
+    meta_ads: true,
     reports_advanced: true,
-    permissions: true,
-    automations: false,
-    ai: false,
   },
 };
 
 export const PLAN_PRICES = {
   start: {
-    monthly: 117,
-    yearly: 97,
-    yearly_total: 1164,
+    monthly: 197,
+    quarterly: 177,
+    quarterly_total: 531,
+    semiannual: 157,
+    semiannual_total: 942,
   },
   scale: {
-    monthly: 237,
-    yearly: 197,
-    yearly_total: 2364,
+    monthly: 397,
+    quarterly: 357,
+    quarterly_total: 1071,
+    semiannual: 317,
+    semiannual_total: 1902,
   },
+};
+
+export const BILLING_CYCLE_LABELS: Record<BillingCycle, string> = {
+  monthly: 'Mensal',
+  quarterly: 'Trimestral',
+  semiannual: 'Semestral',
 };
 
 export function useSubscription() {
@@ -103,14 +112,15 @@ export function useSubscription() {
     return () => clearInterval(interval);
   }, [organizationId, checkSubscription]);
 
-  const createCheckout = useCallback(async (plan: 'start' | 'scale', billingCycle: 'monthly' | 'yearly') => {
+  const createCheckout = useCallback(async (plan: 'start' | 'scale', billingCycle: BillingCycle) => {
     if (!user || !organizationId) {
       toast.error('Você precisa estar logado para assinar um plano');
       return;
     }
     try {
-      const data = await api.billing.checkout({ plan, billing_cycle: billingCycle, price_id: '' }) as any;
-      if (data?.url) window.open(data.url, '_blank');
+      const data = await api.billing.checkout({ plan, billing_cycle: billingCycle }) as any;
+      if (data?.checkout_url) window.open(data.checkout_url, '_blank');
+      else if (data?.url) window.open(data.url, '_blank');
     } catch (err) {
       console.error('Error creating checkout:', err);
       toast.error('Erro ao iniciar checkout. Tente novamente.');
@@ -124,7 +134,8 @@ export function useSubscription() {
     }
     try {
       const data = await api.billing.portal(window.location.href) as any;
-      if (data?.url) window.open(data.url, '_blank');
+      if (data?.portal_url) window.open(data.portal_url, '_blank');
+      else if (data?.url) window.open(data.url, '_blank');
     } catch (err) {
       console.error('Error opening customer portal:', err);
       toast.error('Erro ao abrir portal de gerenciamento. Tente novamente.');
@@ -139,7 +150,7 @@ export function useSubscription() {
     return (featureValue as number) > 0;
   }, [subscription]);
 
-  const getFeatureLimit = useCallback((feature: 'pipelines' | 'users'): number | 'unlimited' => {
+  const getFeatureLimit = useCallback((feature: 'pipelines' | 'users' | 'automations_limit'): number | 'unlimited' => {
     if (!subscription?.subscribed || !subscription.plan) return 0;
     return PLAN_FEATURES[subscription.plan][feature];
   }, [subscription]);
