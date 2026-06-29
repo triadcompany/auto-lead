@@ -44,6 +44,8 @@ import { MetaLeadAdsIntegration } from "@/components/settings/MetaLeadAdsIntegra
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { ClerkSyncPanel } from "@/components/settings/ClerkSyncPanel";
 
+import { useSubscription } from "@/hooks/useSubscription";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/layout/PageHeader";
 import {
   Dialog,
@@ -69,6 +71,12 @@ export function Settings() {
   const { profile, isAdmin } = useAuth();
   const { toast } = useToast();
   const { inviteUser, resendInvitation, revokeInvitation, loading: inviteLoading } = useUserInvites();
+  const { getFeatureLimit, isSubscribed } = useSubscription();
+  const navigate = useNavigate();
+
+  const userLimit = getFeatureLimit("users");
+  const currentUserCount = profiles?.length ?? 0;
+  const atUserLimit = isSubscribed && userLimit !== "unlimited" && currentUserCount >= (userLimit as number);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Build groups based on role — sellers only see "Minha Conta"
@@ -212,6 +220,21 @@ export function Settings() {
               Adicione e gerencie vendedores e administradores do sistema
             </p>
           </div>
+          {atUserLimit ? (
+            <div className="text-right">
+              <Button
+                className="font-poppins"
+                variant="outline"
+                onClick={() => navigate("/settings?tab=billing")}
+              >
+                <Zap className="h-4 w-4 mr-2 text-primary" />
+                Limite atingido — Fazer upgrade
+              </Button>
+              <p className="text-xs text-muted-foreground mt-1">
+                Plano Start: até {userLimit} usuários
+              </p>
+            </div>
+          ) : (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button className="btn-gradient text-white font-poppins">
@@ -344,6 +367,7 @@ export function Settings() {
               </div>
             </DialogContent>
           </Dialog>
+          )}
         </div>
 
         <div className="grid gap-4">
