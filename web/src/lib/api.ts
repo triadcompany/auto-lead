@@ -89,6 +89,9 @@ export function createApi(getToken: () => Promise<string | null>) {
   const del = <T>(path: string) =>
     request<T>(getToken, "DELETE", path)
 
+  const put = <T>(path: string, body?: unknown) =>
+    request<T>(getToken, "PUT", path, body)
+
   const postForm = <T>(path: string, formData: FormData) =>
     uploadForm<T>(getToken, path, formData)
 
@@ -334,10 +337,11 @@ export function createApi(getToken: () => Promise<string | null>) {
     // ── Billing ──────────────────────────────────────────────────────────────
     billing: {
       subscription: () => get<any>("/billing/subscription"),
-      checkout: (data: { plan: string; billing_cycle: string; price_id: string }) =>
+      checkout: (data: { plan: string; billing_cycle: string }) =>
         post<any>("/billing/checkout", data),
       sync: (session_id: string) => post<any>("/billing/sync", { session_id }),
       portal: (return_url?: string) => post<any>("/billing/portal", { return_url }),
+      trial: () => post<any>("/billing/trial", {}),
     },
 
     // ── Misc ─────────────────────────────────────────────────────────────────
@@ -358,6 +362,7 @@ export function createApi(getToken: () => Promise<string | null>) {
     prospects: {
       list: (q?: { status?: string }) => get<any[]>("/prospects", q as any),
       create: (data: Record<string, unknown>) => post<any>("/prospects", data),
+      update: (id: string, data: Record<string, unknown>) => patch(`/prospects/${id}`, data),
     },
 
     // ── Events ───────────────────────────────────────────────────────────────
@@ -394,6 +399,93 @@ export function createApi(getToken: () => Promise<string | null>) {
     leadDistributionAudit: {
       list: (q?: { event?: string; limit?: number }) =>
         get<any[]>("/lead-distribution/audit", q as any),
+    },
+
+    // ── WhatsApp Routing Settings ─────────────────────────────────────────────
+    routingSettings: {
+      get: () => get<any>("/whatsapp/routing-settings"),
+      update: (data: Record<string, unknown>) => put("/whatsapp/routing-settings", data),
+    },
+
+    // ── Automation Keyword Rules ──────────────────────────────────────────────
+    automationKeywordRules: {
+      list: () => get<any[]>("/automation/keyword-rules"),
+      create: (data: Record<string, unknown>) => post<any>("/automation/keyword-rules", data),
+      update: (id: string, data: Record<string, unknown>) =>
+        patch(`/automation/keyword-rules/${id}`, data),
+      delete: (id: string) => del(`/automation/keyword-rules/${id}`),
+    },
+
+    // ── Organization Automation Settings ─────────────────────────────────────
+    automationSettings: {
+      get: () => get<any>("/automation/settings"),
+      update: (data: Record<string, unknown>) => put("/automation/settings", data),
+    },
+
+    // ── Distribution Schedules ────────────────────────────────────────────────
+    distributionSchedules: {
+      list: () => get<any[]>("/distribution/schedules"),
+      create: (data: Record<string, unknown>) => post<any>("/distribution/schedules", data),
+      update: (id: string, data: Record<string, unknown>) =>
+        patch(`/distribution/schedules/${id}`, data),
+      delete: (id: string) => del(`/distribution/schedules/${id}`),
+    },
+
+    // ── Lead Distribution ─────────────────────────────────────────────────────
+    leadDistribution: {
+      get: () => get<any>("/lead-distribution"),
+      update: (data: Record<string, unknown>) => put("/lead-distribution", data),
+    },
+    leadDistributionRules: {
+      create: (data: Record<string, unknown>) => post<any>("/lead-distribution/rules", data),
+      update: (id: string, data: Record<string, unknown>) =>
+        patch(`/lead-distribution/rules/${id}`, data),
+      delete: (id: string) => del(`/lead-distribution/rules/${id}`),
+    },
+    leadDistributionUsers: {
+      add: (userId: string, orderPosition: number) =>
+        post<any>("/lead-distribution/users", { user_id: userId, order_position: orderPosition }),
+      remove: (id: string) => del(`/lead-distribution/users/${id}`),
+    },
+
+    // ── Meta CAPI Mappings ────────────────────────────────────────────────────
+    metaCapiMappings: {
+      list: () => get<any[]>("/meta/capi-mappings"),
+      create: (data: Record<string, unknown>) => post<any>("/meta/capi-mappings", data),
+      update: (id: string, data: Record<string, unknown>) =>
+        patch(`/meta/capi-mappings/${id}`, data),
+      delete: (id: string) => del(`/meta/capi-mappings/${id}`),
+    },
+
+    // ── N8N Workflows (stub) ──────────────────────────────────────────────────
+    n8nWorkflows: {
+      list: () => get<any[]>("/n8n/workflows"),
+      create: (data: Record<string, unknown>) => post<any>("/n8n/workflows", data),
+      update: (id: string, data: Record<string, unknown>) =>
+        patch(`/n8n/workflows/${id}`, data),
+    },
+
+    // ── Intent Definitions ────────────────────────────────────────────────────
+    intentDefinitions: {
+      list: (q?: { scope_type?: string; scope_id?: string }) =>
+        get<any[]>("/intent-definitions", q as any),
+    },
+
+    // ── Conversation Intelligence ─────────────────────────────────────────────
+    conversationIntelligence: {
+      get: (conversationId: string) =>
+        get<any>(`/conversations/${conversationId}/intelligence`),
+    },
+
+    // ── AI Agent Profile ──────────────────────────────────────────────────────
+    aiAgentProfile: {
+      get: () => get<any>("/ai/agent-profile"),
+      update: (data: Record<string, unknown>) => put("/ai/agent-profile", data),
+    },
+
+    // ── Instagram Connections ─────────────────────────────────────────────────
+    instagramConnections: {
+      list: () => get<any[]>("/instagram/connections"),
     },
   }
 }
