@@ -22,22 +22,33 @@ function stripeStatusToInternal(status: string): string {
 export default async function billingRoutes(fastify: FastifyInstance) {
   // GET /billing/subscription — status da assinatura atual (substitui check-subscription)
   fastify.get("/billing/subscription", async (req) => {
-    const sub = await prisma.subscription.findFirst({
-      where: { clerkOrganizationId: req.auth.orgId },
-    }).catch(() => null)
+    const orgId = req.auth.orgId
+
+    // Pega todas as subs da org ordenadas por updatedAt desc — a mais recente vence
+    const subs = await prisma.subscription.findMany({
+      where: { clerkOrganizationId: orgId },
+      orderBy: { updatedAt: "desc" },
+    }).catch(() => [] as any[])
+
+    const trialUsed = subs.some((s: any) => s.stripeSubscriptionId?.startsWith("trial_"))
+
+    // Prefere qualquer sub ativa/trialing; senão pega a mais recente
+    const sub = subs.find((s: any) => ["active", "trialing"].includes(s.status)) ?? subs[0] ?? null
 
     if (!sub) {
       return { subscribed: false, plan: null, billing_cycle: null, status: null, current_period_end: null, cancel_at_period_end: false, trial_used: false }
     }
 
+    const isTrial = sub.stripeSubscriptionId?.startsWith("trial_") ?? false
+
     // Auto-expira trial
-    if (sub.status === "trialing" && sub.currentPeriodEnd && new Date() > sub.currentPeriodEnd) {
+    if (sub.status === "trialing" && isTrial && sub.currentPeriodEnd && new Date() > sub.currentPeriodEnd) {
       await prisma.subscription.update({ where: { id: sub.id }, data: { status: "inactive", updatedAt: new Date() } }).catch(() => null)
-      return { subscribed: false, plan: sub.plan, billing_cycle: sub.billingCycle, status: "inactive", current_period_end: sub.currentPeriodEnd, cancel_at_period_end: false, trial_used: true }
+      return { subscribed: false, plan: sub.plan, billing_cycle: sub.billingCycle, status: "inactive", current_period_end: sub.currentPeriodEnd, cancel_at_period_end: false, trial_used: true, is_trial: true }
     }
 
     if (!["active", "trialing"].includes(sub.status)) {
-      return { subscribed: false, plan: sub.plan, billing_cycle: sub.billingCycle, status: sub.status, current_period_end: sub.currentPeriodEnd, cancel_at_period_end: false, trial_used: true }
+      return { subscribed: false, plan: sub.plan, billing_cycle: sub.billingCycle, status: sub.status, current_period_end: sub.currentPeriodEnd, cancel_at_period_end: false, trial_used: trialUsed, is_trial: isTrial }
     }
 
     return {
@@ -48,7 +59,8 @@ export default async function billingRoutes(fastify: FastifyInstance) {
       current_period_end: sub.currentPeriodEnd,
       cancel_at_period_end: sub.cancelAtPeriodEnd,
       stripe_subscription_id: sub.stripeSubscriptionId,
-      trial_used: true,
+      trial_used: trialUsed,
+      is_trial: isTrial,
     }
   })
 
