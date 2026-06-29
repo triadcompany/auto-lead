@@ -1681,7 +1681,7 @@ model Subscription {
   stripeCustomerId     String?   @map("stripe_customer_id")
   stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
   plan                 String?
-  billingCycle         String?   @map("billing_cycle") // monthly | yearly
+  billingCycle         String?   @map("billing_cycle") // monthly | quarterly | semiannual
   status               String    @default("inactive") // active | inactive | past_due | canceled | trialing
   currentPeriodStart   DateTime? @map("current_period_start") @db.Timestamptz
   currentPeriodEnd     DateTime? @map("current_period_end") @db.Timestamptz
