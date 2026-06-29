@@ -1,69 +1,75 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { 
-  Check, X, Sparkles, Zap, Clock, ArrowRight
-} from "lucide-react";
+import { Check, X, Sparkles, Zap, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
+type BillingCycle = "monthly" | "quarterly" | "semiannual";
+
+const PRICES = {
+  start: { monthly: 197, quarterly: 177, quarterly_total: 531, semiannual: 157, semiannual_total: 942 },
+  scale: { monthly: 397, quarterly: 357, quarterly_total: 1071, semiannual: 317, semiannual_total: 1902 },
+};
+
+const CYCLE_OPTIONS: { value: BillingCycle; label: string; badge?: string }[] = [
+  { value: "monthly", label: "Mensal" },
+  { value: "quarterly", label: "Trimestral", badge: "10% off" },
+  { value: "semiannual", label: "Semestral", badge: "20% off" },
+];
+
+function cycleSubtitle(plan: "start" | "scale", cycle: BillingCycle): string {
+  const p = PRICES[plan];
+  if (cycle === "quarterly") return `R$${p.quarterly_total} a cada 3 meses`;
+  if (cycle === "semiannual") return `R$${p.semiannual_total} a cada 6 meses`;
+  return "Cobrado mensalmente";
+}
+
+const startFeatures = [
+  { text: "Gestão de leads (kanban)", included: true },
+  { text: "2 pipelines de vendas", included: true },
+  { text: "WhatsApp conectado (inbox)", included: true },
+  { text: "Até 3 usuários", included: true },
+  { text: "2 automações ativas", included: true },
+  { text: "Follow-ups manuais", included: true },
+  { text: "Relatórios básicos", included: true },
+];
+
+const startNotIncluded = [
+  "IA de atendimento",
+  "Disparo em massa",
+  "Meta Ads (CAPI + Lead Ads)",
+  "Relatórios avançados",
+  "Usuários ilimitados",
+];
+
+const scaleFeatures = [
+  { text: "Tudo do plano Start", highlight: true },
+  { text: "Pipelines ilimitados" },
+  { text: "Usuários ilimitados" },
+  { text: "Automações ilimitadas" },
+  { text: "IA de atendimento" },
+  { text: "Disparo em massa" },
+  { text: "Meta Ads (CAPI + Lead Ads)" },
+  { text: "Relatórios avançados" },
+];
+
+const fadeInUp = {
+  initial: { opacity: 0, y: 30 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true },
+  transition: { duration: 0.5 },
+};
+
 export default function PricingSection() {
   const navigate = useNavigate();
-  const [isAnnual, setIsAnnual] = useState(true);
-
-  const startFeatures = [
-    { text: "Gestão de leads", included: true },
-    { text: "1 pipeline de vendas", included: true },
-    { text: "Cadastro manual de leads", included: true },
-    { text: "Follow-ups manuais", included: true },
-    { text: "Tags básicas", included: true },
-    { text: "Histórico de interações", included: true },
-    { text: "Relatórios simples", included: true },
-    { text: "Até 3 usuários", included: true },
-  ];
-
-  const startNotIncluded = [
-    "Automações",
-    "Inteligência artificial",
-    "Multiatendimento",
-    "Disparos em massa",
-    "Integrações avançadas",
-  ];
-
-  const scaleFeatures = [
-    { text: "Tudo do plano Start", included: true, highlight: true },
-    { text: "Pipelines ilimitados", included: true },
-    { text: "Follow-ups automáticos", included: true },
-    { text: "Cadastro automático de leads", included: true },
-    { text: "Relatórios inteligentes", included: true },
-    { text: "Tags avançadas", included: true },
-    { text: "Usuários ilimitados", included: true },
-    { text: "Controle de permissões", included: true },
-  ];
-
-  const scaleRoadmap = [
-    "IA de atendimento",
-    "IA que avança etapas do funil",
-    "Sistema de multiatendimento",
-    "Disparo em massa",
-    "Automações avançadas",
-  ];
-
-  const fadeInUp = {
-    initial: { opacity: 0, y: 30 },
-    whileInView: { opacity: 1, y: 0 },
-    viewport: { once: true },
-    transition: { duration: 0.5 }
-  };
+  const [cycle, setCycle] = useState<BillingCycle>("semiannual");
 
   return (
     <section id="planos" className="py-14 sm:py-20 md:py-28 bg-muted/30">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div 
-          className="max-w-3xl mx-auto text-center mb-10 sm:mb-12"
-          {...fadeInUp}
-        >
+        <motion.div className="max-w-3xl mx-auto text-center mb-10 sm:mb-12" {...fadeInUp}>
           <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium mb-5 sm:mb-6">
             <Sparkles className="w-4 h-4" />
             Planos
@@ -72,48 +78,44 @@ export default function PricingSection() {
             Escolha o plano ideal para seu negócio
           </h2>
           <p className="text-base sm:text-lg text-muted-foreground">
-            Comece grátis e escale conforme sua empresa cresce
+            Comece controlando seus leads, evolua para escalar com automação.
           </p>
         </motion.div>
 
         {/* Billing Toggle */}
-        <motion.div 
-          className="flex items-center justify-center gap-4 mb-12"
+        <motion.div
+          className="flex items-center justify-center mb-12"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ delay: 0.2 }}
         >
-          <button
-            onClick={() => setIsAnnual(false)}
-            className={cn(
-              "px-4 py-2 rounded-lg text-sm font-medium transition-all",
-              !isAnnual 
-                ? "bg-foreground text-background" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Mensal
-          </button>
-          <button
-            onClick={() => setIsAnnual(true)}
-            className={cn(
-              "px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
-              isAnnual 
-                ? "bg-foreground text-background" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Anual
-            <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">
-              2 meses grátis
-            </span>
-          </button>
+          <div className="flex items-center bg-muted rounded-xl p-1 gap-1">
+            {CYCLE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setCycle(opt.value)}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
+                  cycle === opt.value
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {opt.label}
+                {opt.badge && (
+                  <span className="bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {opt.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </motion.div>
 
         {/* Plans Grid */}
         <div className="grid md:grid-cols-2 gap-6 lg:gap-8 max-w-5xl mx-auto">
-          {/* Plan START */}
+          {/* START */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -131,20 +133,14 @@ export default function PricingSection() {
 
                 <div className="mb-6">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold">
-                      R$ {isAnnual ? "97" : "117"}
-                    </span>
+                    <span className="text-4xl font-bold">R${PRICES.start[cycle]}</span>
                     <span className="text-muted-foreground">/mês</span>
                   </div>
-                  {isAnnual && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Cobrado anualmente (R$ 1.164/ano)
-                    </p>
-                  )}
+                  <p className="text-sm text-muted-foreground mt-1">{cycleSubtitle("start", cycle)}</p>
                 </div>
 
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full h-12 text-base font-semibold mb-8"
                   onClick={() => navigate("/auth?redirect=/settings?tab=billing")}
                 >
@@ -154,8 +150,8 @@ export default function PricingSection() {
                 <div className="space-y-4">
                   <p className="text-sm font-semibold text-foreground">O que está incluído:</p>
                   <ul className="space-y-3">
-                    {startFeatures.map((feature, index) => (
-                      <li key={index} className="flex items-start gap-3">
+                    {startFeatures.map((feature) => (
+                      <li key={feature.text} className="flex items-start gap-3">
                         <Check className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                         <span className="text-sm">{feature.text}</span>
                       </li>
@@ -165,8 +161,8 @@ export default function PricingSection() {
                   <div className="pt-4 border-t">
                     <p className="text-sm font-semibold text-muted-foreground mb-3">Não inclui:</p>
                     <ul className="space-y-2">
-                      {startNotIncluded.map((feature, index) => (
-                        <li key={index} className="flex items-start gap-3">
+                      {startNotIncluded.map((feature) => (
+                        <li key={feature} className="flex items-start gap-3">
                           <X className="h-4 w-4 text-muted-foreground/50 shrink-0 mt-0.5" />
                           <span className="text-sm text-muted-foreground">{feature}</span>
                         </li>
@@ -178,7 +174,7 @@ export default function PricingSection() {
             </Card>
           </motion.div>
 
-          {/* Plan SCALE */}
+          {/* SCALE */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -186,7 +182,6 @@ export default function PricingSection() {
             transition={{ delay: 0.4 }}
           >
             <Card className="h-full border-2 border-primary relative overflow-hidden shadow-xl shadow-primary/10">
-              {/* Recommended Badge */}
               <div className="absolute top-0 right-0">
                 <div className="bg-primary text-primary-foreground text-xs font-semibold px-4 py-1.5 rounded-bl-lg">
                   Recomendado
@@ -199,26 +194,18 @@ export default function PricingSection() {
                     <h3 className="text-2xl font-bold">Scale</h3>
                     <Zap className="h-5 w-5 text-primary" />
                   </div>
-                  <p className="text-muted-foreground">
-                    Para escalar vendas com automação e inteligência.
-                  </p>
+                  <p className="text-muted-foreground">Para escalar vendas com automação e inteligência.</p>
                 </div>
 
                 <div className="mb-6">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold">
-                      R$ {isAnnual ? "197" : "237"}
-                    </span>
+                    <span className="text-4xl font-bold">R${PRICES.scale[cycle]}</span>
                     <span className="text-muted-foreground">/mês</span>
                   </div>
-                  {isAnnual && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Cobrado anualmente (R$ 2.364/ano)
-                    </p>
-                  )}
+                  <p className="text-sm text-muted-foreground mt-1">{cycleSubtitle("scale", cycle)}</p>
                 </div>
 
-                <Button 
+                <Button
                   className="w-full h-12 text-base font-semibold mb-8 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all hover:-translate-y-0.5"
                   onClick={() => navigate("/auth?redirect=/settings?tab=billing")}
                 >
@@ -229,55 +216,29 @@ export default function PricingSection() {
                 <div className="space-y-4">
                   <p className="text-sm font-semibold text-foreground">O que está incluído:</p>
                   <ul className="space-y-3">
-                    {scaleFeatures.map((feature, index) => (
-                      <li key={index} className="flex items-start gap-3">
-                        <Check className={cn(
-                          "h-5 w-5 shrink-0 mt-0.5",
-                          feature.highlight ? "text-primary" : "text-primary"
-                        )} />
-                        <span className={cn(
-                          "text-sm",
-                          feature.highlight && "font-medium text-primary"
-                        )}>
+                    {scaleFeatures.map((feature, i) => (
+                      <li key={feature.text} className="flex items-start gap-3">
+                        <Check className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                        <span className={cn("text-sm", i === 0 && "font-medium text-primary")}>
                           {feature.text}
                         </span>
                       </li>
                     ))}
                   </ul>
-
-                  <div className="pt-4 border-t">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Clock className="h-4 w-4 text-accent" />
-                      <p className="text-sm font-semibold text-accent">Em breve:</p>
-                    </div>
-                    <ul className="space-y-2">
-                      {scaleRoadmap.map((feature, index) => (
-                        <li key={index} className="flex items-start gap-3">
-                          <div className="h-4 w-4 rounded-full border-2 border-accent/50 shrink-0 mt-0.5" />
-                          <span className="text-sm text-muted-foreground">{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="text-xs text-muted-foreground mt-4 bg-muted/50 p-3 rounded-lg">
-                      💡 Essas funcionalidades estão em desenvolvimento e serão liberadas sem custo adicional para assinantes do plano Scale.
-                    </p>
-                  </div>
                 </div>
               </CardContent>
             </Card>
           </motion.div>
         </div>
 
-        {/* Bottom Note */}
-        <motion.p 
+        <motion.p
           className="text-center text-sm text-muted-foreground mt-10 max-w-lg mx-auto"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ delay: 0.5 }}
         >
-          Todos os planos incluem suporte por chat e atualizações gratuitas. 
-          Cancele quando quiser, sem burocracia.
+          Todos os planos incluem suporte por chat e atualizações gratuitas. Cancele quando quiser, sem burocracia.
         </motion.p>
       </div>
     </section>
