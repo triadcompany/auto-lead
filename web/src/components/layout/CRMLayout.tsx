@@ -6,6 +6,8 @@ import { LeadNotificationManager } from "@/components/notifications/LeadNotifica
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { UpdatePrompt } from "@/components/pwa/UpdatePrompt";
 import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
+import { TrialBanner } from "@/components/billing/TrialBanner";
+import { SubscriptionGate } from "@/components/billing/SubscriptionGate";
 
 interface CRMLayoutProps {
   children?: React.ReactNode;
@@ -13,17 +15,22 @@ interface CRMLayoutProps {
 
 export function CRMLayout({ children }: CRMLayoutProps) {
   return (
-    <SidebarProvider>
-      <LeadNotificationManager />
-      <InstallPrompt />
-      <UpdatePrompt />
-      <OfflineIndicator />
-      <div className="min-h-screen flex w-full bg-background">
-        <CRMSidebarWithAuth />
-        <main className="flex-1 overflow-hidden md:overflow-auto">
-          {children || <Outlet />}
-        </main>
-      </div>
-    </SidebarProvider>
+    <SubscriptionGate>
+      <SidebarProvider>
+        <LeadNotificationManager />
+        <InstallPrompt />
+        <UpdatePrompt />
+        <OfflineIndicator />
+        <div className="min-h-screen flex flex-col w-full bg-background">
+          <TrialBanner />
+          <div className="flex flex-1 overflow-hidden">
+            <CRMSidebarWithAuth />
+            <main className="flex-1 overflow-hidden md:overflow-auto">
+              {children || <Outlet />}
+            </main>
+          </div>
+        </div>
+      </SidebarProvider>
+    </SubscriptionGate>
   );
 }
