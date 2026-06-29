@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify"
 import Stripe from "stripe"
 import { prisma } from "../lib/prisma.js"
+import { getPriceId, PLAN_PRICES_DISPLAY, PLANS, type PlanName, type BillingCycle } from "../lib/plans.js"
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY
@@ -47,19 +48,35 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     }
   })
 
+  // GET /billing/plans — retorna config de planos para o frontend
+  fastify.get("/billing/plans", async () => {
+    return {
+      plans: {
+        start: { features: PLANS.start, prices: PLAN_PRICES_DISPLAY.start },
+        scale: { features: PLANS.scale, prices: PLAN_PRICES_DISPLAY.scale },
+      },
+    }
+  })
+
   // POST /billing/checkout — cria sessão Stripe Checkout
   fastify.post<{
     Body: {
-      plan: string
-      billing_cycle: "monthly" | "yearly"
-      price_id: string
+      plan: PlanName
+      billing_cycle: BillingCycle
       success_url?: string
       cancel_url?: string
     }
   }>("/billing/checkout", async (req, reply) => {
     const stripe = getStripe()
-    const { plan, billing_cycle, price_id, success_url, cancel_url } = req.body
+    const { plan, billing_cycle, success_url, cancel_url } = req.body
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:8080"
+
+    let price_id: string
+    try {
+      price_id = getPriceId(plan, billing_cycle)
+    } catch {
+      return reply.code(400).send({ error: `No price configured for ${plan}/${billing_cycle}` })
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -188,7 +205,7 @@ export default async function billingRoutes(fastify: FastifyInstance) {
             clerkUserId: userId,
             stripeCustomerId: session.customer as string,
             plan,
-            billingCycle: billing_cycle === "yearly" ? "yearly" : "monthly",
+            billingCycle: billing_cycle || "monthly",
             status: "active",
             currentPeriodStart: new Date(sub.current_period_start * 1000),
             currentPeriodEnd: new Date(sub.current_period_end * 1000),
@@ -201,7 +218,7 @@ export default async function billingRoutes(fastify: FastifyInstance) {
             stripeCustomerId: session.customer as string,
             stripeSubscriptionId: sub.id,
             plan,
-            billingCycle: billing_cycle === "yearly" ? "yearly" : "monthly",
+            billingCycle: billing_cycle || "monthly",
             status: "active",
             currentPeriodStart: new Date(sub.current_period_start * 1000),
             currentPeriodEnd: new Date(sub.current_period_end * 1000),
