@@ -14,6 +14,7 @@ export interface SubscriptionData {
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   stripe_subscription_id?: string;
+  trial_used?: boolean;
 }
 
 export interface PlanFeatures {
@@ -142,6 +143,26 @@ export function useSubscription() {
     }
   }, [user, organizationId, api]);
 
+  const startTrial = useCallback(async () => {
+    try {
+      await api.billing.trial();
+      await checkSubscription();
+      toast.success('Período de teste iniciado! Aproveite 3 dias do plano Scale.');
+    } catch (err: any) {
+      if (err?.message?.includes('409') || err?.code === 'trial_already_used') {
+        toast.error('Sua organização já utilizou o período de teste.');
+      } else {
+        toast.error('Erro ao iniciar período de teste. Tente novamente.');
+      }
+    }
+  }, [api, checkSubscription]);
+
+  const trialDaysLeft = (() => {
+    if (subscription?.status !== 'trialing' || !subscription.current_period_end) return null;
+    const diff = new Date(subscription.current_period_end).getTime() - Date.now();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  })();
+
   const hasFeature = useCallback((feature: keyof PlanFeatures): boolean => {
     if (!subscription?.subscribed || !subscription.plan) return false;
     const featureValue = PLAN_FEATURES[subscription.plan][feature];
@@ -162,10 +183,15 @@ export function useSubscription() {
     checkSubscription,
     createCheckout,
     openCustomerPortal,
+    startTrial,
     hasFeature,
     getFeatureLimit,
+    trialDaysLeft,
     isSubscribed: subscription?.subscribed ?? false,
+    isTrialing: subscription?.status === 'trialing',
+    trialUsed: subscription?.trial_used ?? false,
     isPastDue: subscription?.status === 'past_due',
     isCanceled: subscription?.status === 'canceled',
+    isExpired: !subscription?.subscribed && subscription?.status === 'inactive',
   };
 }
