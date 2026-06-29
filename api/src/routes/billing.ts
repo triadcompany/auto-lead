@@ -26,15 +26,18 @@ export default async function billingRoutes(fastify: FastifyInstance) {
       where: { clerkOrganizationId: req.auth.orgId },
     }).catch(() => null)
 
-    if (!sub || !["active", "trialing"].includes(sub.status)) {
-      return {
-        subscribed: false,
-        plan: null,
-        billing_cycle: null,
-        status: sub?.status || null,
-        current_period_end: null,
-        cancel_at_period_end: false,
-      }
+    if (!sub) {
+      return { subscribed: false, plan: null, billing_cycle: null, status: null, current_period_end: null, cancel_at_period_end: false, trial_used: false }
+    }
+
+    // Auto-expira trial
+    if (sub.status === "trialing" && sub.currentPeriodEnd && new Date() > sub.currentPeriodEnd) {
+      await prisma.subscription.update({ where: { id: sub.id }, data: { status: "inactive", updatedAt: new Date() } }).catch(() => null)
+      return { subscribed: false, plan: sub.plan, billing_cycle: sub.billingCycle, status: "inactive", current_period_end: sub.currentPeriodEnd, cancel_at_period_end: false, trial_used: true }
+    }
+
+    if (!["active", "trialing"].includes(sub.status)) {
+      return { subscribed: false, plan: sub.plan, billing_cycle: sub.billingCycle, status: sub.status, current_period_end: sub.currentPeriodEnd, cancel_at_period_end: false, trial_used: true }
     }
 
     return {
@@ -45,7 +48,38 @@ export default async function billingRoutes(fastify: FastifyInstance) {
       current_period_end: sub.currentPeriodEnd,
       cancel_at_period_end: sub.cancelAtPeriodEnd,
       stripe_subscription_id: sub.stripeSubscriptionId,
+      trial_used: true,
     }
+  })
+
+  // POST /billing/trial — inicia trial gratuito de 3 dias (Scale, sem cartão)
+  fastify.post("/billing/trial", async (req, reply) => {
+    const orgId = req.auth.orgId
+
+    const existing = await prisma.subscription.findFirst({ where: { clerkOrganizationId: orgId } }).catch(() => null)
+    if (existing) {
+      return reply.code(409).send({ error: "trial_already_used", message: "Esta organização já utilizou o período de teste" })
+    }
+
+    const trialEnd = new Date()
+    trialEnd.setDate(trialEnd.getDate() + 3)
+
+    await prisma.subscription.create({
+      data: {
+        clerkOrganizationId: orgId,
+        clerkUserId: req.auth.userId,
+        stripeCustomerId: `trial_${orgId}`,
+        stripeSubscriptionId: `trial_${orgId}_${Date.now()}`,
+        plan: "scale",
+        billingCycle: "monthly",
+        status: "trialing",
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: trialEnd,
+        cancelAtPeriodEnd: false,
+      },
+    })
+
+    return { success: true, trial_end: trialEnd, plan: "scale", days: 3 }
   })
 
   // GET /billing/plans — retorna config de planos para o frontend
