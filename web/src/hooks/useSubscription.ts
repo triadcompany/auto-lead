@@ -15,6 +15,7 @@ export interface SubscriptionData {
   cancel_at_period_end: boolean;
   stripe_subscription_id?: string;
   trial_used?: boolean;
+  is_trial?: boolean;
 }
 
 export interface PlanFeatures {
@@ -190,8 +191,9 @@ export function useSubscription() {
     isSubscribed: subscription?.subscribed ?? false,
     isTrialing: subscription?.status === 'trialing',
     trialUsed: subscription?.trial_used ?? false,
+    isTrial: subscription?.is_trial ?? false,
     isPastDue: subscription?.status === 'past_due',
     isCanceled: subscription?.status === 'canceled',
-    isExpired: !subscription?.subscribed && subscription?.status === 'inactive',
+    isExpired: !subscription?.subscribed && subscription?.status === 'inactive' && (subscription?.trial_used ?? false),
   };
 }
