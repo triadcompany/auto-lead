@@ -104,45 +104,64 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     return { success: true }
   })
 
-  // GET /users/invitations/:token/validate — valida convite (substitui validate-invitation)
+  // GET /users/invitations/:token/validate — valida convite pelo id
   fastify.get<{ Params: { token: string } }>("/users/invitations/:token/validate", async (req, reply) => {
-    const invite = await (prisma as any).invitation?.findFirst({
-      where: { token: req.params.token, used: false },
+    const invite = await prisma.userInvitation.findFirst({
+      where: { id: req.params.token, status: "pending" },
     }).catch(() => null)
 
     if (!invite) return reply.code(404).send({ error: "Invitation not found or expired" })
     return invite
   })
 
-  // POST /users/invite — convida usuário (substitui invite-user + send-invitation-email)
-  fastify.post<{ Body: { email: string; role: string; name?: string } }>(
+  // POST /users/invite — convida usuário
+  fastify.post<{ Body: { email: string; role: string; name?: string; forceResend?: boolean } }>(
     "/users/invite",
     async (req, reply) => {
-      const { email, role, name } = req.body
+      const { email, role, name, forceResend } = req.body
       const { orgId } = req.auth
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:8080"
 
-      const token = crypto.randomUUID()
-      const invite = await (prisma as any).invitation?.create({
+      // Verifica convite pendente
+      const existing = await prisma.userInvitation.findFirst({
+        where: { organizationId: orgId, email, status: "pending" },
+      }).catch(() => null)
+
+      if (existing && !forceResend) {
+        return reply.code(409).send({ code: "INVITE_PENDING", message: "Já existe um convite pendente para este email" })
+      }
+
+      // Cancela convite anterior ao reenviar
+      if (existing && forceResend) {
+        await prisma.userInvitation.update({
+          where: { id: existing.id },
+          data: { status: "canceled", updatedAt: new Date() },
+        }).catch(() => null)
+      }
+
+      const safeRole = (role === "admin" ? "admin" : "seller") as "admin" | "seller"
+
+      const invite = await prisma.userInvitation.create({
         data: {
           organizationId: orgId,
           email,
-          role,
-          name,
-          token,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          role: safeRole,
+          name: name || email,
+          status: "pending",
         },
-      }).catch(() => ({ token, email, role }))
+      })
 
-      return reply.code(201).send({ token: invite.token, email })
+      const inviteUrl = `${frontendUrl}/invite?token=${invite.id}`
+      return reply.code(201).send({ inviteUrl, invitationId: invite.id, email })
     }
   )
 
-  // POST /users/invitations/:token/accept — aceita convite (substitui accept-invitation)
+  // POST /users/invitations/:token/accept — aceita convite
   fastify.post<{ Params: { token: string }; Body: { clerk_user_id: string } }>(
     "/users/invitations/:token/accept",
     async (req, reply) => {
-      const invite = await (prisma as any).invitation?.findFirst({
-        where: { token: req.params.token, used: false },
+      const invite = await prisma.userInvitation.findFirst({
+        where: { id: req.params.token, status: "pending" },
       }).catch(() => null)
 
       if (!invite) return reply.code(404).send({ error: "Invitation not found or expired" })
@@ -159,9 +178,9 @@ export default async function usersRoutes(fastify: FastifyInstance) {
         },
       })
 
-      await (prisma as any).invitation?.updateMany({
-        where: { token: req.params.token },
-        data: { used: true },
+      await prisma.userInvitation.update({
+        where: { id: req.params.token },
+        data: { status: "accepted", updatedAt: new Date() },
       }).catch(() => null)
 
       return { success: true }
