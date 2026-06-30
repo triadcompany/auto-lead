@@ -116,7 +116,7 @@ export function createApi(getToken: () => Promise<string | null>) {
       updateRole: (id: string, role: "admin" | "seller") =>
         patch(`/users/${id}/role`, { role }),
       delete: (id: string) => del(`/users/${id}`),
-      invite: (data: { email: string; role: string; name?: string }) =>
+      invite: (data: { email: string; role: string; name?: string; forceResend?: boolean }) =>
         post<any>("/users/invite", data),
       validateInvitation: (token: string) =>
         get<any>(`/users/invitations/${token}/validate`),
