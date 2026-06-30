@@ -37,6 +37,7 @@ export function useUserInvites() {
         email: userData.email,
         name: userData.name,
         role: userData.role,
+        forceResend: userData.forceResend,
       }) as any;
 
       toast({ title: '✅ Convite enviado!', description: `O convite foi enviado para ${userData.email}.` });
