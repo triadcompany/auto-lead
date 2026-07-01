@@ -41,6 +41,7 @@ export interface OrgInfo {
   org_id: string;
   clerk_org_id: string;
   role: 'admin' | 'seller';
+  name?: string;
 }
 
 interface UseAuthSessionReturn {
