@@ -61,6 +61,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         org_id: finalProfile.organizationId,
         clerk_org_id: finalProfile.organizationId,
         role: finalProfile.role as string,
+        name: (finalProfile as any).organization?.name || '',
       },
       needsOnboarding: false,
     }
