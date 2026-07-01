@@ -65,6 +65,9 @@ export default function BillingSettings() {
     openCustomerPortal,
     checkSubscription,
     isSubscribed,
+    isTrialing,
+    isTrial,
+    trialDaysLeft,
     isPastDue,
   } = useSubscription();
 
@@ -111,8 +114,30 @@ export default function BillingSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Status da assinatura atual */}
-      {isSubscribed && subscription && (
+      {/* Trial ativo — mostra status + aviso */}
+      {isTrialing && isTrial && (
+        <Card className="border-2 border-primary bg-primary/5">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-primary" />
+                  Período de Teste — Scale
+                </CardTitle>
+                <CardDescription>
+                  {trialDaysLeft === 0
+                    ? "Seu teste termina hoje! Assine para não perder o acesso."
+                    : `${trialDaysLeft} dia${trialDaysLeft !== 1 ? "s" : ""} restante${trialDaysLeft !== 1 ? "s" : ""} no período gratuito.`}
+                </CardDescription>
+              </div>
+              <Badge variant="default" className="text-sm">TRIAL</Badge>
+            </div>
+          </CardHeader>
+        </Card>
+      )}
+
+      {/* Assinatura real ativa */}
+      {isSubscribed && !isTrial && subscription && (
         <Card className={cn("border-2", isPastDue ? "border-destructive bg-destructive/5" : "border-primary bg-primary/5")}>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -150,8 +175,8 @@ export default function BillingSettings() {
         </Card>
       )}
 
-      {/* Toggle de ciclo */}
-      {!isSubscribed && (
+      {/* Toggle de ciclo — mostra para não assinantes E para trial (podem assinar) */}
+      {(!isSubscribed || isTrialing) && (
         <div className="flex items-center justify-center">
           <div className="flex items-center bg-muted rounded-xl p-1 gap-1">
             {BILLING_OPTIONS.map((opt) => (
@@ -177,7 +202,7 @@ export default function BillingSettings() {
         </div>
       )}
 
-      {/* Cards dos planos */}
+      {/* Cards dos planos — mostra para não assinantes e trial */}
       <div className="grid md:grid-cols-2 gap-6">
         {/* Start */}
         <Card className={cn("border-2 transition-all", subscription?.plan === "start" ? "border-primary" : "border-border/50 hover:border-border")}>
@@ -197,13 +222,13 @@ export default function BillingSettings() {
               <p className="text-sm text-muted-foreground mt-1">{cycleTotal("start", selectedCycle)}</p>
             </div>
 
-            {!isSubscribed && (
+            {(!isSubscribed || isTrialing) && (
               <Button variant="outline" className="w-full" onClick={() => handleSubscribe("start")} disabled={checkoutLoading !== null}>
                 {checkoutLoading === "start" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Assinar Start
+                {isTrialing ? "Assinar Start" : "Assinar Start"}
               </Button>
             )}
-            {subscription?.plan === "scale" && (
+            {isSubscribed && !isTrial && subscription?.plan === "scale" && (
               <Button variant="outline" className="w-full" onClick={openCustomerPortal}>
                 Fazer downgrade <ExternalLink className="h-4 w-4 ml-2" />
               </Button>
@@ -247,13 +272,13 @@ export default function BillingSettings() {
               <p className="text-sm text-muted-foreground mt-1">{cycleTotal("scale", selectedCycle)}</p>
             </div>
 
-            {!isSubscribed && (
+            {(!isSubscribed || isTrialing) && (
               <Button className="w-full" onClick={() => handleSubscribe("scale")} disabled={checkoutLoading !== null}>
                 {checkoutLoading === "scale" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Assinar Scale <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             )}
-            {subscription?.plan === "start" && (
+            {isSubscribed && !isTrial && subscription?.plan === "start" && (
               <Button className="w-full" onClick={openCustomerPortal}>
                 Fazer upgrade <ExternalLink className="h-4 w-4 ml-2" />
               </Button>
