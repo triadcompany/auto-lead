@@ -99,7 +99,7 @@ async function sendWhatsAppMedia(
 export async function findPausedReplyRouterRun(
   orgId: string,
   phone: string
-): Promise<{ runId: string; nodeId: string; nodeConfig: ReplyRouterConfig; instanceName: string } | null> {
+): Promise<{ runId: string; nodeId: string; nodeType: string; nodeConfig: ReplyRouterConfig; instanceName: string } | null> {
   // find leads in this org with this phone
   const lead = await prisma.lead.findFirst({
     where: { organizationId: orgId, phone: { contains: phone.slice(-8) } },
