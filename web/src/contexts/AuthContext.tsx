@@ -98,7 +98,7 @@ function AuthProviderWithClerk({ children }: { children: React.ReactNode }) {
     || clerkUser?.primaryEmailAddress?.emailAddress?.split('@')[0]
     || '';
   const userEmail = clerkUser?.primaryEmailAddress?.emailAddress || '';
-  const orgName = clerkOrganization?.name || '';
+  const orgName = org?.name || clerkOrganization?.name || '';
 
   const switchActiveOrg = useCallback(
     (next: { org_id: string; clerk_org_id: string; role: 'admin' | 'seller' }) => {
