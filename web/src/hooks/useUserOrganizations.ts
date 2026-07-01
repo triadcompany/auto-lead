@@ -15,7 +15,7 @@ export interface UserOrganization {
 }
 
 export function useUserOrganizations() {
-  const { user, orgId, profile, switchActiveOrg, refreshProfile } = useAuth();
+  const { user, orgId, profile, orgName, switchActiveOrg, refreshProfile } = useAuth();
   const { setActive } = useClerk();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -37,7 +37,7 @@ export function useUserOrganizations() {
       const org: UserOrganization = {
         organization_id: profile.organization_id || orgId,
         clerk_org_id: null,
-        name: profile.org_name || 'Minha Empresa',
+        name: orgName || 'Minha Empresa',
         role: (profile.role as 'admin' | 'seller') || 'seller',
         is_current: true,
         logo_url: null,
