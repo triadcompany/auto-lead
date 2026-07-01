@@ -19,6 +19,25 @@ function stripeStatusToInternal(status: string): string {
   }
 }
 
+// Upsert seguro por org — evita conflito de unique em clerkOrganizationId quando há trial
+async function upsertSubscriptionByOrg(orgId: string, data: {
+  clerkUserId: string
+  stripeCustomerId: string
+  stripeSubscriptionId: string
+  plan: string
+  billingCycle: string
+  status: string
+  currentPeriodStart: Date
+  currentPeriodEnd: Date
+  cancelAtPeriodEnd: boolean
+}) {
+  const existing = await prisma.subscription.findFirst({ where: { clerkOrganizationId: orgId } }).catch(() => null)
+  if (existing) {
+    return prisma.subscription.update({ where: { id: existing.id }, data: { ...data, updatedAt: new Date() } })
+  }
+  return prisma.subscription.create({ data: { clerkOrganizationId: orgId, ...data } })
+}
+
 export default async function billingRoutes(fastify: FastifyInstance) {
   // GET /billing/subscription — status da assinatura atual (substitui check-subscription)
   fastify.get("/billing/subscription", async (req) => {
@@ -165,32 +184,16 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     const sub = session.subscription as Stripe.Subscription
     if (!sub) return reply.code(400).send({ success: false, error: "No subscription in session" })
 
-    await prisma.subscription.upsert({
-      where: { stripeSubscriptionId: sub.id },
-      update: {
-        clerkOrganizationId: clerkOrgId,
-        clerkUserId,
-        stripeCustomerId: session.customer as string,
-        plan,
-        billingCycle: billingCycle === "yearly" ? "yearly" : "monthly",
-        status: "active",
-        currentPeriodStart: new Date(sub.current_period_start * 1000),
-        currentPeriodEnd: new Date(sub.current_period_end * 1000),
-        cancelAtPeriodEnd: sub.cancel_at_period_end,
-        updatedAt: new Date(),
-      },
-      create: {
-        clerkOrganizationId: clerkOrgId,
-        clerkUserId,
-        stripeCustomerId: session.customer as string,
-        stripeSubscriptionId: sub.id,
-        plan,
-        billingCycle: billingCycle === "yearly" ? "yearly" : "monthly",
-        status: "active",
-        currentPeriodStart: new Date(sub.current_period_start * 1000),
-        currentPeriodEnd: new Date(sub.current_period_end * 1000),
-        cancelAtPeriodEnd: sub.cancel_at_period_end,
-      },
+    await upsertSubscriptionByOrg(clerkOrgId, {
+      clerkUserId,
+      stripeCustomerId: session.customer as string,
+      stripeSubscriptionId: sub.id,
+      plan,
+      billingCycle: billingCycle || "monthly",
+      status: "active",
+      currentPeriodStart: new Date(sub.current_period_start * 1000),
+      currentPeriodEnd: new Date(sub.current_period_end * 1000),
+      cancelAtPeriodEnd: sub.cancel_at_period_end,
     })
 
     return { success: true, plan, billing_cycle: billingCycle, status: "active" }
@@ -205,8 +208,8 @@ export default async function billingRoutes(fastify: FastifyInstance) {
       where: { clerkOrganizationId: req.auth.orgId },
     }).catch(() => null)
 
-    if (!sub?.stripeCustomerId) {
-      return reply.code(404).send({ error: "No Stripe customer found for this organization" })
+    if (!sub?.stripeCustomerId || sub.stripeCustomerId.startsWith("trial_")) {
+      return reply.code(404).send({ error: "no_stripe_customer", message: "Assine um plano para gerenciar sua assinatura" })
     }
 
     const portalSession = await stripe.billingPortal.sessions.create({
@@ -244,32 +247,16 @@ export default async function billingRoutes(fastify: FastifyInstance) {
         if (!orgId || !userId || !plan || !billing_cycle) break
 
         const sub = await stripe.subscriptions.retrieve(session.subscription as string)
-        await prisma.subscription.upsert({
-          where: { stripeSubscriptionId: sub.id },
-          update: {
-            clerkOrganizationId: orgId,
-            clerkUserId: userId,
-            stripeCustomerId: session.customer as string,
-            plan,
-            billingCycle: billing_cycle || "monthly",
-            status: "active",
-            currentPeriodStart: new Date(sub.current_period_start * 1000),
-            currentPeriodEnd: new Date(sub.current_period_end * 1000),
-            cancelAtPeriodEnd: sub.cancel_at_period_end,
-            updatedAt: new Date(),
-          },
-          create: {
-            clerkOrganizationId: orgId,
-            clerkUserId: userId,
-            stripeCustomerId: session.customer as string,
-            stripeSubscriptionId: sub.id,
-            plan,
-            billingCycle: billing_cycle || "monthly",
-            status: "active",
-            currentPeriodStart: new Date(sub.current_period_start * 1000),
-            currentPeriodEnd: new Date(sub.current_period_end * 1000),
-            cancelAtPeriodEnd: sub.cancel_at_period_end,
-          },
+        await upsertSubscriptionByOrg(orgId, {
+          clerkUserId: userId,
+          stripeCustomerId: session.customer as string,
+          stripeSubscriptionId: sub.id,
+          plan,
+          billingCycle: billing_cycle || "monthly",
+          status: "active",
+          currentPeriodStart: new Date(sub.current_period_start * 1000),
+          currentPeriodEnd: new Date(sub.current_period_end * 1000),
+          cancelAtPeriodEnd: sub.cancel_at_period_end,
         }).catch(console.error)
         break
       }
