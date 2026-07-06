@@ -43,27 +43,27 @@ function FlowCanvas({ stages, onStagePositionUpdate }: Props) {
                 width: 10,
                 height: 10,
                 borderRadius: '50%',
-                backgroundColor: stage.color ?? '#F97316',
+                background: 'linear-gradient(135deg, #F96E1A, #C44E0D)',
                 margin: '0 auto 6px',
               }}
             />
-            <div style={{ fontWeight: 600, fontSize: 13, color: '#f1f5f9', lineHeight: 1.3 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#FAF4EF', lineHeight: 1.3 }}>
               {stage.name}
             </div>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>
+            <div style={{ fontSize: 11, color: '#F96E1A', marginTop: 3, opacity: 0.8 }}>
               Etapa {stage.position}
             </div>
           </div>
         ),
       },
       style: {
-        background: '#1e293b',
-        border: `2px solid ${stage.color ?? '#F97316'}`,
+        background: '#2C1A0E',
+        border: '2px solid #F96E1A',
         borderRadius: 10,
         padding: '10px 8px',
         minWidth: 130,
-        color: '#f1f5f9',
-        boxShadow: `0 0 14px ${stage.color ?? '#F97316'}40`,
+        color: '#FAF4EF',
+        boxShadow: '0 0 16px #F96E1A33',
       },
     }));
 
@@ -73,8 +73,8 @@ function FlowCanvas({ stages, onStagePositionUpdate }: Props) {
       target: flowNodes[index + 1].id,
       type: 'smoothstep',
       animated: true,
-      style: { stroke: '#475569', strokeWidth: 2 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
+      style: { stroke: '#E05A0C', strokeWidth: 2 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#E05A0C' },
     }));
 
     setNodes(flowNodes);
@@ -127,13 +127,13 @@ function FlowCanvas({ stages, onStagePositionUpdate }: Props) {
       elementsSelectable={true}
       colorMode="dark"
     >
-      <Controls />
-      <Background color="#334155" gap={20} size={1} />
+      <Controls style={{ button: { background: '#2C1A0E', border: '1px solid #F96E1A33', color: '#F96E1A' } } as any} />
+      <Background color="#3D2B1F" gap={20} size={1} />
       <MiniMap
-        nodeStrokeColor="#475569"
-        nodeColor="#1e293b"
+        nodeStrokeColor="#F96E1A"
+        nodeColor="#2C1A0E"
         nodeBorderRadius={8}
-        style={{ background: '#0f172a', border: '1px solid #1e293b' }}
+        style={{ background: '#1A1210', border: '1px solid #F96E1A33' }}
       />
     </ReactFlow>
   );
@@ -146,7 +146,7 @@ export function PipelineVisualization({ stages, onStagePositionUpdate }: Props) 
         height: 380,
         borderRadius: 12,
         overflow: 'hidden',
-        border: '1px solid #1e293b',
+        border: '1px solid #F96E1A33',
       }}
     >
       <ReactFlowProvider>
