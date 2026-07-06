@@ -152,7 +152,7 @@ export function CRMSidebar() {
           </div>
           {open && (
             <div>
-              <h2 className="font-poppins font-bold text-lg text-foreground">AutoLead</h2>
+              <h2 className="font-poppins font-bold text-lg text-foreground">Triad CRM</h2>
               <p className="text-xs text-muted-foreground">Sistema de Gestão</p>
             </div>
           )}
