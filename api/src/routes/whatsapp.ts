@@ -268,8 +268,16 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
   // POST /whatsapp/me/connect — conecta org autenticada (cria ou reutiliza instância)
   fastify.post("/whatsapp/me/connect", async (req, reply) => {
     const orgId = req.auth.orgId
-    const instanceName = `org-${orgId}`
     const webhookUrl = `${process.env.API_URL || ""}/whatsapp/webhook`
+
+    const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } })
+    const orgSlug = (org?.name || "org")
+      .toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "")  // remove acentos
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 32)
+    const instanceName = `${orgSlug}-${orgId.slice(0, 8)}`
 
     // Reuse existing integration if it exists
     const existing = await (prisma as any).whatsappIntegration?.findFirst?.({
