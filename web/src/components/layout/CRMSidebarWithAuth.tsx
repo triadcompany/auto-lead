@@ -23,6 +23,7 @@ import {
   Bot,
   Radio,
   ListTodo,
+  Shield,
 } from "lucide-react";
 import { useLocation, useNavigate, NavLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -56,7 +57,7 @@ const adminItems: NavItem[] = [
 export function CRMSidebarWithAuth() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut, isAdmin } = useAuth();
+  const { signOut, isAdmin, userEmail } = useAuth();
   const { settings: orgSettings } = useOrgSettings();
 
   const handleLogout = async () => {
@@ -109,6 +110,29 @@ export function CRMSidebarWithAuth() {
         {renderGroup("Principal", filterByModule(principalItems))}
         {renderGroup("Vendas", vendasItems)}
         {isAdmin && renderGroup("Administração", adminItems)}
+        {userEmail === import.meta.env.VITE_SUPERADMIN_EMAIL && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="font-poppins font-medium text-xs text-muted-foreground uppercase tracking-wider">
+              Sistema
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname === "/admin/organizations"}
+                    className="font-poppins"
+                  >
+                    <NavLink to="/admin/organizations" end>
+                      <Shield className="h-4 w-4" />
+                      <span>Organizações</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="p-3">
