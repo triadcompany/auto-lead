@@ -105,6 +105,7 @@ export default function AdminOrganizations() {
   const [submitting, setSubmitting] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [deactivating, setDeactivating] = useState<string | null>(null);
+  const [changingPlan, setChangingPlan] = useState<string | null>(null);
 
   const superadminEmail = import.meta.env.VITE_SUPERADMIN_EMAIL;
   const isSuperAdmin = !superadminEmail || userEmail === superadminEmail;
@@ -158,6 +159,20 @@ export default function AdminOrganizations() {
       toast({ title: "Erro ao liberar acesso", variant: "destructive" });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleChangePlan = async (org: OrgRow, plan: string) => {
+    setChangingPlan(org.id);
+    try {
+      const expiresAt = org.subscription?.currentPeriodEnd ?? null;
+      await api.admin.grantOrg(org.id, { plan, expires_at: expiresAt });
+      toast({ title: `Plano alterado para ${PLAN_LABELS[plan] ?? plan}` });
+      await loadOrgs();
+    } catch {
+      toast({ title: "Erro ao alterar plano", variant: "destructive" });
+    } finally {
+      setChangingPlan(null);
     }
   };
 
@@ -277,11 +292,23 @@ export default function AdminOrganizations() {
                         {format(new Date(org.createdAt), "dd/MM/yyyy")}
                       </td>
                       <td className="px-4 py-3">
-                        {sub?.plan ? (
-                          <span className="font-medium">{PLAN_LABELS[sub.plan] ?? sub.plan}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                        <div className="flex items-center gap-1">
+                          <Select
+                            value={sub?.plan ?? ""}
+                            onValueChange={(val) => handleChangePlan(org, val)}
+                            disabled={changingPlan === org.id}
+                          >
+                            <SelectTrigger className="h-7 w-24 text-xs border-dashed">
+                              {changingPlan === org.id
+                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                : <SelectValue placeholder="—" />}
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="start">Start</SelectItem>
+                              <SelectItem value="scale">Scale</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant="outline" className={`text-xs ${STATUS_STYLES[status] ?? STATUS_STYLES.inactive}`}>
