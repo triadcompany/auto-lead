@@ -89,7 +89,7 @@ export function UpdatePrompt() {
         </CardHeader>
         <CardContent className="space-y-3 pb-4">
           <p className="text-sm text-muted-foreground">
-            Uma nova versão do AutoLead está disponível com melhorias e correções.
+            Uma nova versão do Triad CRM está disponível com melhorias e correções.
           </p>
           <div className="flex gap-2">
             <Button
