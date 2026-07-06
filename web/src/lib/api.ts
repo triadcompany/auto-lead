@@ -495,6 +495,7 @@ export function createApi(getToken: () => Promise<string | null>) {
       grantOrg: (id: string, data: { plan: string; expires_at?: string | null }) =>
         post<any>(`/admin/organizations/${id}/grant`, data),
       revokeOrg: (id: string) => post<any>(`/admin/organizations/${id}/revoke`, {}),
+      deactivateOrg: (id: string) => post<any>(`/admin/organizations/${id}/deactivate`, {}),
     },
   }
 }
