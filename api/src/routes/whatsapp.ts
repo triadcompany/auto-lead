@@ -289,20 +289,35 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
 
     const targetInstance = existing?.instanceName || instanceName
 
-    const res = await evolutionFetch("/instance/create", {
+    const createRes = await evolutionFetch("/instance/create", {
       method: "POST",
       body: JSON.stringify({
         instanceName: targetInstance,
-        webhook: { enabled: true, url: webhookUrl, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] },
+        integration: "WHATSAPP-BAILEYS",
+        ...(webhookUrl
+          ? { webhook: { enabled: true, url: webhookUrl, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] } }
+          : {}),
       }),
     })
-    const data = await res.json() as Record<string, any>
+    const createData = await createRes.json() as Record<string, any>
 
-    await (prisma as any).whatsappIntegration?.upsert?.({
-      where: { organizationId: orgId } as any,
-      update: { instanceName: targetInstance, status: "connecting" },
-      create: { organizationId: orgId, instanceName: targetInstance, status: "connecting" },
-    }).catch(() => null)
+    if (!createRes.ok && createData?.status !== 400) {
+      // Hard error (not "already exists")
+      return reply.code(502).send({ ok: false, error: createData?.message || "Failed to create Evolution instance" })
+    }
+
+    // Persist integration record
+    const existingRecord = await prisma.whatsappIntegration.findFirst({ where: { organizationId: orgId } })
+    if (existingRecord) {
+      await prisma.whatsappIntegration.update({
+        where: { id: existingRecord.id },
+        data: { instanceName: targetInstance, status: "connecting", updatedAt: new Date() },
+      })
+    } else {
+      await prisma.whatsappIntegration.create({
+        data: { organizationId: orgId, instanceName: targetInstance, status: "connecting" },
+      })
+    }
 
     // Get QR code
     let qrCode: string | null = null
@@ -312,7 +327,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
       qrCode = qrData?.base64 || qrData?.qrcode?.base64 || null
     } catch { /* non-critical */ }
 
-    return reply.code(201).send({ ok: true, instance_name: targetInstance, qr_code: qrCode, ...(data as object) })
+    return reply.code(201).send({ ok: true, instance_name: targetInstance, qr_code: qrCode })
   })
 
   // DELETE /whatsapp/me/disconnect — desconecta org autenticada
