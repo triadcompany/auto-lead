@@ -21,7 +21,12 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         profiles: { some: { clerkUserId: { not: null } } },
       },
       orderBy: { createdAt: "desc" },
-      select: { id: true, name: true, createdAt: true },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        _count: { select: { profiles: true } },
+      },
     })
 
     const orgIds = orgs.map(o => o.id)
@@ -37,7 +42,13 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     })
 
     const subByOrg = new Map(subs.map(s => [s.clerkOrganizationId, s]))
-    return orgs.map(org => ({ ...org, subscription: subByOrg.get(org.id) ?? null }))
+    return orgs.map(org => ({
+      id: org.id,
+      name: org.name,
+      createdAt: org.createdAt,
+      userCount: org._count.profiles,
+      subscription: subByOrg.get(org.id) ?? null,
+    }))
   })
 
   fastify.get<{ Params: { id: string } }>("/admin/organizations/:id/grants", async (req, reply) => {
