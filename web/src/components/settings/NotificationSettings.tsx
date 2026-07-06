@@ -73,9 +73,9 @@ export function NotificationSettings() {
     if (granted) {
       toast.success("Notificações do navegador ativadas");
       // Show a sample notification
-      new Notification("AutoLead", {
+      new Notification("Triad CRM", {
         body: "Você receberá notificações quando novos leads chegarem.",
-        icon: "/autolead-logo.png",
+        icon: "/triad-crm-logo.png",
       });
     } else {
       toast.error("Permissão de notificação negada. Habilite manualmente nas configurações do navegador.");
