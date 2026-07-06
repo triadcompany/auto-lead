@@ -27,8 +27,8 @@ export function SubscriptionGate({ children }: SubscriptionGateProps) {
 
   if (isSubscribed) return <>{children}</>;
 
-  // Permite acesso à página de configurações/billing mesmo sem assinatura ativa
-  if (location.pathname === "/settings") return <>{children}</>;
+  // Permite acesso às páginas de configurações e admin sem assinatura ativa
+  if (location.pathname === "/settings" || location.pathname.startsWith("/admin/")) return <>{children}</>;
 
   // Trial expirado ou assinatura cancelada/inativa
   if (isExpired || (trialUsed && !isSubscribed)) {
