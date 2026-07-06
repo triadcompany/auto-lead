@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Zap, RefreshCw, Loader2, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -11,6 +11,7 @@ interface SubscriptionGateProps {
 export function SubscriptionGate({ children }: SubscriptionGateProps) {
   const { subscription, loading, error, isSubscribed, isExpired, trialUsed, startTrial } = useSubscription();
   const navigate = useNavigate();
+  const location = useLocation();
   const [starting, setStarting] = useState(false);
 
   // Fail open: erro de rede não bloqueia o app
@@ -25,6 +26,9 @@ export function SubscriptionGate({ children }: SubscriptionGateProps) {
   }
 
   if (isSubscribed) return <>{children}</>;
+
+  // Permite acesso à página de configurações/billing mesmo sem assinatura ativa
+  if (location.pathname === "/settings") return <>{children}</>;
 
   // Trial expirado ou assinatura cancelada/inativa
   if (isExpired || (trialUsed && !isSubscribed)) {
