@@ -92,7 +92,7 @@ export function InstallPrompt() {
                 <Download className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-lg">Instalar AutoLead</CardTitle>
+                <CardTitle className="text-lg">Instalar Triad CRM</CardTitle>
                 <CardDescription className="text-xs">
                   Acesso rápido e offline
                 </CardDescription>
