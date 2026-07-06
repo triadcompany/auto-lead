@@ -1,15 +1,6 @@
 import React from 'react';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-
-interface PipelineStage {
-  id: string;
-  name: string;
-  position: number;
-  color: string;
-  is_active: boolean;
-  pipeline_id: string;
-}
+import { PipelineStage } from '@/hooks/usePipelines';
 
 interface Props {
   stages: PipelineStage[];
@@ -18,7 +9,7 @@ interface Props {
 
 export function PipelineVisualization({ stages }: Props) {
   const activeStages = [...stages]
-    .filter(s => s.is_active)
+    .filter(s => s.isActive !== false)
     .sort((a, b) => a.position - b.position);
 
   if (activeStages.length === 0) {
@@ -43,7 +34,7 @@ export function PipelineVisualization({ stages }: Props) {
               {/* Position badge */}
               <div
                 className="text-white text-xs font-bold px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: stage.color }}
+                style={{ backgroundColor: stage.color || '#F97316' }}
               >
                 {index + 1}
               </div>
@@ -51,11 +42,11 @@ export function PipelineVisualization({ stages }: Props) {
               {/* Card */}
               <div
                 className="w-full rounded-xl border-2 px-3 py-4 flex flex-col items-center gap-2 bg-card shadow-sm"
-                style={{ borderColor: stage.color }}
+                style={{ borderColor: stage.color || '#F97316' }}
               >
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                  style={{ backgroundColor: stage.color }}
+                  style={{ backgroundColor: stage.color || '#F97316' }}
                 >
                   {stage.name.charAt(0).toUpperCase()}
                 </div>
@@ -85,11 +76,11 @@ export function PipelineVisualization({ stages }: Props) {
             key={stage.id}
             variant="outline"
             className="text-xs gap-1.5"
-            style={{ borderColor: stage.color, color: stage.color }}
+            style={{ borderColor: stage.color || '#F97316', color: stage.color || '#F97316' }}
           >
             <span
               className="w-2 h-2 rounded-full flex-shrink-0"
-              style={{ backgroundColor: stage.color }}
+              style={{ backgroundColor: stage.color || '#F97316' }}
             />
             {stage.name}
           </Badge>
