@@ -32,6 +32,7 @@ import TreinarAgente from "./pages/TreinarAgente";
 import AdminDebugAutomations from "./pages/AdminDebugAutomations";
 import AutomationGuide from "./pages/AutomationGuide";
 import AdminDiagnostico from "./pages/AdminDiagnostico";
+import AdminOrganizations from "./pages/AdminOrganizations";
 import Broadcasts from "./pages/Broadcasts";
 import BroadcastDetail from "./pages/BroadcastDetail";
 import { TabBar } from "./components/mobile/TabBar";
@@ -130,6 +131,7 @@ const App = () => {
                       <Route path="/treinar-agente" element={<AdminRoute><ErrorBoundary><TreinarAgente /></ErrorBoundary></AdminRoute>} />
                       <Route path="/admin/debug/automations" element={<AdminRoute><ErrorBoundary><AdminDebugAutomations /></ErrorBoundary></AdminRoute>} />
                       <Route path="/admin/diagnostico" element={<AdminRoute><ErrorBoundary><AdminDiagnostico /></ErrorBoundary></AdminRoute>} />
+                      <Route path="/admin/organizations" element={<AdminRoute><ErrorBoundary><AdminOrganizations /></ErrorBoundary></AdminRoute>} />
                     </Route>
                   </Route>
 
