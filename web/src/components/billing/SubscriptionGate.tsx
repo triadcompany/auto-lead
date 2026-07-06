@@ -44,7 +44,7 @@ export function SubscriptionGate({ children }: SubscriptionGateProps) {
             </h1>
             <p className="text-muted-foreground">
               {isExpired
-                ? "Seu período de teste chegou ao fim. Assine um plano para continuar usando o Auto Lead."
+                ? "Seu período de teste chegou ao fim. Assine um plano para continuar usando o Triad CRM."
                 : "Sua assinatura está inativa. Renove para voltar a usar o sistema."}
             </p>
           </div>
@@ -73,7 +73,7 @@ export function SubscriptionGate({ children }: SubscriptionGateProps) {
           <Zap className="h-8 w-8 text-primary" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold mb-2">Bem-vindo ao Auto Lead!</h1>
+          <h1 className="text-2xl font-bold mb-2">Bem-vindo ao Triad CRM!</h1>
           <p className="text-muted-foreground">
             Teste gratuitamente por <strong>3 dias</strong> com acesso completo ao plano Scale, sem precisar de cartão.
           </p>
