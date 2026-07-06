@@ -39,6 +39,7 @@ import {
   XCircle,
   Clock,
   RefreshCw,
+  Users,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +48,7 @@ interface OrgRow {
   id: string;
   name: string;
   createdAt: string;
+  userCount: number;
   subscription: {
     plan: string | null;
     status: string;
@@ -202,6 +204,7 @@ export default function AdminOrganizations() {
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Organização</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Usuários</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Criado em</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Plano</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
@@ -212,13 +215,13 @@ export default function AdminOrganizations() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center">
+                  <td colSpan={7} className="px-4 py-12 text-center">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                   </td>
                 </tr>
               ) : orgs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
                     Nenhuma organização encontrada
                   </td>
                 </tr>
@@ -237,6 +240,12 @@ export default function AdminOrganizations() {
                           <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           {org.name}
                         </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="flex items-center gap-1 text-muted-foreground tabular-nums">
+                          <Users className="h-3 w-3" />
+                          {org.userCount}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground tabular-nums">
                         {format(new Date(org.createdAt), "dd/MM/yyyy")}
