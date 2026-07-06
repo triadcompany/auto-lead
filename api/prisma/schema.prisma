@@ -192,6 +192,7 @@ model Organization {
   automationExecutions      AutomationExecution[]
   automationFirstContacts   AutomationFirstContact[]
   distributionSchedules     DistributionSchedule[]
+  adminGrants               AdminGrant[]
 
   @@map("organizations")
 }
@@ -1742,4 +1743,21 @@ model BroadcastRecipient {
   campaign         BroadcastCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@map("broadcast_recipients")
+}
+
+// ─── ADMIN GRANTS ─────────────────────────────────────────────────────────────
+
+model AdminGrant {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  action         String    // "grant" | "revoke"
+  plan           String?
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz
+  grantedBy      String    @map("granted_by")
+  note           String?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("admin_grants")
 }
