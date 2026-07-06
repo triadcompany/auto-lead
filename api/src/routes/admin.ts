@@ -16,7 +16,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     if (!await isSuperAdmin(req.auth.profileId)) return reply.code(403).send({ error: "Forbidden" })
 
     const orgs = await prisma.organization.findMany({
-      where: { isActive: true },
+      where: { isActive: true, clerkOrgId: { not: null } },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
