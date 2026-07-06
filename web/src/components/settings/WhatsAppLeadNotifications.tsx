@@ -134,7 +134,7 @@ export function WhatsAppLeadNotifications() {
       await api.whatsapp.send(
         integration.evolution_instance_id || '',
         integration.phone_number,
-        "✅ Mensagem de teste do sistema AutoLead CRM. Sua integração Evolution está funcionando corretamente!"
+        "✅ Mensagem de teste do sistema Triad CRM. Sua integração Evolution está funcionando corretamente!"
       );
 
       toast({
