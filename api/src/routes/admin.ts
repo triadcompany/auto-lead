@@ -16,16 +16,18 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     if (!await isSuperAdmin(req.auth.profileId)) return reply.code(403).send({ error: "Forbidden" })
 
     const orgs = await prisma.organization.findMany({
-      where: {
-        isActive: true,
-        profiles: { some: { clerkUserId: { not: null } } },
-      },
+      where: { isActive: true },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
         name: true,
         createdAt: true,
         _count: { select: { profiles: true } },
+        profiles: {
+          take: 3,
+          select: { email: true, role: true },
+          orderBy: { createdAt: "asc" },
+        },
       },
     })
 
@@ -47,6 +49,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       name: org.name,
       createdAt: org.createdAt,
       userCount: org._count.profiles,
+      emails: org.profiles.map(p => p.email),
       subscription: subByOrg.get(org.id) ?? null,
     }))
   })
@@ -110,6 +113,15 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       data: { organizationId: orgId, action: "grant", plan, expiresAt, grantedBy },
     })
 
+    return { success: true }
+  })
+
+  fastify.post<{ Params: { id: string } }>("/admin/organizations/:id/deactivate", async (req, reply) => {
+    if (!await isSuperAdmin(req.auth.profileId)) return reply.code(403).send({ error: "Forbidden" })
+    await prisma.organization.update({
+      where: { id: req.params.id },
+      data: { isActive: false },
+    })
     return { success: true }
   })
 
