@@ -49,7 +49,7 @@ export function SubscriptionGate({ children }: SubscriptionGateProps) {
             </p>
           </div>
           <div className="flex flex-col gap-3">
-            <Button size="lg" className="w-full" onClick={() => navigate("/settings?tab=billing")}>
+            <Button size="lg" className="w-full" onClick={() => { window.location.href = "/settings?tab=billing"; }}>
               <Zap className="h-5 w-5 mr-2" />
               Ver planos e assinar
             </Button>
@@ -96,7 +96,7 @@ export function SubscriptionGate({ children }: SubscriptionGateProps) {
             )}
             Iniciar teste gratuito de 3 dias
           </Button>
-          <Button variant="outline" size="lg" className="w-full" onClick={() => navigate("/settings?tab=billing")}>
+          <Button variant="outline" size="lg" className="w-full" onClick={() => { window.location.href = "/settings?tab=billing"; }}>
             Ver planos e preços
           </Button>
         </div>
