@@ -2,6 +2,60 @@ import type { FastifyInstance } from "fastify"
 import { prisma } from "../lib/prisma.js"
 import { orgScope } from "../lib/auth.js"
 
+async function sendInviteEmail(opts: {
+  toEmail: string
+  toName: string
+  orgName: string
+  inviteUrl: string
+  inviterName: string
+}): Promise<void> {
+  const key = process.env.RESEND_API_KEY
+  if (!key) {
+    console.warn("[invite] RESEND_API_KEY not set — skipping email send. Invite URL:", opts.inviteUrl)
+    return
+  }
+
+  const from = process.env.FROM_EMAIL || "AutoLead <noreply@autolead.com.br>"
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;color:#1a1a1a">
+      <h2 style="margin:0 0 8px">Você foi convidado!</h2>
+      <p style="color:#555;margin:0 0 24px">
+        <strong>${opts.inviterName}</strong> convidou você para entrar na organização
+        <strong>${opts.orgName}</strong> no Auto Lead.
+      </p>
+      <a href="${opts.inviteUrl}"
+         style="display:inline-block;background:#f97316;color:#fff;text-decoration:none;
+                padding:12px 28px;border-radius:8px;font-weight:600;font-size:15px">
+        Aceitar convite
+      </a>
+      <p style="margin:24px 0 0;font-size:13px;color:#888">
+        Ou acesse: <a href="${opts.inviteUrl}" style="color:#f97316">${opts.inviteUrl}</a>
+      </p>
+      <p style="margin:16px 0 0;font-size:12px;color:#aaa">
+        Se você não esperava este convite, ignore este email.
+      </p>
+    </div>
+  `
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from,
+      to: [opts.toEmail],
+      subject: `Convite para ${opts.orgName} no Auto Lead`,
+      html,
+    }),
+  })
+
+  if (!res.ok) {
+    const body = await res.text()
+    console.error("[invite] Resend error:", res.status, body)
+    throw new Error(`Failed to send invite email: ${res.status}`)
+  }
+}
+
 export default async function usersRoutes(fastify: FastifyInstance) {
   // GET /users — lista membros da org
   fastify.get("/users", async (req) => {
@@ -152,6 +206,21 @@ export default async function usersRoutes(fastify: FastifyInstance) {
       })
 
       const inviteUrl = `${frontendUrl}/invite?token=${invite.id}`
+
+      // Fetch org name + inviter name for the email
+      const [org, inviter] = await Promise.all([
+        prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
+        prisma.profile.findUnique({ where: { id: req.auth.profileId }, select: { name: true } }),
+      ])
+
+      sendInviteEmail({
+        toEmail: email,
+        toName: name || email,
+        orgName: org?.name || "Auto Lead",
+        inviteUrl,
+        inviterName: inviter?.name || "Administrador",
+      }).catch(err => console.error("[invite] sendInviteEmail failed:", err))
+
       return reply.code(201).send({ inviteUrl, invitationId: invite.id, email })
     }
   )
