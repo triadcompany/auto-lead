@@ -71,7 +71,7 @@ export function useNewLeadNotification(userId?: string) {
   const showNotification = (title: string, options?: NotificationOptions) => {
     if (!notificationsGranted) return;
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(title, { icon: '/autolead-logo.png', badge: '/autolead-logo.png', ...options });
+      new Notification(title, { icon: '/triad-crm-logo.png', badge: '/triad-crm-logo.png', ...options });
     }
   };
 
