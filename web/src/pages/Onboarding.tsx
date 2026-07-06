@@ -60,7 +60,7 @@ export default function Onboarding() {
         }
       }
 
-      toast.success("Empresa criada!", { description: `Bem-vindo ao AutoLead, ${name}!` });
+      toast.success("Empresa criada!", { description: `Bem-vindo ao Triad CRM, ${name}!` });
 
       await retryBootstrap();
       await refreshProfile();
@@ -95,7 +95,7 @@ export default function Onboarding() {
             <Building2 className="w-8 h-8 text-primary" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold">Bem-vindo ao AutoLead!</CardTitle>
+            <CardTitle className="text-2xl font-bold">Bem-vindo ao Triad CRM!</CardTitle>
             <CardDescription className="mt-2">
               Para começar, informe o nome da sua empresa ou negócio.
             </CardDescription>
