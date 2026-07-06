@@ -487,6 +487,15 @@ export function createApi(getToken: () => Promise<string | null>) {
     instagramConnections: {
       list: () => get<any[]>("/instagram/connections"),
     },
+
+    // ── Superadmin ────────────────────────────────────────────────────────────
+    admin: {
+      listOrganizations: () => get<any[]>("/admin/organizations"),
+      getOrgGrants: (id: string) => get<any[]>(`/admin/organizations/${id}/grants`),
+      grantOrg: (id: string, data: { plan: string; expires_at?: string | null }) =>
+        post<any>(`/admin/organizations/${id}/grant`, data),
+      revokeOrg: (id: string) => post<any>(`/admin/organizations/${id}/revoke`, {}),
+    },
   }
 }
 
