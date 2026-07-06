@@ -49,6 +49,7 @@ interface OrgRow {
   name: string;
   createdAt: string;
   userCount: number;
+  emails: string[];
   subscription: {
     plan: string | null;
     status: string;
@@ -103,6 +104,7 @@ export default function AdminOrganizations() {
   const [grantDateOpen, setGrantDateOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [deactivating, setDeactivating] = useState<string | null>(null);
 
   const superadminEmail = import.meta.env.VITE_SUPERADMIN_EMAIL;
   const isSuperAdmin = !superadminEmail || userEmail === superadminEmail;
@@ -156,6 +158,19 @@ export default function AdminOrganizations() {
       toast({ title: "Erro ao liberar acesso", variant: "destructive" });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeactivate = async (org: OrgRow) => {
+    setDeactivating(org.id);
+    try {
+      await api.admin.deactivateOrg(org.id);
+      toast({ title: "Organização desativada" });
+      await loadOrgs();
+    } catch {
+      toast({ title: "Erro ao desativar organização", variant: "destructive" });
+    } finally {
+      setDeactivating(null);
     }
   };
 
@@ -238,14 +253,25 @@ export default function AdminOrganizations() {
                           className="flex items-center gap-2 font-medium hover:text-primary transition-colors text-left"
                         >
                           <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          {org.name}
+                          <span>
+                            {org.name}
+                            <span className="block text-xs font-normal text-muted-foreground font-mono">
+                              {org.id.slice(0, 8)}
+                            </span>
+                          </span>
                         </button>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="flex items-center gap-1 text-muted-foreground tabular-nums">
-                          <Users className="h-3 w-3" />
-                          {org.userCount}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          {org.emails.length > 0
+                            ? org.emails.map(e => (
+                                <span key={e} className="text-xs text-muted-foreground">{e}</span>
+                              ))
+                            : <span className="flex items-center gap-1 text-muted-foreground tabular-nums text-xs">
+                                <Users className="h-3 w-3" />{org.userCount}
+                              </span>
+                          }
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground tabular-nums">
                         {format(new Date(org.createdAt), "dd/MM/yyyy")}
@@ -294,6 +320,18 @@ export default function AdminOrganizations() {
                                 : "Revogar"}
                             </Button>
                           )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            disabled={deactivating === org.id}
+                            onClick={() => handleDeactivate(org)}
+                            title="Desativar organização (ocultar do painel)"
+                          >
+                            {deactivating === org.id
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <XCircle className="h-3.5 w-3.5" />}
+                          </Button>
                         </div>
                       </td>
                     </tr>
