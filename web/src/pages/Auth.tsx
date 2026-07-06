@@ -179,16 +179,7 @@ export function Auth() {
         <div className="flex flex-col justify-between p-12 xl:p-16 w-full">
           {/* Logo */}
           <div className="flex items-center gap-3 animate-fade-in">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-[hsl(20,100%,60%)] to-[hsl(15,100%,45%)] rounded-xl blur-md opacity-60" />
-              <div className="relative w-12 h-12 bg-gradient-to-br from-[hsl(20,100%,60%)] to-[hsl(15,100%,45%)] rounded-xl flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            <div>
-              <span className="text-2xl font-bold font-poppins tracking-tight">AutoLead</span>
-              <p className="text-xs text-white/50 font-poppins -mt-0.5">CRM com IA comercial</p>
-            </div>
+            <img src="/triad-crm-logo.png" alt="Triad CRM" className="h-16 w-16 object-contain rounded-xl" />
           </div>
 
           {/* Hero content */}
@@ -275,7 +266,7 @@ export function Auth() {
 
           {/* Footer */}
           <div className="flex items-center justify-between text-xs text-white/40 font-poppins animate-fade-in" style={{ animationDelay: '300ms' }}>
-            <span>© {new Date().getFullYear()} AutoLead</span>
+            <span>© {new Date().getFullYear()} Triad CRM</span>
             <span className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
               Sistema online
@@ -288,14 +279,8 @@ export function Auth() {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative z-10">
         <div className="w-full max-w-md space-y-7 animate-fade-in" style={{ animationDelay: '150ms' }}>
           {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-2">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-[hsl(20,100%,60%)] to-[hsl(15,100%,45%)] rounded-xl blur-md opacity-60" />
-              <div className="relative w-12 h-12 bg-gradient-to-br from-[hsl(20,100%,60%)] to-[hsl(15,100%,45%)] rounded-xl flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            <span className="text-2xl font-bold font-poppins">AutoLead</span>
+          <div className="lg:hidden flex items-center justify-center mb-2">
+            <img src="/triad-crm-logo.png" alt="Triad CRM" className="h-20 w-20 object-contain rounded-xl" />
           </div>
 
           {/* Invite header */}
@@ -409,7 +394,7 @@ export function Auth() {
 
           {/* Mobile footer */}
           <div className="lg:hidden text-center text-xs text-white/40 font-poppins pt-2">
-            © {new Date().getFullYear()} AutoLead. Todos os direitos reservados.
+            © {new Date().getFullYear()} Triad CRM. Todos os direitos reservados.
           </div>
         </div>
       </div>
