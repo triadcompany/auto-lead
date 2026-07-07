@@ -9,7 +9,6 @@ import { useApi } from '@/hooks/useApi';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImageCropDialog, fileToDataUrl } from '@/components/ui/image-crop-dialog';
-import { useSession } from '@clerk/clerk-react';
 
 interface OrgRow {
   id: string;
@@ -32,7 +31,6 @@ export function OrganizationSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const api = useApi();
-  const { session } = useSession();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(true);
@@ -75,30 +73,17 @@ export function OrganizationSettings() {
   }, [orgId, user?.id]);
 
   const handleLogoUpload = async (file: File) => {
-    if (!orgId || !user?.id) return;
     if (file.size > 2 * 1024 * 1024) {
       toast({ title: 'Arquivo muito grande', description: 'O logo deve ter até 2MB.', variant: 'destructive' });
       return;
     }
     setUploading(true);
     try {
-      const API_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000';
-      const token = await session?.getToken();
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch(`${API_URL}/organizations/${orgId}/logo`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: fd,
-      });
-      const json = await res.json();
-      if (!res.ok || !json?.logo_url) {
-        throw new Error(json?.error || `HTTP ${res.status}`);
-      }
-      setLogoUrl(json.logo_url);
+      const dataUrl = await fileToDataUrl(file);
+      setLogoUrl(dataUrl);
       toast({ title: 'Logo carregado', description: 'Clique em Salvar para confirmar.' });
     } catch (err: any) {
-      toast({ title: 'Falha no upload', description: err?.message || 'Tente novamente.', variant: 'destructive' });
+      toast({ title: 'Falha ao ler imagem', description: err?.message || 'Tente novamente.', variant: 'destructive' });
     } finally {
       setUploading(false);
     }
