@@ -77,14 +77,26 @@ export default async function pipelinesRoutes(fastify: FastifyInstance) {
   })
 
   // POST /pipelines/:id/stages
-  fastify.post<{ Params: { id: string }; Body: { name: string; position: number } }>(
+  fastify.post<{ Params: { id: string }; Body: { name: string; position?: number; color?: string; probability?: number; is_won?: boolean; is_lost?: boolean } }>(
     "/pipelines/:id/stages",
     async (req, reply) => {
+      // Calcula próxima posição se não vier
+      let position = req.body.position
+      if (position === undefined) {
+        const last = await prisma.pipelineStage.findFirst({
+          where: { pipelineId: req.params.id }, orderBy: { position: "desc" }, select: { position: true },
+        })
+        position = (last?.position ?? 0) + 1
+      }
       const stage = await prisma.pipelineStage.create({
         data: {
           pipelineId: req.params.id,
           name: req.body.name,
-          position: req.body.position,
+          position,
+          ...(req.body.color !== undefined && { color: req.body.color }),
+          ...(req.body.probability !== undefined && { probability: req.body.probability }),
+          ...(req.body.is_won !== undefined && { isWon: req.body.is_won }),
+          ...(req.body.is_lost !== undefined && { isLost: req.body.is_lost }),
         },
       })
       return reply.code(201).send(stage)
@@ -94,15 +106,23 @@ export default async function pipelinesRoutes(fastify: FastifyInstance) {
   // PATCH /pipelines/:pipelineId/stages/:stageId
   fastify.patch<{
     Params: { pipelineId: string; stageId: string }
-    Body: { name?: string; position?: number; color?: string }
+    Body: { name?: string; position?: number; color?: string; probability?: number; is_won?: boolean; is_lost?: boolean }
   }>("/pipelines/:pipelineId/stages/:stageId", async (req, reply) => {
+    const b = req.body
     const updated = await prisma.pipelineStage.updateMany({
       where: {
         id: req.params.stageId,
         pipelineId: req.params.pipelineId,
         pipeline: { organizationId: req.auth.orgId },
       },
-      data: req.body,
+      data: {
+        ...(b.name !== undefined && { name: b.name }),
+        ...(b.position !== undefined && { position: b.position }),
+        ...(b.color !== undefined && { color: b.color }),
+        ...(b.probability !== undefined && { probability: b.probability }),
+        ...(b.is_won !== undefined && { isWon: b.is_won }),
+        ...(b.is_lost !== undefined && { isLost: b.is_lost }),
+      },
     })
     if (updated.count === 0) return reply.code(404).send({ error: "Not found" })
     return { success: true }
@@ -157,7 +177,7 @@ export default async function pipelinesRoutes(fastify: FastifyInstance) {
                 data: profile_ids.map((profileId) => ({
                   pipelineId: req.params.id,
                   profileId,
-                  createdBy: req.auth.userId,
+                  createdBy: req.auth.profileId,
                 })),
                 skipDuplicates: true,
               }),
