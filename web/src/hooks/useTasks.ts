@@ -52,7 +52,7 @@ export const useTasks = (filters?: {
       return data.map((row: any): TaskWithDetails => ({
         id: row.id,
         titulo: row.titulo || row.title || '',
-        data_hora: row.dataHora || row.data_hora || row.dueAt || '',
+        data_hora: row.dueDate || row.dataHora || row.data_hora || row.dueAt || '',
         descricao: row.descricao || row.description || null,
         prioridade: row.prioridade || row.priority || 'media',
         status: row.status || 'pendente',
@@ -73,12 +73,12 @@ export const useTasks = (filters?: {
     mutationFn: async (newTask: Partial<Task>) => {
       return api.tasks.create({
         titulo: newTask.titulo,
-        data_hora: newTask.data_hora,
-        descricao: newTask.descricao,
-        prioridade: newTask.prioridade,
+        due_date: newTask.data_hora || null,
+        descricao: newTask.descricao || null,
+        priority: newTask.prioridade || 'media',
         status: newTask.status || 'pendente',
-        responsavel_id: newTask.responsavel_id,
-        lead_id: newTask.lead_id,
+        assigned_to: newTask.responsavel_id || null,
+        lead_id: newTask.lead_id || null,
       } as any);
     },
     onSuccess: () => {
@@ -92,7 +92,14 @@ export const useTasks = (filters?: {
 
   const updateTask = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<Task> }) => {
-      return api.tasks.update(id, updates as any);
+      const mapped: Record<string, unknown> = {};
+      if (updates.titulo !== undefined) mapped.titulo = updates.titulo;
+      if (updates.descricao !== undefined) mapped.descricao = updates.descricao;
+      if (updates.prioridade !== undefined) mapped.priority = updates.prioridade;
+      if (updates.status !== undefined) mapped.status = updates.status;
+      if (updates.data_hora !== undefined) mapped.due_date = updates.data_hora;
+      if (updates.responsavel_id !== undefined) mapped.assigned_to = updates.responsavel_id;
+      return api.tasks.update(id, mapped);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -118,7 +125,7 @@ export const useTasks = (filters?: {
 
   const completeTask = useMutation({
     mutationFn: async (id: string) => {
-      return api.tasks.update(id, { status: 'concluida', completed_at: new Date().toISOString() } as any);
+      return api.tasks.update(id, { status: 'concluida' } as any);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
