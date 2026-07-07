@@ -400,7 +400,7 @@ model Lead {
 model Task {
   id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizationId  String      @map("organization_id") @db.Uuid
-  leadId          String      @map("lead_id") @db.Uuid
+  leadId          String?     @map("lead_id") @db.Uuid
   conversationId  String?     @map("conversation_id") @db.Uuid
   assignedTo      String?     @map("assigned_to") @db.Uuid
   titulo          String
