@@ -79,7 +79,7 @@ export function Reports() {
   const { leads, stages, loading } = useSupabaseLeads();
   const { leadSources, loading: sourcesLoading } = useLeadSources();
   const { salesStageIds } = useSalesStageIds();
-  const { profile, orgId: authOrgId } = useAuth();
+  const { profile, orgId: authOrgId, isAdmin } = useAuth();
   const orgId = authOrgId || profile?.organization_id;
   const api = useApi();
   
@@ -90,6 +90,55 @@ export function Reports() {
   const [customDateRange, setCustomDateRange] = useState<{ from?: Date; to?: Date }>({});
   const [pipelines, setPipelines] = useState<Array<{ id: string; name: string }>>([]);
   const [pipelineStageMap, setPipelineStageMap] = useState<Record<string, string>>({}); // stage_id -> pipeline_id
+  const [forecast, setForecast] = useState<any>(null);
+  const [sla, setSla] = useState<any>(null);
+  const [performance, setPerformance] = useState<any>(null);
+  const currentMonth = new Date().toISOString().slice(0, 7);
+
+  // Carrega forecast ponderado + SLA dos novos endpoints
+  useEffect(() => {
+    if (!orgId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [fc, s] = await Promise.all([
+          api.reports.forecast(selectedPipeline !== "todas" ? selectedPipeline : undefined),
+          api.reports.sla(),
+        ]);
+        if (!cancelled) { setForecast(fc); setSla(s); }
+      } catch (err) {
+        console.error("Erro ao carregar forecast/SLA:", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orgId, selectedPipeline]);
+
+  // Carrega performance/metas por vendedor
+  const loadPerformance = async () => {
+    try {
+      const perf = await api.reports.performance(currentMonth);
+      setPerformance(perf);
+    } catch (err) {
+      console.error("Erro ao carregar performance:", err);
+    }
+  };
+  useEffect(() => {
+    if (!orgId) return;
+    loadPerformance();
+  }, [orgId]);
+
+  const handleSetGoal = async (profileId: string, value: number) => {
+    try {
+      await api.reports.setGoal({ profile_id: profileId, period: currentMonth, target_value: value });
+      toast.success("Meta atualizada");
+      loadPerformance();
+    } catch {
+      toast.error("Erro ao salvar meta (apenas admin)");
+    }
+  };
+
+  const fmtBRL = (v: number) =>
+    "R$ " + (v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
   // Fetch all pipelines and their stages (to map stages -> pipeline)
   useEffect(() => {
@@ -620,8 +669,184 @@ export function Reports() {
         </motion.div>
       </motion.div>
 
+      {/* Forecast ponderado + SLA */}
+      <motion.div
+        className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+      >
+        {/* Forecast ponderado */}
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-card to-card/90 lg:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-poppins font-semibold flex items-center gap-2">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <TrendingUp className="h-4 w-4 text-primary" />
+              </div>
+              Previsão de Receita (ponderada por estágio)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-6 mb-5">
+              <div>
+                <p className="text-xs text-muted-foreground">Forecast ponderado</p>
+                <p className="text-3xl font-bold text-primary">{fmtBRL(forecast?.weighted_forecast ?? 0)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Pipeline aberto</p>
+                <p className="text-2xl font-semibold text-foreground">{fmtBRL(forecast?.open_pipeline_value ?? 0)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Ganho</p>
+                <p className="text-2xl font-semibold text-emerald-500">{fmtBRL(forecast?.won_value ?? 0)}</p>
+              </div>
+            </div>
+            <div className="space-y-2.5">
+              {(forecast?.stages ?? []).filter((s: any) => !s.is_lost).map((s: any) => (
+                <div key={s.stage_id} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-muted-foreground truncate max-w-[220px]">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                      {s.stage_name}
+                      <span className="text-xs opacity-60">({s.probability}%)</span>
+                    </span>
+                    <span className="font-semibold">
+                      {fmtBRL(s.weighted_value)}
+                      <span className="text-xs text-muted-foreground ml-1">de {fmtBRL(s.total_value)}</span>
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${s.probability}%`, backgroundColor: s.color }} />
+                  </div>
+                </div>
+              ))}
+              {(!forecast || forecast.stages?.length === 0) && (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  Configure a probabilidade dos estágios em Configurações → Pipelines para ativar o forecast.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* SLA de primeira resposta */}
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-card to-card/90">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-poppins font-semibold flex items-center gap-2">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Zap className="h-4 w-4 text-primary" />
+              </div>
+              SLA de 1ª Resposta
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Tempo médio até responder</p>
+              <p className="text-3xl font-bold text-foreground">
+                {sla ? (sla.avg_minutes >= 60 ? `${Math.floor(sla.avg_minutes / 60)}h ${sla.avg_minutes % 60}m` : `${sla.avg_minutes}m`) : "—"}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-background/50 rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">Respondidos em 1h</p>
+                <p className="text-xl font-bold text-emerald-500">{sla?.within_1h_pct ?? 0}%</p>
+              </div>
+              <div className="bg-background/50 rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">Sem resposta</p>
+                <p className="text-xl font-bold text-amber-500">{sla?.pending_response ?? 0}</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {sla?.responded ?? 0} de {sla?.total_leads ?? 0} leads já receberam retorno do time.
+            </p>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Performance e Metas por Vendedor */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.28 }}
+      >
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-card to-card/90">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-poppins font-semibold flex items-center gap-2">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Target className="h-4 w-4 text-primary" />
+              </div>
+              Metas & Performance por Vendedor · {currentMonth}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted-foreground border-b border-border">
+                    <th className="py-2 pr-4 font-medium">Vendedor</th>
+                    <th className="py-2 px-2 font-medium text-center">Leads</th>
+                    <th className="py-2 px-2 font-medium text-center">Vendas</th>
+                    <th className="py-2 px-2 font-medium text-center">Conversão</th>
+                    <th className="py-2 px-2 font-medium text-right">Faturamento</th>
+                    <th className="py-2 px-2 font-medium text-right">Meta</th>
+                    <th className="py-2 pl-2 font-medium text-center w-40">Progresso</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(performance?.sellers ?? []).map((s: any) => (
+                    <tr key={s.profile_id} className="border-b border-border/50">
+                      <td className="py-2.5 pr-4 font-medium">{s.name}</td>
+                      <td className="py-2.5 px-2 text-center">{s.leads}</td>
+                      <td className="py-2.5 px-2 text-center font-semibold text-emerald-500">{s.won}</td>
+                      <td className="py-2.5 px-2 text-center">{s.conversion_pct}%</td>
+                      <td className="py-2.5 px-2 text-right">{fmtBRL(s.won_value)}</td>
+                      <td className="py-2.5 px-2 text-right">
+                        {isAdmin ? (
+                          <input
+                            type="number"
+                            defaultValue={s.target_value || 0}
+                            onBlur={(e) => {
+                              const v = parseFloat(e.target.value) || 0;
+                              if (v !== (s.target_value || 0)) handleSetGoal(s.profile_id, v);
+                            }}
+                            className="w-24 bg-background/50 border border-border rounded px-2 py-1 text-right text-sm"
+                          />
+                        ) : (
+                          fmtBRL(s.target_value)
+                        )}
+                      </td>
+                      <td className="py-2.5 pl-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 flex-1 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-primary transition-all"
+                              style={{ width: `${Math.min(100, s.goal_value_pct ?? 0)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted-foreground w-9 text-right">
+                            {s.goal_value_pct != null ? `${s.goal_value_pct}%` : "—"}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {(!performance || performance.sellers?.length === 0) && (
+                    <tr><td colSpan={7} className="py-6 text-center text-muted-foreground">Sem dados de vendedores no período.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {isAdmin && (
+              <p className="text-xs text-muted-foreground mt-3">
+                💡 Clique no campo "Meta" para definir o objetivo de faturamento mensal de cada vendedor.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* Charts Row 1 */}
-      <motion.div 
+      <motion.div
         className="grid grid-cols-1 lg:grid-cols-2 gap-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
