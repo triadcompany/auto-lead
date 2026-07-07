@@ -47,7 +47,7 @@ export default async function tasksRoutes(fastify: FastifyInstance) {
   // POST /tasks
   fastify.post<{
     Body: {
-      lead_id: string
+      lead_id?: string | null
       titulo: string
       descricao?: string
       priority?: "baixa" | "media" | "alta"
@@ -60,7 +60,7 @@ export default async function tasksRoutes(fastify: FastifyInstance) {
     const task = await prisma.task.create({
       data: {
         organizationId: req.auth.orgId,
-        leadId: req.body.lead_id,
+        leadId: req.body.lead_id || null,
         titulo: req.body.titulo,
         descricao: req.body.descricao || null,
         priority: (req.body.priority as any) || "media",
