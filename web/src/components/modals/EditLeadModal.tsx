@@ -25,7 +25,8 @@ import { usePipelines } from "@/hooks/usePipelines";
 import { useLeadSources } from "@/hooks/useLeadSources";
 import { BRAZILIAN_STATES } from "@/lib/brazilian-states";
 import { LeadFollowupTab } from "@/components/followups/LeadFollowupTab";
-import { User, MessageCircle, Megaphone } from "lucide-react";
+import { LeadTimeline } from "@/components/leads/LeadTimeline";
+import { User, MessageCircle, Megaphone, History } from "lucide-react";
 
 interface EditLeadModalProps {
   open: boolean;
@@ -138,7 +139,7 @@ export function EditLeadModal({ open, onOpenChange, lead, onSave, onDelete }: Ed
         </DialogHeader>
 
         <Tabs defaultValue="dados" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="dados" className="flex items-center gap-2">
               <User className="h-4 w-4" />
               Dados do Lead
@@ -146,6 +147,10 @@ export function EditLeadModal({ open, onOpenChange, lead, onSave, onDelete }: Ed
             <TabsTrigger value="followup" className="flex items-center gap-2">
               <MessageCircle className="h-4 w-4" />
               Follow-up
+            </TabsTrigger>
+            <TabsTrigger value="historico" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Histórico
             </TabsTrigger>
           </TabsList>
 
@@ -504,6 +509,10 @@ export function EditLeadModal({ open, onOpenChange, lead, onSave, onDelete }: Ed
                 sellerId={lead.seller_id}
               />
             )}
+          </TabsContent>
+
+          <TabsContent value="historico" className="mt-4">
+            {lead && <LeadTimeline leadId={lead.id} />}
           </TabsContent>
         </Tabs>
       </DialogContent>
