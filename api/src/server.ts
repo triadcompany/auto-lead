@@ -4,6 +4,7 @@ import multipart from "@fastify/multipart"
 import corsPlugin from "./plugins/cors.js"
 import authPlugin from "./plugins/auth.js"
 import socketPlugin from "./plugins/socket.js"
+import { prisma } from "./lib/prisma.js"
 import pipelinesRoutes from "./routes/pipelines.js"
 import leadsRoutes from "./routes/leads.js"
 import usersRoutes from "./routes/users.js"
@@ -52,9 +53,25 @@ await server.register(authRoutes)
 await server.register(followupsRoutes)
 await server.register(adminRoutes)
 
+// Migrations automáticas no startup
+async function runMigrations() {
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE tasks ALTER COLUMN lead_id DROP NOT NULL
+    `)
+    console.log("[migration] tasks.lead_id agora é nullable")
+  } catch (err: any) {
+    // Erro esperado se a coluna já é nullable — ignora
+    if (!err.message?.includes("already")) {
+      console.warn("[migration] tasks.lead_id:", err.message)
+    }
+  }
+}
+
 const port = Number(process.env.PORT) || 3000
 
 try {
+  await runMigrations()
   await server.listen({ port, host: "0.0.0.0" })
   console.log(`API rodando em http://localhost:${port}`)
 } catch (err) {
