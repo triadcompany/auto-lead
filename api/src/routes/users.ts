@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { prisma } from "../lib/prisma.js"
-import { orgScope } from "../lib/auth.js"
+import { orgScope, requireAdmin } from "../lib/auth.js"
 
 async function sendInviteEmail(opts: {
   toEmail: string
@@ -123,6 +123,9 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     Params: { id: string }
     Body: { name?: string; whatsapp_e164?: string; avatar_url?: string }
   }>("/users/:id/profile", async (req, reply) => {
+    if (req.params.id !== req.auth.profileId && req.auth.role !== "admin") {
+      return reply.code(403).send({ error: "Forbidden", message: "Você só pode editar o próprio perfil" })
+    }
     const updated = await prisma.profile.updateMany({
       where: { id: req.params.id, ...orgScope(req) },
       data: {
@@ -140,6 +143,7 @@ export default async function usersRoutes(fastify: FastifyInstance) {
   fastify.patch<{ Params: { id: string }; Body: { role: "admin" | "seller" } }>(
     "/users/:id/role",
     async (req, reply) => {
+      if (!requireAdmin(req, reply)) return
       const updated = await prisma.profile.updateMany({
         where: { id: req.params.id, ...orgScope(req) },
         data: { role: req.body.role, updatedAt: new Date() },
@@ -151,6 +155,10 @@ export default async function usersRoutes(fastify: FastifyInstance) {
 
   // DELETE /users/:id — remove usuário (substitui delete-user)
   fastify.delete<{ Params: { id: string } }>("/users/:id", async (req, reply) => {
+    if (!requireAdmin(req, reply)) return
+    if (req.params.id === req.auth.profileId) {
+      return reply.code(400).send({ error: "Você não pode remover a si mesmo" })
+    }
     const deleted = await prisma.profile.deleteMany({
       where: { id: req.params.id, ...orgScope(req) },
     })
@@ -172,6 +180,7 @@ export default async function usersRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: { email: string; role: string; name?: string; forceResend?: boolean } }>(
     "/users/invite",
     async (req, reply) => {
+      if (!requireAdmin(req, reply)) return
       const { email, role, name, forceResend } = req.body
       const { orgId } = req.auth
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:8080"
