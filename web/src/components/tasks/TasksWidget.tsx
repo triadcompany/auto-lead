@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useTasks, useTaskStats, type TaskPriority } from "@/hooks/useTasks";
+import { useApi } from "@/hooks/useApi";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -14,6 +15,7 @@ import {
   Plus,
   X,
   Flame,
+  UserRound,
 } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 
@@ -45,6 +47,7 @@ function isToday(dateStr: string) {
 
 export function TasksWidget() {
   const navigate = useNavigate();
+  const api = useApi();
   const { tasks, completeTask, createTask } = useTasks();
   const { data: stats } = useTaskStats();
 
@@ -53,6 +56,35 @@ export function TasksWidget() {
   const [newDateTime, setNewDateTime] = useState(defaultDateTime);
   const [newPriority, setNewPriority] = useState<TaskPriority>("media");
   const [submitting, setSubmitting] = useState(false);
+
+  // Lead search
+  const [leadQuery, setLeadQuery] = useState("");
+  const [leadResults, setLeadResults] = useState<{ id: string; name: string }[]>([]);
+  const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
+  const [showLeadDropdown, setShowLeadDropdown] = useState(false);
+  const leadSearchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!leadQuery.trim() || leadQuery.length < 2) { setLeadResults([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const data = await api.leads.list({ search: leadQuery, limit: 6 } as any) as any[];
+        setLeadResults(data.map((l: any) => ({ id: l.id, name: l.name })));
+        setShowLeadDropdown(true);
+      } catch { setLeadResults([]); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [leadQuery]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (leadSearchRef.current && !leadSearchRef.current.contains(e.target as Node)) {
+        setShowLeadDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   const { overdue, today } = useMemo(() => {
     const all = tasks ?? [];
@@ -86,14 +118,27 @@ export function TasksWidget() {
         data_hora: new Date(newDateTime).toISOString(),
         prioridade: newPriority,
         status: "pendente",
+        lead_id: selectedLead?.id ?? undefined,
       });
       setNewTitle("");
       setNewDateTime(defaultDateTime());
       setNewPriority("media");
+      setSelectedLead(null);
+      setLeadQuery("");
       setShowForm(false);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const resetForm = () => {
+    setShowForm(false);
+    setNewTitle("");
+    setNewDateTime(defaultDateTime());
+    setNewPriority("media");
+    setSelectedLead(null);
+    setLeadQuery("");
+    setShowLeadDropdown(false);
   };
 
   return (
@@ -104,7 +149,7 @@ export function TasksWidget() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setShowForm(v => !v)}
+            onClick={() => showForm ? resetForm() : setShowForm(true)}
             className="text-primary hover:text-primary font-poppins"
           >
             {showForm ? (
@@ -179,13 +224,51 @@ export function TasksWidget() {
                 <option value="baixa">⚪ Baixa</option>
               </select>
             </div>
+
+            {/* Busca de lead */}
+            <div ref={leadSearchRef} className="relative">
+              {selectedLead ? (
+                <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-primary/40 bg-background">
+                  <UserRound className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                  <span className="text-sm font-poppins text-foreground flex-1 truncate">{selectedLead.name}</span>
+                  <button
+                    onClick={() => { setSelectedLead(null); setLeadQuery(""); }}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    value={leadQuery}
+                    onChange={e => { setLeadQuery(e.target.value); setShowLeadDropdown(true); }}
+                    onFocus={() => leadResults.length > 0 && setShowLeadDropdown(true)}
+                    placeholder="Vincular a um lead (opcional)..."
+                    className="w-full h-9 rounded-md border border-input bg-background pl-8 pr-3 text-sm font-poppins text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              )}
+              {showLeadDropdown && leadResults.length > 0 && !selectedLead && (
+                <div className="absolute z-50 top-full mt-1 w-full rounded-lg border border-border bg-popover shadow-lg overflow-hidden">
+                  {leadResults.map(lead => (
+                    <button
+                      key={lead.id}
+                      onMouseDown={e => { e.preventDefault(); setSelectedLead(lead); setLeadQuery(""); setShowLeadDropdown(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm font-poppins text-foreground hover:bg-accent text-left"
+                    >
+                      <UserRound className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      {lead.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-2 justify-end">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowForm(false)}
-                className="font-poppins"
-              >
+              <Button variant="ghost" size="sm" onClick={resetForm} className="font-poppins">
                 Cancelar
               </Button>
               <Button
