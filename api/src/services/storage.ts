@@ -29,7 +29,6 @@ export async function uploadFile(
       Key: key,
       Body: buffer,
       ContentType: contentType,
-      ACL: "public-read",
     })
   )
   const endpoint = process.env.MINIO_ENDPOINT || "http://localhost:9000"
