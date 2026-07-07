@@ -159,7 +159,7 @@ export function usePipelines() {
     }
   };
 
-  const createStage = async (stageData: { name: string; color: string }) => {
+  const createStage = async (stageData: { name: string; color: string; probability?: number; is_won?: boolean; is_lost?: boolean }) => {
     if (!selectedPipeline) {
       toast({ title: "Erro", description: "Pipeline não selecionado", variant: "destructive" });
       return false;
@@ -170,6 +170,9 @@ export function usePipelines() {
         name: stageData.name,
         color: stageData.color,
         position: nextPosition,
+        ...(stageData.probability !== undefined && { probability: stageData.probability }),
+        ...(stageData.is_won !== undefined && { is_won: stageData.is_won }),
+        ...(stageData.is_lost !== undefined && { is_lost: stageData.is_lost }),
       });
       toast({ title: "Sucesso", description: "Estágio criado com sucesso" });
       await fetchStages(selectedPipeline.id);
@@ -180,7 +183,7 @@ export function usePipelines() {
     }
   };
 
-  const updateStage = async (stageId: string, stageData: { name: string; color: string }) => {
+  const updateStage = async (stageId: string, stageData: { name: string; color: string; probability?: number; is_won?: boolean; is_lost?: boolean }) => {
     if (!selectedPipeline) return false;
     try {
       await api.pipelines.updateStage(selectedPipeline.id, stageId, stageData);
