@@ -73,7 +73,7 @@ export default async function miscRoutes(fastify: FastifyInstance) {
         price: req.body.price || null,
         description: req.body.description || null,
         images: req.body.images || [],
-        createdBy: req.auth.userId,
+        createdBy: req.auth.profileId,
       },
     })
     return reply.code(201).send(vehicle)
@@ -174,7 +174,7 @@ export default async function miscRoutes(fastify: FastifyInstance) {
         email: req.body.email || null,
         source: req.body.source || null,
         notes: req.body.notes || null,
-        createdBy: req.auth.userId,
+        createdBy: req.auth.profileId,
       },
     })
     return reply.code(201).send(prospect)
