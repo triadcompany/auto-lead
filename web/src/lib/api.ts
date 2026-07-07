@@ -170,6 +170,30 @@ export function createApi(getToken: () => Promise<string | null>) {
         post<any>(`/leads/${id}/reset-first-touch`),
       applyCadence: (id: string, cadence_id: string, assigned_to: string) =>
         post<any>(`/leads/${id}/apply-cadence`, { cadence_id, assigned_to }),
+      timeline: (id: string) => get<any[]>(`/leads/${id}/timeline`),
+      duplicates: () => get<{ groups: { key: string; leads: any[] }[]; count: number }>("/leads/duplicates"),
+      merge: (id: string, duplicate_ids: string[]) =>
+        post<{ success: boolean; merged: number }>(`/leads/${id}/merge`, { duplicate_ids }),
+      importBatch: (leads: Record<string, any>[], pipeline_id?: string, stage_id?: string) =>
+        post<{ success: boolean; created: number; skipped: number }>("/leads/import", { leads, pipeline_id, stage_id }),
+      exportCsv: async (): Promise<Blob> => {
+        const token = await getToken()
+        const res = await fetch(`${BASE_URL}/leads/export.csv`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        })
+        if (!res.ok) throw { status: res.status, message: "Falha ao exportar" } as ApiError
+        return res.blob()
+      },
+    },
+
+    // ── Reports ──────────────────────────────────────────────────────────────
+    reports: {
+      forecast: (pipeline_id?: string) => get<any>("/reports/forecast", { pipeline_id }),
+      sla: () => get<any>("/reports/sla"),
+      performance: (period?: string) => get<any>("/reports/performance", { period }),
+      goals: (period?: string) => get<any[]>("/reports/goals", { period }),
+      setGoal: (data: { profile_id?: string | null; period: string; target_value?: number; target_count?: number }) =>
+        put<any>("/reports/goals", data),
     },
 
     // ── Tasks ────────────────────────────────────────────────────────────────
