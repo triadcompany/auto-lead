@@ -8,6 +8,7 @@ declare module "fastify" {
       userId: string   // Clerk user ID (user_xxx)
       profileId: string // Profile UUID no banco
       orgId: string
+      role: string     // 'admin' | 'seller'
     }
   }
 }
@@ -53,14 +54,14 @@ async function authPlugin(fastify: FastifyInstance) {
 
       const profile = await prisma.profile.findFirst({
         where: { clerkUserId: userId },
-        select: { id: true, organizationId: true },
+        select: { id: true, organizationId: true, role: true },
       })
 
       if (!profile?.organizationId) {
         return reply.code(401).send({ error: "No organization found for user" })
       }
 
-      req.auth = { userId, profileId: profile.id, orgId: profile.organizationId }
+      req.auth = { userId, profileId: profile.id, orgId: profile.organizationId, role: profile.role }
     } catch {
       return reply.code(401).send({ error: "Invalid token" })
     }
