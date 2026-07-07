@@ -296,6 +296,9 @@ model PipelineStage {
   color       String    @default("#3B82F6")
   isActive    Boolean   @default(true) @map("is_active")
   sensitive   Boolean   @default(false)
+  probability Int       @default(0)  // % de fechamento p/ forecast ponderado (0-100)
+  isWon       Boolean   @default(false) @map("is_won")   // estágio de ganho
+  isLost      Boolean   @default(false) @map("is_lost")  // estágio de perda
   createdBy   String?   @map("created_by") @db.Uuid
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz
@@ -369,6 +372,9 @@ model Lead {
   lastReplyAt          DateTime? @map("last_reply_at") @db.Timestamptz
   lastInboundMessageAt DateTime? @map("last_inbound_message_at") @db.Timestamptz
   lastInboundMessageText String? @map("last_inbound_message_text")
+  firstResponseAt      DateTime? @map("first_response_at") @db.Timestamptz  // SLA: 1º retorno do vendedor
+  score                Int       @default(0)   // lead scoring (0-100)
+  status               String?   // won | lost | open (usado em relatorios)
   tags                 String[]  @default([])
   createdBy            String?   @map("created_by") @db.Uuid
   createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
@@ -1760,4 +1766,38 @@ model AdminGrant {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("admin_grants")
+}
+
+// ─── LEAD ACTIVITY TIMELINE ──────────────────────────────────────────────────
+// Log unificado de atividades do lead (criado, movido, atribuído, nota, etc).
+// FKs escalares (sem @relation) para independência dos blocos de relação.
+model LeadActivity {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  leadId         String   @map("lead_id") @db.Uuid
+  type           String   // created | stage_changed | status_changed | assigned | note | task | tag | message | score_changed
+  description    String
+  metadata       Json?
+  performedBy    String?  @map("performed_by") @db.Uuid  // profileId
+  performedByName String? @map("performed_by_name")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([organizationId, leadId, createdAt])
+  @@map("lead_activities")
+}
+
+// ─── SALES GOALS / QUOTAS ────────────────────────────────────────────────────
+// Meta de vendas por vendedor (ou org toda) por período mensal.
+model SalesGoal {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  profileId      String?  @map("profile_id") @db.Uuid   // null = meta da organização
+  period         String   // "YYYY-MM"
+  targetValue    Float    @default(0) @map("target_value")   // meta de faturamento
+  targetCount    Int      @default(0) @map("target_count")   // meta de nº de vendas
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  @@unique([organizationId, profileId, period])
+  @@map("sales_goals")
 }
