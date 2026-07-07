@@ -130,14 +130,16 @@ export default async function organizationsRoutes(fastify: FastifyInstance) {
       city?: string
       state?: string
       zip_code?: string
+      logo_url?: string | null
     }
   }>("/organizations/:id", async (req, reply) => {
-    const { zip_code, ...rest } = req.body
+    const { zip_code, logo_url, ...rest } = req.body
     const updated = await prisma.organization.updateMany({
       where: { id: req.params.id },
       data: {
         ...rest,
         ...(zip_code && { zipCode: zip_code }),
+        ...(logo_url !== undefined && { logoUrl: logo_url }),
         updatedAt: new Date(),
       },
     })
