@@ -4,18 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Phone, 
-  Mail, 
-  Eye, 
-  Edit, 
+import {
+  Plus,
+  Search,
+  Filter,
+  Phone,
+  Mail,
+  Eye,
+  Edit,
   Users,
   UserCheck,
-  Calendar
+  Calendar,
+  Download,
+  Upload,
+  Copy
 } from "lucide-react";
+import { toast } from "sonner";
+import { DuplicatesModal } from "@/components/leads/DuplicatesModal";
 import { useSupabaseLeads, Lead } from "@/hooks/useSupabaseLeads";
 import { useAuth } from "@/contexts/AuthContext";
 import { AddLeadModal } from "@/components/modals/AddLeadModal";
@@ -41,10 +46,74 @@ export function Leads() {
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [selectedSeller, setSelectedSeller] = useState<string>("all");
   const [sellers, setSellers] = useState<Profile[]>([]);
-  
+  const [isDuplicatesOpen, setIsDuplicatesOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+
   const { leads, loading, updateLead, addLead, deleteLead, refreshLeads } = useSupabaseLeads();
   const { isAdmin } = useAuth();
   const api = useApi();
+
+  // Exporta leads para CSV (download autenticado)
+  const handleExportCsv = async () => {
+    try {
+      const blob = await api.leads.exportCsv();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Erro ao exportar CSV");
+    }
+  };
+
+  // Parser CSV simples (vírgula ou ponto-e-vírgula), 1ª linha = cabeçalho
+  const parseCsv = (text: string): Record<string, string>[] => {
+    const clean = text.replace(/^﻿/, "").trim();
+    const lines = clean.split(/\r?\n/).filter(Boolean);
+    if (lines.length < 2) return [];
+    const delim = (lines[0].match(/;/g)?.length || 0) > (lines[0].match(/,/g)?.length || 0) ? ";" : ",";
+    const norm = (h: string) => h.trim().toLowerCase().replace(/["\s]/g, "");
+    const headers = lines[0].split(delim).map(norm);
+    const keyMap: Record<string, string> = {
+      nome: "name", name: "name", telefone: "phone", phone: "phone", celular: "phone",
+      email: "email", "e-mail": "email", origem: "source", source: "source",
+      interesse: "interest", interest: "interest", cidade: "cidade", city: "cidade",
+      estado: "estado", state: "estado",
+    };
+    return lines.slice(1).map((line) => {
+      const cells = line.split(delim);
+      const obj: Record<string, string> = {};
+      headers.forEach((h, i) => {
+        const key = keyMap[h] || h;
+        obj[key] = (cells[i] || "").trim().replace(/^"|"$/g, "");
+      });
+      return obj;
+    });
+  };
+
+  const handleImportCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const rows = parseCsv(text).filter((r) => (r.name || r.nome) && (r.phone || r.telefone));
+      if (rows.length === 0) {
+        toast.error("Nenhum lead válido no arquivo (precisa de nome e telefone)");
+        return;
+      }
+      const res = await api.leads.importBatch(rows);
+      toast.success(`${res.created} lead(s) importado(s)${res.skipped ? `, ${res.skipped} ignorado(s)` : ""}`);
+      refreshLeads?.();
+    } catch {
+      toast.error("Erro ao importar CSV");
+    } finally {
+      setImporting(false);
+    }
+  };
 
   // Fetch sellers for filter (only for admins)
   useEffect(() => {
@@ -135,17 +204,34 @@ export function Leads() {
       <div className="p-4 md:p-6 space-y-4 md:space-y-6">
         {/* Header - Hidden on mobile */}
         <div className="hidden md:block">
-          <PageHeader 
-            title="Lista de Leads" 
+          <PageHeader
+            title="Lista de Leads"
             description="Gerencie todos os leads cadastrados no sistema"
           >
-            <Button 
-              onClick={() => setIsAddLeadOpen(true)}
-              className="btn-gradient text-white font-poppins font-medium"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Lead
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setIsDuplicatesOpen(true)}>
+                <Copy className="h-4 w-4 mr-2" />
+                Duplicados
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportCsv}>
+                <Download className="h-4 w-4 mr-2" />
+                Exportar
+              </Button>
+              <Button variant="outline" size="sm" asChild disabled={importing}>
+                <label className="cursor-pointer">
+                  <Upload className="h-4 w-4 mr-2" />
+                  {importing ? "Importando..." : "Importar"}
+                  <input type="file" accept=".csv,text/csv" className="hidden" onChange={handleImportCsv} />
+                </label>
+              </Button>
+              <Button
+                onClick={() => setIsAddLeadOpen(true)}
+                className="btn-gradient text-white font-poppins font-medium"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Lead
+              </Button>
+            </div>
           </PageHeader>
         </div>
 
@@ -327,9 +413,16 @@ export function Leads() {
         </button>
       </div>
 
+      {/* Duplicates Modal */}
+      <DuplicatesModal
+        open={isDuplicatesOpen}
+        onClose={() => setIsDuplicatesOpen(false)}
+        onMerged={() => refreshLeads?.()}
+      />
+
       {/* Add Lead Modal */}
       <AddLeadModal
-        open={isAddLeadOpen} 
+        open={isAddLeadOpen}
         onOpenChange={setIsAddLeadOpen}
         onSave={handleAddLead}
       />
