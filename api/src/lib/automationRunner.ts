@@ -272,24 +272,14 @@ async function runFromNode(
   } else if (nodeType === "delay" || nodeType === "wait") {
     const ms = toMs(config.duration || config.amount || 1, config.unit || "minutes")
     const nextRunAt = new Date(Date.now() + ms)
+    // Persiste o contexto para permitir recuperação do run após restart da API
     await prisma.automationRun.update({
       where: { id: runId },
-      data: { status: "paused", currentNodeId: nodeId, nextRunAt, updatedAt: new Date() },
+      data: { status: "paused", currentNodeId: nodeId, nextRunAt, context: ctx as any, updatedAt: new Date() },
     }).catch(() => null)
-    setTimeout(async () => {
-      const nextEdge = edges.find((e: any) => e.source === nodeId)
-      if (!nextEdge) {
-        await prisma.automationRun.update({
-          where: { id: runId },
-          data: { status: "completed", completedAt: new Date(), updatedAt: new Date() },
-        }).catch(() => null)
-        return
-      }
-      await prisma.automationRun.update({
-        where: { id: runId },
-        data: { status: "running", updatedAt: new Date() },
-      }).catch(() => null)
-      await runFromNode(runId, nextEdge.target, flow, ctx, depth + 1)
+    setTimeout(() => {
+      // Claim atômico evita execução dupla (setTimeout + worker de recuperação)
+      resumeDelayRun(runId, nodeId).catch((e) => console.error("[automation] delay resume error:", e))
     }, ms)
 
   } else if (nodeType === "condition") {
@@ -576,6 +566,77 @@ async function handleRouterTimeout(runId: string, nodeId: string): Promise<void>
   if (!run || run.status !== "paused" || run.currentNodeId !== nodeId) return
 
   await resumeRun(runId, "timeout", "")
+}
+
+// Retoma um run pausado num nó de delay/wait. Usa claim atômico (paused → running)
+// para garantir que apenas UM executor (setTimeout ou worker de recuperação) continue.
+async function resumeDelayRun(runId: string, nodeId: string): Promise<void> {
+  const claim = await prisma.automationRun.updateMany({
+    where: { id: runId, status: "paused", currentNodeId: nodeId },
+    data: { status: "running", updatedAt: new Date() },
+  }).catch(() => ({ count: 0 }))
+  if (!claim.count) return // já foi retomado por outro executor
+
+  const run = await prisma.automationRun.findUnique({ where: { id: runId } }).catch(() => null)
+  if (!run) return
+
+  const flow = await prisma.automationFlow.findFirst({
+    where: { automationId: run.automationId, organizationId: run.organizationId },
+    orderBy: { version: "desc" },
+  }).catch(() => null)
+  if (!flow) return
+
+  const edges = (flow.edges as any[]) || []
+  const nextEdge = edges.find((e: any) => e.source === nodeId)
+  if (!nextEdge) {
+    await prisma.automationRun.update({
+      where: { id: runId },
+      data: { status: "completed", completedAt: new Date(), updatedAt: new Date() },
+    }).catch(() => null)
+    return
+  }
+  const ctx = ((run.context as any) || {}) as Record<string, any>
+  await runFromNode(runId, nextEdge.target, flow as any, ctx)
+}
+
+/**
+ * Recupera runs pausados cujo prazo (nextRunAt) já venceu.
+ * Chamado no startup e periodicamente — garante que delays e timeouts de
+ * automações não sejam perdidos quando a API reinicia (ex: deploy).
+ */
+export async function resumePausedRuns(): Promise<number> {
+  const due = await prisma.automationRun.findMany({
+    where: { status: "paused", nextRunAt: { not: null, lte: new Date() } },
+    select: { id: true, currentNodeId: true, automationId: true, organizationId: true },
+    take: 200,
+  }).catch(() => [] as any[])
+
+  let resumed = 0
+  for (const run of due) {
+    if (!run.currentNodeId) continue
+    try {
+      const flow = await prisma.automationFlow.findFirst({
+        where: { automationId: run.automationId, organizationId: run.organizationId },
+        orderBy: { version: "desc" },
+        select: { nodes: true },
+      }).catch(() => null)
+      const nodes = ((flow?.nodes as any[]) || [])
+      const node = nodes.find((n: any) => n.id === run.currentNodeId)
+      const nodeType = node?.type
+
+      if (nodeType === "reply_router" || nodeType === "wait_for_reply") {
+        await handleRouterTimeout(run.id, run.currentNodeId)
+      } else {
+        // delay/wait (ou nó desconhecido) — segue o fluxo
+        await resumeDelayRun(run.id, run.currentNodeId)
+      }
+      resumed++
+    } catch (e) {
+      console.error("[automation] resumePausedRuns error for run", run.id, e)
+    }
+  }
+  if (resumed > 0) console.log(`[automation] ${resumed} run(s) pausado(s) recuperado(s)`)
+  return resumed
 }
 
 // ── meta capi helper ──────────────────────────────────────────────────────────
