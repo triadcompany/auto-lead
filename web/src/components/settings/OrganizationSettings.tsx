@@ -9,6 +9,7 @@ import { useApi } from '@/hooks/useApi';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { ImageCropDialog, fileToDataUrl } from '@/components/ui/image-crop-dialog';
+import { useSession } from '@clerk/clerk-react';
 
 interface OrgRow {
   id: string;
@@ -31,6 +32,7 @@ export function OrganizationSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const api = useApi();
+  const { session } = useSession();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(true);
@@ -81,17 +83,19 @@ export function OrganizationSettings() {
     setUploading(true);
     try {
       const API_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000';
+      const token = await session?.getToken();
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`${API_URL}/organizations/upload-logo`, {
+      const res = await fetch(`${API_URL}/organizations/${orgId}/logo`, {
         method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: fd,
       });
       const json = await res.json();
-      if (!res.ok || !json?.public_url) {
+      if (!res.ok || !json?.logo_url) {
         throw new Error(json?.error || `HTTP ${res.status}`);
       }
-      setLogoUrl(json.public_url);
+      setLogoUrl(json.logo_url);
       toast({ title: 'Logo carregado', description: 'Clique em Salvar para confirmar.' });
     } catch (err: any) {
       toast({ title: 'Falha no upload', description: err?.message || 'Tente novamente.', variant: 'destructive' });
