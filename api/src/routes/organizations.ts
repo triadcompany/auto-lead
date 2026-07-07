@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { prisma } from "../lib/prisma.js"
-import { orgScope } from "../lib/auth.js"
+import { orgScope, requireAdmin, requireOwnOrg } from "../lib/auth.js"
 import { uploadFile, deleteFile } from "../services/storage.js"
 
 export default async function organizationsRoutes(fastify: FastifyInstance) {
@@ -133,9 +133,11 @@ export default async function organizationsRoutes(fastify: FastifyInstance) {
       logo_url?: string | null
     }
   }>("/organizations/:id", async (req, reply) => {
+    if (!requireOwnOrg(req, reply, req.params.id)) return
+    if (!requireAdmin(req, reply)) return
     const { zip_code, logo_url, ...rest } = req.body
     const updated = await prisma.organization.updateMany({
-      where: { id: req.params.id },
+      where: { id: req.auth.orgId },
       data: {
         ...rest,
         ...(zip_code && { zipCode: zip_code }),
@@ -157,8 +159,10 @@ export default async function organizationsRoutes(fastify: FastifyInstance) {
       ai_auto_debounce_seconds?: number
     }
   }>("/organizations/:id/settings", async (req, reply) => {
+    if (!requireOwnOrg(req, reply, req.params.id)) return
+    if (!requireAdmin(req, reply)) return
     const updated = await prisma.organization.updateMany({
-      where: { id: req.params.id },
+      where: { id: req.auth.orgId },
       data: {
         ...(req.body.ai_system_prompt !== undefined && { aiSystemPrompt: req.body.ai_system_prompt }),
         ...(req.body.ai_auto_reply_throttle_seconds !== undefined && {
@@ -179,8 +183,10 @@ export default async function organizationsRoutes(fastify: FastifyInstance) {
 
   // POST /organizations/:id/logo — upload de logo (substitui upload-org-logo)
   fastify.post<{ Params: { id: string } }>("/organizations/:id/logo", async (req, reply) => {
+    if (!requireOwnOrg(req, reply, req.params.id)) return
+    if (!requireAdmin(req, reply)) return
     const org = await prisma.organization.findFirst({
-      where: { id: req.params.id },
+      where: { id: req.auth.orgId },
     })
     if (!org) return reply.code(404).send({ error: "Not found" })
 
@@ -189,7 +195,7 @@ export default async function organizationsRoutes(fastify: FastifyInstance) {
 
     const buffer = await data.toBuffer()
     const ext = data.filename.split(".").pop() || "jpg"
-    const key = `org-logos/${req.params.id}.${ext}`
+    const key = `org-logos/${req.auth.orgId}.${ext}`
 
     // Delete old logo if exists
     if (org.logoUrl) {
@@ -200,7 +206,7 @@ export default async function organizationsRoutes(fastify: FastifyInstance) {
     const url = await uploadFile(key, buffer, data.mimetype)
 
     await prisma.organization.update({
-      where: { id: req.params.id },
+      where: { id: req.auth.orgId },
       data: { logoUrl: url, updatedAt: new Date() },
     })
 
