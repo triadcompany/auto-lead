@@ -68,7 +68,7 @@ export default async function tasksRoutes(fastify: FastifyInstance) {
         dueDate: req.body.due_date ? new Date(req.body.due_date) : null,
         assignedTo: req.body.assigned_to || null,
         conversationId: req.body.conversation_id || null,
-        createdBy: req.auth.userId,
+        createdBy: req.auth.profileId,
       },
     })
     emit(req.auth.orgId, "task:created", { task })
