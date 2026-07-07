@@ -354,14 +354,29 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     return { success: true, ok: true }
   })
 
+  // Verifica que a instância pertence à org autenticada (previne IDOR)
+  async function assertOwnsInstance(req: any, reply: any): Promise<boolean> {
+    const owns = await prisma.whatsappIntegration.findFirst({
+      where: { instanceName: req.params.instance, organizationId: req.auth.orgId },
+      select: { id: true },
+    }).catch(() => null)
+    if (!owns) {
+      reply.code(404).send({ error: "Instância não encontrada" })
+      return false
+    }
+    return true
+  }
+
   // GET /whatsapp/status/:instance
   fastify.get<{ Params: { instance: string } }>("/whatsapp/status/:instance", async (req, reply) => {
+    if (!await assertOwnsInstance(req, reply)) return
     const res = await evolutionFetch(`/instance/connectionState/${req.params.instance}`)
     return res.json()
   })
 
   // GET /whatsapp/qr/:instance
   fastify.get<{ Params: { instance: string } }>("/whatsapp/qr/:instance", async (req, reply) => {
+    if (!await assertOwnsInstance(req, reply)) return
     const res = await evolutionFetch(`/instance/connect/${req.params.instance}`)
     return res.json()
   })
@@ -398,6 +413,7 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
   fastify.delete<{ Params: { instance: string } }>(
     "/whatsapp/disconnect/:instance",
     async (req, reply) => {
+      if (!await assertOwnsInstance(req, reply)) return
       await evolutionFetch(`/instance/delete/${req.params.instance}`, { method: "DELETE" })
 
       await prisma.whatsappIntegration?.deleteMany?.({
@@ -413,6 +429,10 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     Body: { instance: string; phone: string; message: string }
   }>("/whatsapp/send", async (req, reply) => {
     const { instance, phone, message } = req.body
+    const owns = await prisma.whatsappIntegration.findFirst({
+      where: { instanceName: instance, organizationId: req.auth.orgId }, select: { id: true },
+    }).catch(() => null)
+    if (!owns) return reply.code(404).send({ error: "Instância não encontrada" })
     const res = await evolutionFetch(`/message/sendText/${instance}`, {
       method: "POST",
       body: JSON.stringify({ number: phone, text: message }),
@@ -420,11 +440,35 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     return res.json()
   })
 
-  // POST /whatsapp/send-audio — envia áudio (substitui whatsapp-send-audio)
+  // POST /whatsapp/send-audio — envia áudio (rota pública p/ evitar preflight CORS; auth manual)
   fastify.post<{
     Body: { instance: string; phone: string; audio_url: string }
   }>("/whatsapp/send-audio", async (req, reply) => {
+    // Verificação manual do token Clerk (rota está em PUBLIC_PREFIXES)
+    const authHeader = req.headers.authorization
+    if (!authHeader?.startsWith("Bearer ")) {
+      return reply.code(401).send({ error: "Missing authorization header" })
+    }
+    let orgId: string
+    try {
+      const { verifyToken } = await import("@clerk/backend")
+      const payload = await verifyToken(authHeader.slice(7), { secretKey: process.env.CLERK_SECRET_KEY })
+      const profile = await prisma.profile.findFirst({
+        where: { clerkUserId: payload.sub },
+        select: { organizationId: true },
+      })
+      if (!profile?.organizationId) return reply.code(401).send({ error: "No organization found" })
+      orgId = profile.organizationId
+    } catch {
+      return reply.code(401).send({ error: "Invalid token" })
+    }
+
     const { instance, phone, audio_url } = req.body
+    const owns = await prisma.whatsappIntegration.findFirst({
+      where: { instanceName: instance, organizationId: orgId }, select: { id: true },
+    }).catch(() => null)
+    if (!owns) return reply.code(404).send({ error: "Instância não encontrada" })
+
     const res = await evolutionFetch(`/message/sendWhatsAppAudio/${instance}`, {
       method: "POST",
       body: JSON.stringify({ number: phone, audio: audio_url }),
