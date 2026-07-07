@@ -178,13 +178,24 @@ export const useTaskStats = () => {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
+      const now = new Date();
+      const isOpen = (t: any) => ['pendente', 'em_andamento'].includes(t.status);
+      const dueOf = (t: any) => t.dueDate || t.data_hora || t.dataHora;
+
       return {
         todayCount: data.filter(t => {
-          const d = new Date(t.dataHora || t.data_hora);
+          const raw = dueOf(t);
+          if (!raw) return false;
+          const d = new Date(raw);
           return d >= today && d < tomorrow;
         }).length,
-        overdueCount: data.filter(t => t.status === 'atrasada').length,
-        pendingCount: data.filter(t => ['pendente', 'em_andamento'].includes(t.status)).length,
+        // Atrasada = tem prazo no passado e ainda está aberta (status 'atrasada' nunca é setado pelo backend)
+        overdueCount: data.filter(t => {
+          const raw = dueOf(t);
+          if (!raw || !isOpen(t)) return false;
+          return new Date(raw) < now;
+        }).length,
+        pendingCount: data.filter(t => isOpen(t)).length,
       };
     },
   });
