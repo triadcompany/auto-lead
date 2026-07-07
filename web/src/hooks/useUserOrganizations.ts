@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClerk } from '@clerk/clerk-react';
 import { useToast } from '@/hooks/use-toast';
+import { useApi } from '@/hooks/useApi';
 
 export interface UserOrganization {
   organization_id: string;
@@ -20,6 +21,7 @@ export function useUserOrganizations() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const api = useApi();
   const [organizations, setOrganizations] = useState<UserOrganization[]>([]);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
@@ -32,21 +34,25 @@ export function useUserOrganizations() {
     }
     setLoading(true);
     try {
-      // In the current system each user belongs to one organization.
-      // When multi-org support is added, this list can be extended via API.
+      let logoUrl: string | null = null;
+      try {
+        const orgData = await api.organizations.me() as any;
+        logoUrl = orgData?.logoUrl || orgData?.logo_url || null;
+      } catch { /* non-critical */ }
+
       const org: UserOrganization = {
         organization_id: profile.organization_id || orgId,
         clerk_org_id: null,
         name: orgName || 'Minha Empresa',
         role: (profile.role as 'admin' | 'seller') || 'seller',
         is_current: true,
-        logo_url: null,
+        logo_url: logoUrl,
       };
       setOrganizations([org]);
     } finally {
       setLoading(false);
     }
-  }, [user?.id, orgId, profile]);
+  }, [user?.id, orgId, profile, orgName]);
 
   useEffect(() => { load(); }, [load]);
 
