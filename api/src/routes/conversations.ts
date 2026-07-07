@@ -189,9 +189,24 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
   }>("/conversations/:id/messages", async (req, reply) => {
     const conv = await prisma.conversation.findFirst({
       where: { id: req.params.id, ...orgScope(req) },
-      select: { id: true, channel: true, instanceName: true, contactPhone: true },
+      select: { id: true, channel: true, instanceName: true, contactPhone: true, leadId: true },
     })
     if (!conv) return reply.code(404).send({ error: "Not found" })
+
+    // SLA: marca a 1ª resposta do vendedor ao lead (só se ainda não houver)
+    if (conv.leadId) {
+      setImmediate(() =>
+        prisma.lead.updateMany({
+          where: { id: conv.leadId!, firstResponseAt: null },
+          data: { firstResponseAt: new Date() },
+        }).catch(() => null)
+      )
+    }
+
+    const sender = await prisma.profile.findUnique({
+      where: { id: req.auth.profileId },
+      select: { name: true },
+    }).catch(() => null)
 
     const message = await prisma.message.create({
       data: {
@@ -201,7 +216,7 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
         body: req.body.body,
         messageType: req.body.message_type || "text",
         channel: conv.channel,
-        senderName: req.auth.profileId,
+        senderName: sender?.name || null,
       },
     })
 
@@ -306,7 +321,7 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
           status: "pendente" as any,
           dueDate: b.data_hora ? new Date(b.data_hora) : null,
           assignedTo: b.responsavel_id || null,
-          createdBy: req.auth.userId,
+          createdBy: req.auth.profileId,
         },
       })
       return reply.code(201).send(task)
@@ -329,5 +344,12 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
       orderBy: { processedAt: "desc" },
     }).catch(() => null)
     return job || null
+  })
+
+  // GET /conversations/:id/intelligence — dados de inteligência da conversa
+  fastify.get<{ Params: { id: string } }>("/conversations/:id/intelligence", async (req) => {
+    return (prisma as any).conversationIntelligence?.findFirst?.({
+      where: { conversationId: req.params.id, organizationId: req.auth.orgId },
+    }).catch(() => null) || null
   })
 }
