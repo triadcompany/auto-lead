@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Users,
@@ -11,8 +12,9 @@ import {
   Calendar,
   DollarSign,
   ArrowUpRight,
+  Plus,
 } from "lucide-react";
-import heroImage from "@/assets/crm-hero.jpg";
+import { Link } from "react-router-dom";
 import { useSupabaseLeads } from "@/hooks/useSupabaseLeads";
 import { useSalesStageIds } from "@/hooks/useSalesStageIds";
 import { TasksWidget } from "@/components/tasks/TasksWidget";
@@ -88,29 +90,42 @@ export function Dashboard() {
     ];
   }, [leads, salesStageIds, loading, salesLoading]);
 
-  const displayName = userName || 'Usuário';
+  const firstName = (userName || 'Usuário').split(' ')[0];
+
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Bom dia';
+    if (h < 18) return 'Boa tarde';
+    return 'Boa noite';
+  }, []);
+
+  const formattedDate = useMemo(() => {
+    return new Date().toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+  }, []);
 
   return (
-    <div className="p-6 space-y-8">
-      {/* Hero Banner - Improved */}
-      <div 
-        className="relative h-40 rounded-3xl overflow-hidden shadow-xl"
-        style={{
-          backgroundImage: `url(${heroImage})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center'
-        }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/95 via-primary/80 to-authority/60"></div>
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent"></div>
-        <div className="relative z-10 p-8 h-full flex flex-col justify-center">
-          <h1 className="text-3xl font-poppins font-bold text-white mb-1">
-            Olá, {displayName.split(' ')[0]}! 👋
+    <div className="p-6 space-y-6">
+      {/* Header compacto */}
+      <div className="flex items-center justify-between pb-5 border-b border-border/40">
+        <div>
+          <h1 className="text-2xl font-poppins font-bold text-foreground leading-tight">
+            {greeting},{' '}
+            <span className="text-primary">{firstName}</span>
           </h1>
-          <p className="font-poppins text-white/90 text-lg">
-            Gerencie seus leads e potencialize suas vendas
+          <p className="text-sm text-muted-foreground font-poppins mt-0.5 capitalize">
+            {formattedDate}
           </p>
         </div>
+        <Link to="/leads">
+          <Button className="btn-gradient text-white font-poppins font-semibold shadow-md hover:shadow-lg transition-shadow">
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Lead
+          </Button>
+        </Link>
       </div>
 
       {/* Metrics Cards - Improved */}
