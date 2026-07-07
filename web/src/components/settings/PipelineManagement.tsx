@@ -104,13 +104,16 @@ function StageForm({
   stage, 
   onSave, 
   onCancel 
-}: { 
-  stage?: PipelineStage | null; 
-  onSave: (data: { name: string; color: string }) => void; 
-  onCancel: () => void; 
+}: {
+  stage?: PipelineStage | null;
+  onSave: (data: { name: string; color: string; probability: number; is_won: boolean; is_lost: boolean }) => void;
+  onCancel: () => void;
 }) {
   const [name, setName] = useState(stage?.name || '');
   const [color, setColor] = useState(stage?.color || '#3B82F6');
+  const [probability, setProbability] = useState<number>((stage as any)?.probability ?? 0);
+  const [isWon, setIsWon] = useState<boolean>((stage as any)?.isWon ?? (stage as any)?.is_won ?? false);
+  const [isLost, setIsLost] = useState<boolean>((stage as any)?.isLost ?? (stage as any)?.is_lost ?? false);
 
   const presetColors = [
     '#3B82F6', // Blue
@@ -130,6 +133,9 @@ function StageForm({
     onSave({
       name: name.trim(),
       color,
+      probability: Math.max(0, Math.min(100, probability || 0)),
+      is_won: isWon,
+      is_lost: isLost,
     });
   };
 
@@ -175,6 +181,43 @@ function StageForm({
             </Badge>
           </div>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="stageProbability">Probabilidade de fechamento (%)</Label>
+        <Input
+          id="stageProbability"
+          type="number"
+          min={0}
+          max={100}
+          value={probability}
+          onChange={(e) => setProbability(parseInt(e.target.value) || 0)}
+          disabled={isWon || isLost}
+        />
+        <p className="text-xs text-muted-foreground">
+          Usado no forecast ponderado dos Relatórios (valor do lead × probabilidade).
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isWon}
+            onChange={(e) => { setIsWon(e.target.checked); if (e.target.checked) { setIsLost(false); setProbability(100); } }}
+            className="h-4 w-4 rounded border-muted accent-emerald-500"
+          />
+          Estágio de <strong>ganho</strong> (venda fechada)
+        </label>
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isLost}
+            onChange={(e) => { setIsLost(e.target.checked); if (e.target.checked) { setIsWon(false); setProbability(0); } }}
+            className="h-4 w-4 rounded border-muted accent-red-500"
+          />
+          Estágio de <strong>perda</strong> (negócio perdido)
+        </label>
       </div>
 
       <div className="flex gap-2 justify-end">
@@ -356,9 +399,9 @@ export function PipelineManagement() {
     }
   };
 
-  const handleSaveStage = async (data: { name: string; color: string }) => {
+  const handleSaveStage = async (data: { name: string; color: string; probability?: number; is_won?: boolean; is_lost?: boolean }) => {
     let success = false;
-    
+
     if (editingStage) {
       success = await updateStage(editingStage.id, data);
     } else {
