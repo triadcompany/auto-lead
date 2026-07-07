@@ -88,16 +88,22 @@ export function TasksWidget() {
 
   const { overdue, today } = useMemo(() => {
     const all = tasks ?? [];
+    const now = Date.now();
+    // Atrasada = prazo no passado e ainda aberta (o status 'atrasada' nunca é setado pelo backend)
+    const isOverdue = (t: typeof all[number]) =>
+      t.status !== "concluida" &&
+      !!t.data_hora &&
+      new Date(t.data_hora).getTime() < now &&
+      !isToday(t.data_hora);
 
     const overdue = all
-      .filter(t => t.status === "atrasada")
+      .filter(isOverdue)
       .sort((a, b) => PRIORITY_ORDER[a.prioridade] - PRIORITY_ORDER[b.prioridade]);
 
     const today = all
       .filter(
         t =>
           t.status !== "concluida" &&
-          t.status !== "atrasada" &&
           isToday(t.data_hora)
       )
       .sort((a, b) => {
