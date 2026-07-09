@@ -100,6 +100,12 @@ export function useAuthSession(): UseAuthSessionReturn {
       const name = clerkUser.fullName || clerkUser.firstName || email.split('@')[0] || 'User';
       const avatarUrl = clerkUser.imageUrl || undefined;
 
+      // Consome o convite pendente (se houver) para anexar o usuário à empresa correta
+      let invitationToken: string | undefined;
+      try {
+        invitationToken = sessionStorage.getItem('pending_invitation_token') || undefined;
+      } catch { /* sessionStorage indisponível */ }
+
       const res = await withTimeout(
         fetch(`${API_URL}/auth/sync`, {
           method: 'POST',
@@ -107,7 +113,7 @@ export function useAuthSession(): UseAuthSessionReturn {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ email, name, avatar_url: avatarUrl }),
+          body: JSON.stringify({ email, name, avatar_url: avatarUrl, invitation_token: invitationToken }),
         }),
         12000,
         'auth/sync'
@@ -115,6 +121,15 @@ export function useAuthSession(): UseAuthSessionReturn {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'auth/sync failed');
+
+      // Convite consumido com sucesso — limpa o token para não reprocessar
+      if (invitationToken && !data.needsOnboarding) {
+        try {
+          sessionStorage.removeItem('pending_invitation_token');
+          sessionStorage.removeItem('pending_invitation_org_id');
+          sessionStorage.removeItem('pending_invitation_role');
+        } catch { /* noop */ }
+      }
 
       if (data.needsOnboarding) {
         setNeedsOnboarding(true);
