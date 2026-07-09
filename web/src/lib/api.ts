@@ -119,7 +119,7 @@ export function createApi(getToken: () => Promise<string | null>) {
       invite: (data: { email: string; role: string; name?: string; forceResend?: boolean }) =>
         post<any>("/users/invite", data),
       validateInvitation: (token: string) =>
-        get<any>(`/users/invitations/${token}/validate`),
+        get<any>(`/invitations/${token}`),
       acceptInvitation: (token: string, clerk_user_id: string) =>
         post<any>(`/users/invitations/${token}/accept`, { clerk_user_id }),
     },
