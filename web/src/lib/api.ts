@@ -520,6 +520,15 @@ export function createApi(getToken: () => Promise<string | null>) {
         post<any>(`/admin/organizations/${id}/grant`, data),
       revokeOrg: (id: string) => post<any>(`/admin/organizations/${id}/revoke`, {}),
       deactivateOrg: (id: string) => post<any>(`/admin/organizations/${id}/deactivate`, {}),
+      // Gestão de usuários por empresa
+      getOrgUsers: (id: string) =>
+        get<{ users: any[]; pending_invites: any[] }>(`/admin/organizations/${id}/users`),
+      addOrgUser: (id: string, data: { email: string; name?: string; role?: "admin" | "seller" }) =>
+        post<{ success: boolean; invited?: boolean; moved?: boolean; invite_url?: string }>(`/admin/organizations/${id}/users`, data),
+      setOrgUserRole: (id: string, profileId: string, role: "admin" | "seller") =>
+        patch<{ success: boolean }>(`/admin/organizations/${id}/users/${profileId}`, { role }),
+      removeOrgUser: (id: string, profileId: string) =>
+        del<{ success: boolean }>(`/admin/organizations/${id}/users/${profileId}`),
     },
   }
 }
