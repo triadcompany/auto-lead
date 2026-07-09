@@ -173,6 +173,7 @@ async function syncIncomingMessage(
         channel: "whatsapp",
         instance_name: instanceName,
         lead_phone: phone,
+        contact_name: contactName || "",
       }).catch((e) => console.error("[whatsapp] automation trigger error:", e))
     )
   }
