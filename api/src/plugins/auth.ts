@@ -18,6 +18,7 @@ const PUBLIC_PREFIXES = [
   "/whatsapp/debug",
   "/whatsapp/send-audio", // auth verificado manualmente no handler (evita preflight CORS)
   "/auth/",
+  "/invitations/", // validação pública de convite (quem abre o link não está logado)
   "/organizations/bootstrap",
   "/leads/webhook",
   "/webhooks/lead",
