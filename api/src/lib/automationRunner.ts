@@ -1,5 +1,41 @@
 import { prisma } from "./prisma.js"
 import { createHash } from "crypto"
+import { emit } from "../plugins/socket.js"
+import { logLeadActivity } from "./leadActivity.js"
+
+// ── distribuição de leads ──────────────────────────────────────────────────────
+// Resolve o responsável de um novo lead: usa owner_id explícito; senão round-robin
+// da distribuição configurada; senão fallback (primeiro admin, senão primeiro perfil).
+async function resolveLeadOwner(orgId: string, ownerId?: string): Promise<string | null> {
+  if (ownerId) return ownerId
+
+  const settings = await prisma.leadDistributionSettings.findFirst({
+    where: { organizationId: orgId },
+    include: { users: { where: { isActive: true }, orderBy: { orderPosition: "asc" } } },
+  }).catch(() => null)
+
+  if (settings?.isAutoDistributionEnabled && settings.users.length > 0) {
+    const idx = ((settings.rrCursor ?? 0) % settings.users.length + settings.users.length) % settings.users.length
+    const chosen = settings.users[idx]
+    await prisma.leadDistributionSettings.update({
+      where: { id: settings.id },
+      data: { rrCursor: (settings.rrCursor ?? 0) + 1, updatedAt: new Date() },
+    }).catch(() => null)
+    if (chosen?.userId) return chosen.userId
+  }
+
+  // Fallback: primeiro admin, senão qualquer perfil da org
+  const admin = await prisma.profile.findFirst({
+    where: { organizationId: orgId, role: "admin" },
+    orderBy: { createdAt: "asc" }, select: { id: true },
+  }).catch(() => null)
+  if (admin) return admin.id
+  const any = await prisma.profile.findFirst({
+    where: { organizationId: orgId },
+    orderBy: { createdAt: "asc" }, select: { id: true },
+  }).catch(() => null)
+  return any?.id ?? null
+}
 
 export interface ReplyRouterConfig {
   yes_keywords: string[]
@@ -333,6 +369,80 @@ async function runFromNode(
         data: { status: "completed", completedAt: new Date(), updatedAt: new Date() },
       }).catch(() => null)
       return
+    }
+
+    // Criar negócio (lead) — cria o lead no pipeline/etapa e distribui automaticamente
+    if (actionType === "create_deal" || actionType === "create_lead") {
+      const p = config.params || {}
+      const orgId: string = ctx.organization_id || ""
+      const phoneRaw: string = String(ctx.lead_phone || ctx.telefone || ctx.phone || "")
+      const phone = phoneRaw.replace(/\D/g, "")
+
+      if (!orgId || !phone) {
+        console.warn("[automation] create_deal: sem orgId/telefone no contexto")
+      } else {
+        // Deduplicação: se já existe lead "aberto" com esse telefone, não recria
+        let existing: { id: string } | null = null
+        if (p.deduplicate ?? true) {
+          existing = await prisma.lead.findFirst({
+            where: {
+              organizationId: orgId,
+              phone: { contains: phone.slice(-8) },
+              OR: [{ status: null }, { status: { notIn: ["won", "lost"] } }],
+            },
+            select: { id: true },
+          }).catch(() => null)
+        }
+
+        if (existing) {
+          ctx.lead_id = existing.id  // segue o fluxo usando o lead existente
+        } else {
+          // Resolve etapa (usa a 1ª etapa do pipeline se não vier)
+          let stageId: string | null = p.stage_id || null
+          if (!stageId && p.pipeline_id) {
+            const firstStage = await prisma.pipelineStage.findFirst({
+              where: { pipelineId: p.pipeline_id },
+              orderBy: { position: "asc" }, select: { id: true },
+            }).catch(() => null)
+            stageId = firstStage?.id || null
+          }
+
+          const ownerId = await resolveLeadOwner(orgId, p.owner_id || undefined)
+          const name: string = String(ctx.nome || ctx.contact_name || ctx.name || `Lead ${phone.slice(-4)}`)
+
+          const created = await prisma.lead.create({
+            data: {
+              organizationId: orgId,
+              name,
+              phone: phoneRaw,
+              pipelineId: p.pipeline_id || null,
+              stageId,
+              sellerId: ownerId,
+              source: p.source || ctx.source || "Automação",
+              leadSource: p.lead_source || undefined,
+              interest: ctx.message_text ? String(ctx.message_text).slice(0, 200) : undefined,
+            },
+          }).catch((e: any) => {
+            console.error("[automation] create_deal falhou:", e?.message)
+            return null
+          })
+
+          if (created) {
+            ctx.lead_id = created.id
+            ctx.nome = created.name
+            try { emit(orgId, "lead:created", { ...created, stage_name: null }) } catch { /* socket off */ }
+            logLeadActivity({
+              orgId, leadId: created.id, type: "created",
+              description: `Lead criado por automação${ownerId ? " e distribuído" : ""}`,
+            }).catch(() => null)
+            // Vincula a conversa de WhatsApp existente ao novo lead (se houver)
+            await prisma.conversation.updateMany({
+              where: { organizationId: orgId, contactPhone: { contains: phone.slice(-8) }, leadId: null },
+              data: { leadId: created.id },
+            }).catch(() => null)
+          }
+        }
+      }
     }
 
     if (actionType === "move_stage") {
