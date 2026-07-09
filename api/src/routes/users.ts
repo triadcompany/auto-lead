@@ -166,7 +166,46 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     return { success: true }
   })
 
-  // GET /users/invitations/:token/validate — valida convite pelo id
+  // GET /invitations/:token — valida convite (rota PÚBLICA, sem auth)
+  // Retorna { ok, invitation } ou { ok:false, code, error } com códigos que o front entende.
+  fastify.get<{ Params: { token: string } }>("/invitations/:token", async (req, reply) => {
+    const invite = await prisma.userInvitation.findUnique({
+      where: { id: req.params.token },
+    }).catch(() => null)
+
+    if (!invite) {
+      return { ok: false, code: "NOT_FOUND", error: "Convite não encontrado." }
+    }
+    if (invite.status === "accepted") {
+      return { ok: false, code: "ACCEPTED", error: "Este convite já foi aceito.", email: invite.email }
+    }
+    if (invite.status === "canceled" || invite.status === "revoked") {
+      return { ok: false, code: "REVOKED", error: "Este convite foi revogado." }
+    }
+    if (invite.status !== "pending") {
+      return { ok: false, code: "INVALID", error: "Convite inválido." }
+    }
+
+    const org = await prisma.organization.findUnique({
+      where: { id: invite.organizationId },
+      select: { name: true },
+    }).catch(() => null)
+
+    return {
+      ok: true,
+      invitation: {
+        id: invite.id,
+        email: invite.email,
+        name: invite.name,
+        role: invite.role,
+        organization_id: invite.organizationId,
+        organization_name: org?.name || "Organização",
+        expires_at: null,
+      },
+    }
+  })
+
+  // GET /users/invitations/:token/validate — compat (rota protegida antiga)
   fastify.get<{ Params: { token: string } }>("/users/invitations/:token/validate", async (req, reply) => {
     const invite = await prisma.userInvitation.findFirst({
       where: { id: req.params.token, status: "pending" },
