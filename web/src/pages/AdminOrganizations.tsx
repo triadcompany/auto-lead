@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { OrgUsersSheet } from "@/components/admin/OrgUsersSheet";
 
 interface OrgRow {
   id: string;
@@ -94,6 +95,7 @@ export default function AdminOrganizations() {
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrg, setSelectedOrg] = useState<OrgRow | null>(null);
+  const [usersOrg, setUsersOrg] = useState<OrgRow | null>(null);
   const [grants, setGrants] = useState<AdminGrant[]>([]);
   const [grantsLoading, setGrantsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -325,6 +327,14 @@ export default function AdminOrganizations() {
                           <Button
                             size="sm"
                             variant="outline"
+                            onClick={() => setUsersOrg(org)}
+                          >
+                            <Users className="h-3.5 w-3.5 mr-1" />
+                            Usuários
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => {
                               setGrantTarget(org);
                               setGrantPlan("scale");
@@ -439,6 +449,13 @@ export default function AdminOrganizations() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Users Management Sheet */}
+      <OrgUsersSheet
+        org={usersOrg ? { id: usersOrg.id, name: usersOrg.name } : null}
+        open={!!usersOrg}
+        onClose={() => { setUsersOrg(null); loadOrgs(); }}
+      />
 
       {/* History Sheet */}
       <Sheet open={showHistory} onOpenChange={setShowHistory}>
