@@ -10,7 +10,7 @@ async function verifyClerkToken(token: string): Promise<string> {
 export default async function authRoutes(fastify: FastifyInstance) {
   // POST /auth/sync — verifica se usuário tem perfil e retorna org info (sem org_id no token)
   fastify.post<{
-    Body: { email: string; name: string; avatar_url?: string }
+    Body: { email: string; name: string; avatar_url?: string; invitation_token?: string }
   }>("/auth/sync", async (req, reply) => {
     const authHeader = req.headers.authorization
     if (!authHeader?.startsWith("Bearer ")) {
@@ -24,12 +24,45 @@ export default async function authRoutes(fastify: FastifyInstance) {
       return reply.code(401).send({ error: "Invalid token" })
     }
 
-    const { email, name, avatar_url } = req.body
+    const { email, name, avatar_url, invitation_token } = req.body
 
-    const profile = await prisma.profile.findFirst({
+    let profile = await prisma.profile.findFirst({
       where: { clerkUserId: userId },
       include: { organization: true },
     })
+
+    // Fluxo de convite: usuário sem org + token válido → anexa à empresa convidada
+    if ((!profile || !profile.organizationId) && invitation_token) {
+      const invite = await prisma.userInvitation.findUnique({
+        where: { id: invitation_token },
+      }).catch(() => null)
+
+      if (invite && invite.status === "pending") {
+        profile = await prisma.profile.upsert({
+          where: { clerkUserId: userId },
+          update: {
+            organizationId: invite.organizationId,
+            role: invite.role,
+            email, name,
+            ...(avatar_url && { avatarUrl: avatar_url }),
+            updatedAt: new Date(),
+          },
+          create: {
+            clerkUserId: userId,
+            email: email || invite.email,
+            name: name || invite.name || invite.email,
+            organizationId: invite.organizationId,
+            role: invite.role,
+            ...(avatar_url && { avatarUrl: avatar_url }),
+          },
+          include: { organization: true },
+        })
+        await prisma.userInvitation.update({
+          where: { id: invite.id },
+          data: { status: "accepted", updatedAt: new Date() },
+        }).catch(() => null)
+      }
+    }
 
     if (!profile || !profile.organizationId) {
       return { ok: true, profile: null, org: null, needsOnboarding: true }
