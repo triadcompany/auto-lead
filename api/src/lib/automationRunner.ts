@@ -4,8 +4,11 @@ import { emit } from "../plugins/socket.js"
 import { logLeadActivity } from "./leadActivity.js"
 
 // ── distribuição de leads ──────────────────────────────────────────────────────
-// Resolve o responsável de um novo lead: usa owner_id explícito; senão round-robin
-// da distribuição configurada; senão fallback (primeiro admin, senão primeiro perfil).
+// Resolve o responsável de um novo lead quando "distribuição automática" está ativa:
+//  1) owner_id explícito → usa ele
+//  2) usuários configurados na distribuição → round-robin entre eles
+//  3) senão → round-robin entre os VENDEDORES da org (fallback: admins)
+// O cursor de rodízio é persistido em LeadDistributionSettings.rrCursor.
 async function resolveLeadOwner(orgId: string, ownerId?: string): Promise<string | null> {
   if (ownerId) return ownerId
 
@@ -14,27 +17,43 @@ async function resolveLeadOwner(orgId: string, ownerId?: string): Promise<string
     include: { users: { where: { isActive: true }, orderBy: { orderPosition: "asc" } } },
   }).catch(() => null)
 
-  if (settings?.isAutoDistributionEnabled && settings.users.length > 0) {
-    const idx = ((settings.rrCursor ?? 0) % settings.users.length + settings.users.length) % settings.users.length
-    const chosen = settings.users[idx]
-    await prisma.leadDistributionSettings.update({
-      where: { id: settings.id },
-      data: { rrCursor: (settings.rrCursor ?? 0) + 1, updatedAt: new Date() },
-    }).catch(() => null)
-    if (chosen?.userId) return chosen.userId
+  // Candidatos: usuários explicitamente configurados na distribuição...
+  let candidateIds: string[] = (settings?.users || []).map((u) => u.userId).filter(Boolean)
+
+  // ...ou, se não houver lista configurada, os vendedores da org (senão os admins)
+  if (candidateIds.length === 0) {
+    const sellers = await prisma.profile.findMany({
+      where: { organizationId: orgId, role: "seller" },
+      orderBy: { createdAt: "asc" }, select: { id: true },
+    }).catch(() => [] as { id: string }[])
+    candidateIds = sellers.map((s) => s.id)
+    if (candidateIds.length === 0) {
+      const admins = await prisma.profile.findMany({
+        where: { organizationId: orgId, role: "admin" },
+        orderBy: { createdAt: "asc" }, select: { id: true },
+      }).catch(() => [] as { id: string }[])
+      candidateIds = admins.map((a) => a.id)
+    }
   }
 
-  // Fallback: primeiro admin, senão qualquer perfil da org
-  const admin = await prisma.profile.findFirst({
-    where: { organizationId: orgId, role: "admin" },
-    orderBy: { createdAt: "asc" }, select: { id: true },
-  }).catch(() => null)
-  if (admin) return admin.id
-  const any = await prisma.profile.findFirst({
-    where: { organizationId: orgId },
-    orderBy: { createdAt: "asc" }, select: { id: true },
-  }).catch(() => null)
-  return any?.id ?? null
+  if (candidateIds.length === 0) return null
+
+  // Round-robin com cursor persistido
+  const cursor = settings?.rrCursor ?? 0
+  const idx = ((cursor % candidateIds.length) + candidateIds.length) % candidateIds.length
+  const chosen = candidateIds[idx]
+
+  if (settings) {
+    await prisma.leadDistributionSettings.update({
+      where: { id: settings.id }, data: { rrCursor: cursor + 1, updatedAt: new Date() },
+    }).catch(() => null)
+  } else {
+    await prisma.leadDistributionSettings.create({
+      data: { organizationId: orgId, rrCursor: 1 },
+    }).catch(() => null)
+  }
+
+  return chosen
 }
 
 export interface ReplyRouterConfig {
