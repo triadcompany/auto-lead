@@ -1,5 +1,5 @@
-const CACHE_NAME = 'autolead-crm-v2';
-const RUNTIME_CACHE = 'autolead-runtime-v2';
+const CACHE_NAME = 'triad-crm-v3';
+const RUNTIME_CACHE = 'triad-runtime-v3';
 
 const urlsToCache = [
   '/',
@@ -9,20 +9,17 @@ const urlsToCache = [
   '/icons/icon-512x512.png',
 ];
 
-// Install event - cache static assets
+// Install — cacheia estáticos. NÃO faz skipWaiting: a nova versão fica "waiting"
+// até o usuário aceitar a atualização (UpdatePrompt). Isso evita recarregar a
+// página do nada a cada deploy.
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing service worker...');
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('[SW] Caching static assets');
-        return cache.addAll(urlsToCache);
-      })
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache))
   );
 });
 
-// Activate event - clean old caches
+// Activate — limpa caches antigos e assume o controle (só ativado após aceite).
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating service worker...');
   event.waitUntil(
@@ -30,7 +27,6 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME && cacheName !== RUNTIME_CACHE) {
-            console.log('[SW] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -39,58 +35,47 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Atualização controlada pelo usuário (UpdatePrompt posta SKIP_WAITING).
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
-    console.log('[SW] Skip waiting requested');
     self.skipWaiting();
   }
 });
 
-// Fetch event - network first, fallback to cache
+// Fetch — network-first, SOMENTE para requisições GET do mesmo domínio.
+// Requisições cross-origin (ex.: a API) passam direto, sem cache pelo SW,
+// evitando servir dados velhos ("páginas atualizando sozinhas").
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return; // não intercepta a API
 
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Clone the response
-        const responseToCache = response.clone();
-
-        // Cache successful responses
         if (response.status === 200) {
+          const responseToCache = response.clone();
           caches.open(RUNTIME_CACHE).then((cache) => {
             cache.put(event.request, responseToCache);
           });
         }
-
         return response;
       })
       .catch(() => {
-        // If network fails, try cache
         return caches.match(event.request).then((response) => {
-          if (response) {
-            return response;
-          }
-
-          // Return offline page for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
-          }
-
-          return new Response('Offline', {
-            status: 503,
-            statusText: 'Service Unavailable',
-          });
+          if (response) return response;
+          if (event.request.mode === 'navigate') return caches.match('/');
+          return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
         });
       })
   );
 });
 
-// Push notification event
+// Push notification
 self.addEventListener('push', (event) => {
-  console.log('[SW] Push notification received');
   const data = event.data ? event.data.json() : {};
-  const title = data.title || 'AutoLead CRM';
+  const title = data.title || 'Triad CRM';
   const options = {
     body: data.body || 'Você tem uma nova notificação',
     icon: '/icons/icon-192x192.png',
@@ -101,40 +86,26 @@ self.addEventListener('push', (event) => {
     requireInteraction: false,
     actions: data.actions || [],
   };
-
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Notification click event
+// Notification click
 self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification clicked');
   event.notification.close();
-
   const urlToOpen = event.notification.data.url || '/';
-
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        // Check if there's already a window open
-        for (let i = 0; i < clientList.length; i++) {
-          const client = clientList[i];
-          if (client.url === urlToOpen && 'focus' in client) {
-            return client.focus();
-          }
-        }
-        // If not, open a new window
-        if (clients.openWindow) {
-          return clients.openWindow(urlToOpen);
-        }
-      })
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (let i = 0; i < clientList.length; i++) {
+        const client = clientList[i];
+        if (client.url === urlToOpen && 'focus' in client) return client.focus();
+      }
+      if (clients.openWindow) return clients.openWindow(urlToOpen);
+    })
   );
 });
 
-// Background sync event (for future use)
+// Background sync (uso futuro)
 self.addEventListener('sync', (event) => {
-  console.log('[SW] Background sync:', event.tag);
   if (event.tag === 'sync-leads') {
     event.waitUntil(syncLeads());
   }
@@ -142,5 +113,4 @@ self.addEventListener('sync', (event) => {
 
 async function syncLeads() {
   console.log('[SW] Syncing leads...');
-  // Implementation for background sync
 }
