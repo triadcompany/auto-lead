@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { DuplicatesModal } from "@/components/leads/DuplicatesModal";
+import { ImportLeadsModal } from "@/components/leads/ImportLeadsModal";
 import { useSupabaseLeads, Lead } from "@/hooks/useSupabaseLeads";
 import { useAuth } from "@/contexts/AuthContext";
 import { AddLeadModal } from "@/components/modals/AddLeadModal";
@@ -47,7 +48,7 @@ export function Leads() {
   const [selectedSeller, setSelectedSeller] = useState<string>("all");
   const [sellers, setSellers] = useState<Profile[]>([]);
   const [isDuplicatesOpen, setIsDuplicatesOpen] = useState(false);
-  const [importing, setImporting] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const { leads, loading, updateLead, addLead, deleteLead, refreshLeads } = useSupabaseLeads();
   const { isAdmin } = useAuth();
@@ -65,53 +66,6 @@ export function Leads() {
       URL.revokeObjectURL(url);
     } catch {
       toast.error("Erro ao exportar CSV");
-    }
-  };
-
-  // Parser CSV simples (vírgula ou ponto-e-vírgula), 1ª linha = cabeçalho
-  const parseCsv = (text: string): Record<string, string>[] => {
-    const clean = text.replace(/^﻿/, "").trim();
-    const lines = clean.split(/\r?\n/).filter(Boolean);
-    if (lines.length < 2) return [];
-    const delim = (lines[0].match(/;/g)?.length || 0) > (lines[0].match(/,/g)?.length || 0) ? ";" : ",";
-    const norm = (h: string) => h.trim().toLowerCase().replace(/["\s]/g, "");
-    const headers = lines[0].split(delim).map(norm);
-    const keyMap: Record<string, string> = {
-      nome: "name", name: "name", telefone: "phone", phone: "phone", celular: "phone",
-      email: "email", "e-mail": "email", origem: "source", source: "source",
-      interesse: "interest", interest: "interest", cidade: "cidade", city: "cidade",
-      estado: "estado", state: "estado",
-    };
-    return lines.slice(1).map((line) => {
-      const cells = line.split(delim);
-      const obj: Record<string, string> = {};
-      headers.forEach((h, i) => {
-        const key = keyMap[h] || h;
-        obj[key] = (cells[i] || "").trim().replace(/^"|"$/g, "");
-      });
-      return obj;
-    });
-  };
-
-  const handleImportCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setImporting(true);
-    try {
-      const text = await file.text();
-      const rows = parseCsv(text).filter((r) => (r.name || r.nome) && (r.phone || r.telefone));
-      if (rows.length === 0) {
-        toast.error("Nenhum lead válido no arquivo (precisa de nome e telefone)");
-        return;
-      }
-      const res = await api.leads.importBatch(rows);
-      toast.success(`${res.created} lead(s) importado(s)${res.skipped ? `, ${res.skipped} ignorado(s)` : ""}`);
-      refreshLeads?.();
-    } catch {
-      toast.error("Erro ao importar CSV");
-    } finally {
-      setImporting(false);
     }
   };
 
@@ -217,12 +171,9 @@ export function Leads() {
                 <Download className="h-4 w-4 mr-2" />
                 Exportar
               </Button>
-              <Button variant="outline" size="sm" asChild disabled={importing}>
-                <label className="cursor-pointer">
-                  <Upload className="h-4 w-4 mr-2" />
-                  {importing ? "Importando..." : "Importar"}
-                  <input type="file" accept=".csv,text/csv" className="hidden" onChange={handleImportCsv} />
-                </label>
+              <Button variant="outline" size="sm" onClick={() => setIsImportOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Importar
               </Button>
               <Button
                 onClick={() => setIsAddLeadOpen(true)}
@@ -418,6 +369,13 @@ export function Leads() {
         open={isDuplicatesOpen}
         onClose={() => setIsDuplicatesOpen(false)}
         onMerged={() => refreshLeads?.()}
+      />
+
+      {/* Import Leads Modal */}
+      <ImportLeadsModal
+        open={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onImported={() => refreshLeads?.()}
       />
 
       {/* Add Lead Modal */}
