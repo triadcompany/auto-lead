@@ -56,6 +56,9 @@ const App = () => {
     // Register service worker for PWA — only in production
     if ('serviceWorker' in navigator && import.meta.env.PROD) {
       let hasReloadedForNewWorker = false;
+      // Só recarrega se JÁ havia um SW controlando a página (ou seja, é uma
+      // ATUALIZAÇÃO aceita pelo usuário) — nunca na primeira instalação.
+      const hadController = !!navigator.serviceWorker.controller;
 
       navigator.serviceWorker
         .register('/sw.js', { updateViaCache: 'none' })
@@ -67,7 +70,7 @@ const App = () => {
           });
 
           navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (hasReloadedForNewWorker) return;
+            if (!hadController || hasReloadedForNewWorker) return;
             hasReloadedForNewWorker = true;
             window.location.reload();
           });
