@@ -10,6 +10,20 @@ async function evolutionFetch(path: string, body: unknown, apiKey: string, baseU
   })
 }
 
+/**
+ * Normaliza um telefone para o formato do WhatsApp Brasil: 55 + DDD + número.
+ * O WhatsApp/Evolution não reconhece números sem o código do país → falha.
+ *   3432352943   → 553432352943   (fixo, 10 díg + 55)
+ *   34991774407  → 5534991774407  (celular, 11 díg + 55)
+ *   5534991774407→ 5534991774407  (já com 55, mantém)
+ */
+function toWhatsAppNumber(raw: string): string {
+  let d = String(raw || "").replace(/\D/g, "").replace(/^0+/, "")
+  if (d.startsWith("55") && (d.length === 12 || d.length === 13)) return d
+  if (d.length === 10 || d.length === 11) return "55" + d
+  return d
+}
+
 export default async function broadcastsRoutes(fastify: FastifyInstance) {
   // GET /broadcasts — lista campanhas
   fastify.get<{ Querystring: { status?: string; limit?: string } }>(
@@ -304,7 +318,7 @@ async function processCampaign(campaignId: string, campaign: any) {
     }).catch(() => null)
 
     try {
-      const phone = recipient.phone.replace(/\D/g, "")
+      const phone = toWhatsAppNumber(recipient.phone)
       const payload = campaign.payload as Record<string, any>
       const payloadType: string = campaign.payloadType || "text"
 
