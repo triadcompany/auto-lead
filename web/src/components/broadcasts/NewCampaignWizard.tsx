@@ -272,8 +272,9 @@ const { getToken } = useClerkAuth();
 
   const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ } };
 
-  // Fechamento intencional (X / sucesso) limpa o rascunho; reload NÃO chama isto.
-  const onClose = () => { clearDraft(); onCloseProp(); };
+  // Fechar NÃO limpa o rascunho (só a criação bem-sucedida limpa) — assim,
+  // se fechar sem querer ou recarregar, o conteúdo é recuperado ao reabrir.
+  const onClose = onCloseProp;
 
   // ── Remote data ──
   // WhatsApp instances via API (avoids Supabase RLS issues)
@@ -727,6 +728,7 @@ const { getToken } = useClerkAuth();
         : null,
       scheduledAt: scheduleMode === 'later' && scheduledAt ? scheduledAt : null,
     });
+    clearDraft(); // campanha criada com sucesso → descarta o rascunho
     onClose();
   };
 
@@ -753,7 +755,12 @@ const { getToken } = useClerkAuth();
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl flex flex-col p-0 gap-0 max-h-[90vh]">
+      <DialogContent
+        className="max-w-3xl flex flex-col p-0 gap-0 max-h-[90vh]"
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         {/* ── Fixed header ── */}
         <DialogHeader className="px-6 py-4 border-b shrink-0">
           <DialogTitle className="font-poppins">Nova Campanha — Passo {step} de 3</DialogTitle>
