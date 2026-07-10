@@ -116,7 +116,7 @@ function SourceCard({
 }
 
 // ─── Main wizard ──────────────────────────────────────────────────────────────
-export function NewCampaignWizard({ onClose }: Props) {
+export function NewCampaignWizard({ onClose: onCloseProp }: Props) {
   const { orgId, profile } = useAuth();
 const { getToken } = useClerkAuth();
   const { createCampaign, isCreating } = useBroadcasts();
@@ -203,6 +203,77 @@ const { getToken } = useClerkAuth();
     const interval = setInterval(() => setRecordingTime(t => t + 1), 1000);
     return () => clearInterval(interval);
   }, [recording]);
+
+  // ── Rascunho persistente ──────────────────────────────────────────────────
+  // Salva o conteúdo da campanha (nome, mensagem, config) no localStorage, para
+  // não perder o trabalho se o app recarregar / for descartado em 2º plano.
+  // NÃO persiste dados pesados (planilha, mídia, áudio) nem os destinatários.
+  const DRAFT_KEY = `broadcast_draft_${orgId || 'x'}`;
+  const draftLoadedRef = useRef(false);
+
+  // Restaura ao montar
+  useEffect(() => {
+    if (draftLoadedRef.current) return;
+    draftLoadedRef.current = true;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.step) setStep(d.step);
+      if (d.sourceType) setSourceType(d.sourceType);
+      if (d.campaignName) setCampaignName(d.campaignName);
+      if (d.instanceName) setInstanceName(d.instanceName);
+      if (d.payloadType) setPayloadType(d.payloadType);
+      if (Array.isArray(d.buttons)) setButtons(d.buttons);
+      if (d.messageText) setMessageText(d.messageText);
+      if (d.caption) setCaption(d.caption);
+      if (d.minDelay != null) setMinDelay(d.minDelay);
+      if (d.maxDelay != null) setMaxDelay(d.maxDelay);
+      if (d.limitPerHour != null) setLimitPerHour(d.limitPerHour);
+      if (d.windowStart != null) setWindowStart(d.windowStart);
+      if (d.windowEnd != null) setWindowEnd(d.windowEnd);
+      if (d.batchSize != null) setBatchSize(d.batchSize);
+      if (typeof d.noDuplicate === 'boolean') setNoDuplicate(d.noDuplicate);
+      if (typeof d.enableAutomation === 'boolean') setEnableAutomation(d.enableAutomation);
+      if (d.selectedAutomationId) setSelectedAutomationId(d.selectedAutomationId);
+      if (d.responseWindowHours != null) setResponseWindowHours(d.responseWindowHours);
+      if (d.scheduleMode) setScheduleMode(d.scheduleMode);
+      if (d.scheduledAt) setScheduledAt(d.scheduledAt);
+      if (d.crmFilters) setCrmFilters(d.crmFilters);
+      if (d.inboxFilters) setInboxFilters(d.inboxFilters);
+      if (d.campaignName || d.messageText || d.caption) {
+        toast.info('Rascunho da campanha recuperado', { description: 'Reenvie a lista de destinatários para continuar.' });
+      }
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Salva (debounced) quando o conteúdo muda
+  useEffect(() => {
+    if (!draftLoadedRef.current) return;
+    const hasContent = !!(campaignName || messageText || caption || buttons.length > 0);
+    const t = setTimeout(() => {
+      try {
+        if (hasContent) {
+          localStorage.setItem(DRAFT_KEY, JSON.stringify({
+            step, sourceType, campaignName, instanceName, payloadType, buttons,
+            messageText, caption, minDelay, maxDelay, limitPerHour, windowStart, windowEnd,
+            batchSize, noDuplicate, enableAutomation, selectedAutomationId, responseWindowHours,
+            scheduleMode, scheduledAt, crmFilters, inboxFilters,
+          }));
+        }
+      } catch { /* quota/serialize */ }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [step, sourceType, campaignName, instanceName, payloadType, buttons, messageText, caption,
+      minDelay, maxDelay, limitPerHour, windowStart, windowEnd, batchSize, noDuplicate,
+      enableAutomation, selectedAutomationId, responseWindowHours, scheduleMode, scheduledAt,
+      crmFilters, inboxFilters]);
+
+  const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ } };
+
+  // Fechamento intencional (X / sucesso) limpa o rascunho; reload NÃO chama isto.
+  const onClose = () => { clearDraft(); onCloseProp(); };
 
   // ── Remote data ──
   // WhatsApp instances via API (avoids Supabase RLS issues)
