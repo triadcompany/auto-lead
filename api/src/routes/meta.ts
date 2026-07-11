@@ -455,14 +455,22 @@ export default async function metaRoutes(fastify: FastifyInstance) {
       if (!settings) return reply.code(404).send({ ok: false, message: "Configuração não encontrada" })
 
       // Tokens CAPI são System User tokens — só têm permissão de envio, não de leitura do pixel.
-      // O teste correto é enviar um evento mínimo para a Conversions API.
+      // O teste envia um evento com identificadores (hasheados) suficientes para a Meta
+      // aceitar — assim confirmamos token + pixel. Sem isso, a Meta recusa com subcode 2804050
+      // ("dados de cliente insuficientes"), mesmo com token/pixel válidos.
+      const sha = (s: string) => createHash("sha256").update(s).digest("hex")
       const testPayload: Record<string, unknown> = {
         data: [{
           event_name: "Lead",
           event_time: Math.floor(Date.now() / 1000),
-          event_id: `test_${Date.now()}`,
+          event_id: `triad_capi_test_${Date.now()}`,
           action_source: "other",
-          user_data: { client_user_agent: "test" },
+          user_data: {
+            em: [sha("teste@triadcrm.com.br")],
+            ph: [sha("5511999999999")],
+            external_id: [sha("triad-capi-connection-test")],
+            client_user_agent: "TriadCRM-CAPI-Test/1.0",
+          },
         }],
       }
       if (settings.testEventCode) testPayload.test_event_code = settings.testEventCode
@@ -496,6 +504,7 @@ export default async function metaRoutes(fastify: FastifyInstance) {
       if (code === 190) hint = "Token inválido ou expirado — gere um novo token (de preferência de System User)."
       else if (code === 200 || code === 10 || subcode === 1357045) hint = "O token não tem permissão para este Pixel. No Gerenciador de Negócios, atribua o Pixel ao System User com permissão 'Gerenciar'."
       else if (code === 803 || /does not exist|Unsupported/i.test(err.message || "")) hint = "Pixel ID não encontrado. Confira se o número está correto (é o ID do Pixel, não da conta de anúncios)."
+      else if (subcode === 2804050) hint = "Token e Pixel estão OK! Este aviso é só sobre dados de correspondência — seus eventos reais (com nome, telefone e e-mail do lead) serão aceitos normalmente."
       else if (code === 100) hint = "Parâmetro inválido — geralmente Pixel ID errado ou o token pertence a outra conta/pixel."
 
       return reply.code(400).send({
