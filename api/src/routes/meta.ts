@@ -473,7 +473,10 @@ export default async function metaRoutes(fastify: FastifyInstance) {
           },
         }],
       }
-      if (settings.testEventCode) testPayload.test_event_code = settings.testEventCode
+      // O código de teste vem do que está na TELA (payload) — evita a armadilha de
+      // testar com valor antigo do banco. Se não vier, cai no que está salvo.
+      const usedTestCode = (payload?.test_event_code ?? settings.testEventCode) || null
+      if (usedTestCode) testPayload.test_event_code = usedTestCode
 
       const pixelId = String(settings.pixelId || "").trim()
       // Validação local antes de bater na Meta — evita erro genérico
@@ -492,8 +495,10 @@ export default async function metaRoutes(fastify: FastifyInstance) {
       const data = (await res.json()) as any
       if (res.ok && (data.events_received !== undefined || data.fbtrace_id)) {
         const received = data.events_received ?? 1
-        const extra = settings.testEventCode ? ` Verifique no Gerenciador de Eventos → Teste de Eventos.` : ""
-        return { ok: true, message: `Conexão OK! ${received} evento(s) aceito(s) pela Meta.${extra}` }
+        const msg = usedTestCode
+          ? `Conexão OK! ${received} evento(s) aceito(s) pela Meta, enviado com test_event_code "${usedTestCode}". Abra a aba "Testar eventos" da Meta (com esse mesmo código) e o evento aparece em alguns segundos.`
+          : `Conexão OK! ${received} evento(s) aceito(s) e enviado para PRODUÇÃO (sem código de teste). Ele aparece em "Visão geral" do Gerenciador de Eventos, com alguns minutos de atraso.`
+        return { ok: true, message: msg, test_event_code_used: usedTestCode, meta_response: data }
       }
 
       // Erro da Meta — devolve o detalhe completo + uma dica humana por código
