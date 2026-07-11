@@ -73,7 +73,7 @@ async function syncIncomingMessage(
   // Busca ou cria conversa
   let conv = await prisma.conversation.findFirst({
     where: { organizationId: orgId, instanceName, contactPhone: phone },
-    select: { id: true, contactName: true, unreadCount: true },
+    select: { id: true, contactName: true, unreadCount: true, profilePictureUrl: true },
   }).catch(() => null)
 
   let isNewConversation = false
@@ -91,7 +91,7 @@ async function syncIncomingMessage(
         ...(ctwaAdId ? { ctwaAdId } : {}),
         ...(ctwaClid ? { ctwaClid } : {}),
       },
-      select: { id: true, contactName: true, unreadCount: true },
+      select: { id: true, contactName: true, unreadCount: true, profilePictureUrl: true },
     }).catch(() => null)
     isNewConversation = true
   } else if (ctwaAdId) {
@@ -102,6 +102,28 @@ async function syncIncomingMessage(
   }
 
   if (!conv) return
+
+  // Busca a foto de perfil do WhatsApp (fire-and-forget) quando ainda não temos.
+  if (!fromMe && (isNewConversation || !conv.profilePictureUrl)) {
+    const convId = conv.id
+    setImmediate(async () => {
+      try {
+        const res = await evolutionFetch(`/chat/fetchProfilePictureUrl/${instanceName}`, {
+          method: "POST",
+          body: JSON.stringify({ number: phone }),
+        })
+        const data = await res.json().catch(() => null) as any
+        const url: string | null = data?.profilePictureUrl || data?.url || null
+        if (url) {
+          await prisma.conversation.update({
+            where: { id: convId },
+            data: { profilePictureUrl: url, profilePictureUpdatedAt: new Date() },
+          }).catch(() => null)
+          emit(orgId, "conversation:updated", { id: convId, profile_picture_url: url })
+        }
+      } catch { /* non-critical */ }
+    })
+  }
 
   // Deduplicação por externalId
   if (externalId) {
