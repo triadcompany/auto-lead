@@ -385,6 +385,22 @@ export default async function automationsRoutes(fastify: FastifyInstance) {
     return runs
   })
 
+  // GET /automations/runs/:id/steps — passos (blocos) executados numa execução
+  fastify.get<{ Params: { id: string } }>("/automations/runs/:id/steps", async (req, reply) => {
+    // Garante que a execução pertence à org do usuário
+    const run = await prisma.automationRun.findFirst({
+      where: { id: req.params.id, ...orgScope(req) },
+      select: { id: true },
+    }).catch(() => null)
+    if (!run) return reply.code(404).send({ error: "Execução não encontrada" })
+
+    const steps = await (prisma as any).automationRunStep?.findMany?.({
+      where: { runId: req.params.id },
+      orderBy: { createdAt: "asc" },
+    }).catch(() => [])
+    return steps || []
+  })
+
   // POST /automations/worker — trigger automation worker for org
   fastify.post("/automations/worker", async (req) => {
     const { fireAutomationTrigger } = await import("../lib/automationRunner.js")
