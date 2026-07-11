@@ -104,14 +104,20 @@ async function sendWhatsAppText(
   instanceName: string,
   phone: string,
   text: string
-): Promise<void> {
+): Promise<boolean> {
   const base = process.env.EVOLUTION_API_URL?.replace(/\/$/, "") || ""
   const apiKey = process.env.EVOLUTION_API_KEY || ""
-  await fetch(`${base}/message/sendText/${instanceName}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", apikey: apiKey },
-    body: JSON.stringify({ number: phone, text }),
-  }).catch((e) => console.error("[automationRunner] sendText failed:", e))
+  try {
+    const res = await fetch(`${base}/message/sendText/${instanceName}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: apiKey },
+      body: JSON.stringify({ number: phone, text }),
+    })
+    return res.ok
+  } catch (e) {
+    console.error("[automationRunner] sendText failed:", e)
+    return false
+  }
 }
 
 async function sendWhatsAppMedia(
@@ -147,6 +153,41 @@ async function sendWhatsAppMedia(
     headers,
     body: JSON.stringify(body),
   }).catch((e) => console.error("[automationRunner] sendMedia failed:", e))
+}
+
+// ── registro de passos da execução (para "Detalhes da Execução") ───────────────
+
+const ACTION_LABELS: Record<string, string> = {
+  create_deal: "Criar negócio", create_lead: "Criar lead", move_stage: "Mover etapa",
+  update_lead: "Atualizar lead", add_tag: "Adicionar tag", set_lead_status: "Mudar status",
+  send_whatsapp: "Enviar WhatsApp", send_meta_event: "Evento Meta CAPI", create_note: "Criar nota",
+  internal_notification: "Notificação interna", transfer_to_agent: "Transferir para vendedor",
+  end_automation: "Encerrar automação",
+}
+const NODE_LABELS: Record<string, string> = {
+  trigger: "Gatilho", message: "Enviar mensagem", action: "Ação", delay: "Aguardar",
+  wait: "Aguardar", condition: "Condição", reply_router: "Aguardar resposta",
+  wait_for_reply: "Aguardar resposta", business_hours: "Horário comercial", ab_split: "Divisão A/B",
+}
+function nodeLabel(node: any): string {
+  if (node?.type === "action") {
+    const at = node?.data?.config?.actionType
+    return ACTION_LABELS[at] || node?.data?.label || "Ação"
+  }
+  return node?.data?.label || NODE_LABELS[node?.type] || node?.type || "Bloco"
+}
+async function recordStep(
+  runId: string, nodeId: string, nodeType: string, status: string,
+  opts: { label?: string; error?: string } = {}
+): Promise<void> {
+  await (prisma as any).automationRunStep?.create?.({
+    data: {
+      runId, nodeId, nodeType, status,
+      errorMessage: opts.error || null,
+      outputData: opts.label ? ({ label: opts.label } as any) : undefined,
+      startedAt: new Date(), completedAt: new Date(),
+    },
+  }).catch(() => null)
 }
 
 // ── find paused run ───────────────────────────────────────────────────────────
@@ -259,6 +300,7 @@ async function runFromNode(
   const edges = (flow.edges as any[]) || []
   const node = nodes.find((n: any) => n.id === nodeId)
   if (!node) {
+    await recordStep(runId, nodeId, "unknown", "failed", { error: "Bloco não encontrado — fluxo interrompido" })
     await prisma.automationRun.update({
       where: { id: runId },
       data: { status: "completed", completedAt: new Date(), updatedAt: new Date() },
@@ -274,15 +316,27 @@ async function runFromNode(
     data: { currentNodeId: nodeId, updatedAt: new Date() },
   }).catch(() => null)
 
+  // Registra o bloco na timeline da execução. Os nós de envio (message/action)
+  // registram o status real mais abaixo; os demais são registrados aqui.
+  if (nodeType !== "message" && nodeType !== "action") {
+    await recordStep(runId, nodeId, nodeType, "completed", { label: nodeLabel(node) })
+  }
+
   if (nodeType === "message") {
     const phone: string = ctx.lead_phone || ctx.phone || ""
     const instanceName: string = ctx.instance_name || ""
     const msgType: string = config.messageType || "text"
 
-    if (phone && instanceName) {
+    let msgOk = true
+    let msgErr: string | undefined
+    if (!phone || !instanceName) {
+      msgOk = false
+      msgErr = !phone ? "Sem telefone no contexto" : "Sem instância de WhatsApp conectada"
+    } else {
       if (msgType === "text") {
         const text = renderTemplate(config.text || "", ctx)
-        await sendWhatsAppText(instanceName, phone, text)
+        msgOk = await sendWhatsAppText(instanceName, phone, text)
+        if (!msgOk) msgErr = "Falha ao enviar pela Evolution"
       } else if (msgType === "image" || msgType === "video") {
         const mediaUrl: string = config.mediaUrl || ""
         const caption = renderTemplate(config.caption || "", ctx)
@@ -297,6 +351,7 @@ async function runFromNode(
         if (mediaUrl) await sendWhatsAppMedia(instanceName, phone, "document", mediaUrl, { caption, filename })
       }
     }
+    await recordStep(runId, nodeId, "message", msgOk ? "completed" : "failed", { label: nodeLabel(node), error: msgErr })
     // continue to next node
     const nextEdge = edges.find((e: any) => e.source === nodeId)
     if (nextEdge) {
@@ -381,8 +436,11 @@ async function runFromNode(
 
   } else if (nodeType === "action") {
     const actionType: string = config.actionType || ""
+    let actionOk = true
+    let actionErr: string | undefined
 
     if (actionType === "end_automation") {
+      await recordStep(runId, nodeId, "action", "completed", { label: nodeLabel(node) })
       await prisma.automationRun.update({
         where: { id: runId },
         data: { status: "completed", completedAt: new Date(), updatedAt: new Date() },
@@ -589,7 +647,11 @@ async function runFromNode(
       const phone: string = ctx.lead_phone || ctx.phone || ""
       const instanceName: string = ctx.instance_name || ""
       if (phone && instanceName && text) {
-        await sendWhatsAppText(instanceName, phone, text)
+        actionOk = await sendWhatsAppText(instanceName, phone, text)
+        if (!actionOk) actionErr = "Falha ao enviar pela Evolution"
+      } else {
+        actionOk = false
+        actionErr = !phone ? "Sem telefone no contexto" : !instanceName ? "Sem instância conectada" : "Mensagem vazia"
       }
     }
 
@@ -602,9 +664,18 @@ async function runFromNode(
       const orgId: string = ctx.organization_id || ""
       const leadId: string | undefined = ctx.lead_id
       if (orgId && leadId) {
-        await sendMetaCapiForLead(orgId, leadId, eventName, value, currency).catch(() => null)
+        await sendMetaCapiForLead(orgId, leadId, eventName, value, currency).catch((e) => {
+          actionOk = false; actionErr = "Falha ao enviar evento à Meta"
+          console.error("[automationRunner] meta capi:", e)
+        })
+      } else {
+        actionOk = false
+        actionErr = !leadId ? "Sem lead vinculado — não há dados para enviar à Meta" : "Sem organização no contexto"
       }
     }
+
+    // Registra o bloco de ação com o status apurado
+    await recordStep(runId, nodeId, "action", actionOk ? "completed" : "failed", { label: nodeLabel(node), error: actionErr })
 
     // continue to next node
     const nextEdge = edges.find((e: any) => e.source === nodeId)
