@@ -522,6 +522,28 @@ export default async function metaRoutes(fastify: FastifyInstance) {
     return events || []
   })
 
+  // ── CAPI Logs (diagnóstico de envios à Meta) ──
+  fastify.get<{ Querystring: { status?: string; limit?: string } }>("/meta/capi-logs", async (req) => {
+    const logs = await (prisma as any).metaCapiLog?.findMany?.({
+      where: {
+        organizationId: req.auth.orgId,
+        ...(req.query.status ? { status: req.query.status } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: Number(req.query.limit) || 100,
+    }).catch(() => [])
+
+    // Estatística rápida (últimos 200)
+    const recent = await (prisma as any).metaCapiLog?.findMany?.({
+      where: { organizationId: req.auth.orgId },
+      select: { status: true }, orderBy: { createdAt: "desc" }, take: 200,
+    }).catch(() => [])
+    const success = recent.filter((r: any) => r.status === "success").length
+    const failed = recent.filter((r: any) => r.status === "failed").length
+
+    return { logs: logs || [], stats: { total: recent.length, success, failed } }
+  })
+
   // ── Test connection ──
   fastify.post("/meta/test-connection", async (req, reply) => {
     const integration = await (prisma as any).metaIntegration?.findFirst?.({
