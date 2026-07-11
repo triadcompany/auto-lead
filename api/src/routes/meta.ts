@@ -467,8 +467,18 @@ export default async function metaRoutes(fastify: FastifyInstance) {
       }
       if (settings.testEventCode) testPayload.test_event_code = settings.testEventCode
 
+      const pixelId = String(settings.pixelId || "").trim()
+      // Validação local antes de bater na Meta — evita erro genérico
+      if (!pixelId) return reply.code(400).send({ ok: false, message: "Pixel ID vazio. Preencha o Pixel ID e salve." })
+      if (!/^\d{6,}$/.test(pixelId)) {
+        return reply.code(400).send({
+          ok: false,
+          message: `Pixel ID inválido ("${pixelId}"). Deve ser só números (ex.: 1234567890123456). Pegue o número em Gerenciador de Eventos → seu pixel.`,
+        })
+      }
+
       const res = await fetch(
-        `https://graph.facebook.com/v18.0/${settings.pixelId}/events?access_token=${settings.accessToken}`,
+        `https://graph.facebook.com/v18.0/${pixelId}/events?access_token=${settings.accessToken}`,
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(testPayload) }
       )
       const data = (await res.json()) as any
@@ -477,8 +487,27 @@ export default async function metaRoutes(fastify: FastifyInstance) {
         const extra = settings.testEventCode ? ` Verifique no Gerenciador de Eventos → Teste de Eventos.` : ""
         return { ok: true, message: `Conexão OK! ${received} evento(s) aceito(s) pela Meta.${extra}` }
       }
-      const errMsg = data.error?.message || "Erro desconhecido"
-      return reply.code(400).send({ ok: false, message: errMsg })
+
+      // Erro da Meta — devolve o detalhe completo + uma dica humana por código
+      const err = data.error || {}
+      const code = err.code
+      const subcode = err.error_subcode
+      let hint = ""
+      if (code === 190) hint = "Token inválido ou expirado — gere um novo token (de preferência de System User)."
+      else if (code === 200 || code === 10 || subcode === 1357045) hint = "O token não tem permissão para este Pixel. No Gerenciador de Negócios, atribua o Pixel ao System User com permissão 'Gerenciar'."
+      else if (code === 803 || /does not exist|Unsupported/i.test(err.message || "")) hint = "Pixel ID não encontrado. Confira se o número está correto (é o ID do Pixel, não da conta de anúncios)."
+      else if (code === 100) hint = "Parâmetro inválido — geralmente Pixel ID errado ou o token pertence a outra conta/pixel."
+
+      return reply.code(400).send({
+        ok: false,
+        message: err.error_user_msg || err.message || "Erro desconhecido",
+        hint: hint || undefined,
+        meta_error: {
+          message: err.message, code, subcode,
+          user_title: err.error_user_title, user_msg: err.error_user_msg,
+          fbtrace_id: err.fbtrace_id,
+        },
+      })
     }
 
     if (action === "queue_logs") {
