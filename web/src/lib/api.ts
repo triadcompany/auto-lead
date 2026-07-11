@@ -308,6 +308,7 @@ export function createApi(getToken: () => Promise<string | null>) {
         post<any>(`/automations/${id}/flow`, { nodes, edges }),
       runs: (id: string) => get<any[]>(`/automations/${id}/runs`),
       allRuns: (limit = 100) => get<any[]>("/automations/runs", { limit } as any),
+      runSteps: (runId: string) => get<any[]>(`/automations/runs/${runId}/steps`),
       triggerWorker: () => post<any>("/automations/worker", {}),
       eventDefinitions: () => get<any[]>("/automations/event-definitions"),
       createEventDefinition: (data: Record<string, unknown>) => post<any>("/automations/event-definitions", data),
