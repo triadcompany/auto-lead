@@ -100,6 +100,20 @@ async function runMigrations() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_goals_org_profile_period ON sales_goals (organization_id, COALESCE(profile_id, '00000000-0000-0000-0000-000000000000'::uuid), period)`,
+    `CREATE TABLE IF NOT EXISTS automation_run_steps (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      run_id UUID NOT NULL,
+      node_id TEXT NOT NULL,
+      node_type TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      input_data JSONB,
+      output_data JSONB,
+      error_message TEXT,
+      started_at TIMESTAMPTZ,
+      completed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_automation_run_steps_run ON automation_run_steps (run_id, created_at)`,
   ]
   for (const sql of statements) {
     try {
