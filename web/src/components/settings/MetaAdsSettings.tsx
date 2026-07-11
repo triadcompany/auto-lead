@@ -185,13 +185,19 @@ function ErrorDetailModal({
             </div>
             <div>
               <Label className="text-xs font-semibold">Código</Label>
-              <p className="font-mono">{error.response?.code || "N/A"}</p>
+              <p className="font-mono">{error.response?.meta_error?.code ?? error.response?.code ?? "N/A"}</p>
             </div>
           </div>
           <div>
             <Label className="text-xs font-semibold">Mensagem</Label>
             <p className="text-destructive">{error.message}</p>
           </div>
+          {error.response?.hint && (
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+              <Label className="text-xs font-semibold text-amber-600 dark:text-amber-400">💡 Provável causa</Label>
+              <p className="text-sm mt-1">{error.response.hint}</p>
+            </div>
+          )}
           <div>
             <Label className="text-xs font-semibold">Response JSON</Label>
             <pre className="bg-muted p-2 rounded text-xs mt-1 max-h-48 overflow-auto font-mono">
