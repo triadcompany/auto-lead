@@ -291,6 +291,8 @@ export function createApi(getToken: () => Promise<string | null>) {
       sendEvent: (data: { lead_id: string; event_name: string; stage_name?: string }) =>
         post<any>("/meta/events", data),
       capiEvents: () => get<any[]>("/meta/capi-events"),
+      capiLogs: (q?: { status?: string; limit?: number }) =>
+        get<{ logs: any[]; stats: { total: number; success: number; failed: number } }>("/meta/capi-logs", q as any),
       testConnection: () => post<any>("/meta/test-connection", {}),
     },
 
