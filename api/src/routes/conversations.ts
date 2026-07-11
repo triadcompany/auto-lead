@@ -29,7 +29,7 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
     }
   }>("/conversations", async (req) => {
     const { status, assigned_to, channel, ai_mode, search, limit, offset } = req.query
-    return prisma.conversation.findMany({
+    const list = await prisma.conversation.findMany({
       where: {
         ...orgScope(req),
         ...(status && { status }),
@@ -47,6 +47,36 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
       take: Number(limit) || 50,
       skip: Number(offset) || 0,
     })
+
+    // Backfill (fire-and-forget, limitado) da foto de perfil das conversas de
+    // WhatsApp que ainda não têm — popula a lista que o usuário está vendo.
+    const orgId = req.auth.orgId
+    const toBackfill = list
+      .filter((c) => c.channel === "whatsapp" && !c.profilePictureUrl && !c.isGroup && c.contactPhone)
+      .slice(0, 12)
+    if (toBackfill.length > 0) {
+      setImmediate(async () => {
+        for (const c of toBackfill) {
+          try {
+            const res = await evolutionFetch(`/chat/fetchProfilePictureUrl/${c.instanceName}`, {
+              method: "POST",
+              body: JSON.stringify({ number: c.contactPhone }),
+            })
+            const data = await res.json().catch(() => null) as any
+            const url: string | null = data?.profilePictureUrl || data?.url || null
+            if (url) {
+              await prisma.conversation.update({
+                where: { id: c.id },
+                data: { profilePictureUrl: url, profilePictureUpdatedAt: new Date() },
+              }).catch(() => null)
+              emit(orgId, "conversation:updated", { id: c.id, profile_picture_url: url })
+            }
+          } catch { /* non-critical */ }
+        }
+      })
+    }
+
+    return list
   })
 
   // GET /conversations/:id
