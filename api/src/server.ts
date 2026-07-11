@@ -114,6 +114,22 @@ async function runMigrations() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`,
     `CREATE INDEX IF NOT EXISTS idx_automation_run_steps_run ON automation_run_steps (run_id, created_at)`,
+    `CREATE TABLE IF NOT EXISTS meta_capi_logs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id UUID NOT NULL,
+      lead_id UUID,
+      pipeline_id UUID,
+      stage_id UUID,
+      meta_event TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      http_status INTEGER,
+      request_json JSONB,
+      response_json JSONB,
+      fail_reason TEXT,
+      trace_id UUID,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_meta_capi_logs_org ON meta_capi_logs (organization_id, created_at)`,
   ]
   for (const sql of statements) {
     try {
