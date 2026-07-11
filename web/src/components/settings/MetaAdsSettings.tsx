@@ -410,12 +410,12 @@ function ConnectionCard({ orgId, profileId, isAdmin }: { orgId: string; profileI
         action: "test",
         profile_id: profileId,
         organization_id: orgId,
+        // Envia o código de teste da TELA — o teste usa exatamente o que você digitou,
+        // sem depender do que está salvo no banco.
+        payload: { test_event_code: testEventCode || null },
       }, token);
       if (data.ok) {
-        toast.success(
-          `${data.message || "Conexão funcionando!"} Verifique em Gerenciador de Eventos → Teste de Eventos.`,
-          { duration: 8000 }
-        );
+        toast.success(data.message || "Conexão funcionando!", { duration: 10000 });
       } else {
         const codeMessages: Record<string, string> = {
           INVALID_TOKEN: "Access Token inválido ou expirado. Gere um novo token no Business Manager.",
