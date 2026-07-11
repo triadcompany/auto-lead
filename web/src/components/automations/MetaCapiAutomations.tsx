@@ -20,6 +20,7 @@ import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useApi } from "@/hooks/useApi";
 
 // ─── Types ───
 interface QueueItem {
@@ -122,8 +123,143 @@ export function MetaCapiAutomations() {
         </AlertDescription>
       </Alert>
 
+      <CapiDiagnosticsCard />
+
       <LogsCard orgId={orgId} profileId={profileId} isAdmin={isAdmin} />
     </div>
+  );
+}
+
+// ═══════════ DIAGNÓSTICO DE ENVIOS (meta_capi_logs — resposta real da Meta) ═══════════
+function CapiDiagnosticsCard() {
+  const api = useApi();
+  const [logs, setLogs] = useState<any[]>([]);
+  const [stats, setStats] = useState<{ total: number; success: number; failed: number }>({ total: 0, success: 0, failed: 0 });
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [detail, setDetail] = useState<any | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.meta.capiLogs({ status: statusFilter === "all" ? undefined : statusFilter, limit: 100 });
+      setLogs(res.logs || []);
+      setStats(res.stats || { total: 0, success: 0, failed: 0 });
+    } catch {
+      setLogs([]);
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="font-poppins">Diagnóstico de Envios (Meta CAPI)</CardTitle>
+            <CardDescription>Resposta real da Meta para cada evento enviado — veja onde e por que falhou</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="success">Sucesso</SelectItem>
+                <SelectItem value="failed">Falha</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={load} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+        </div>
+        {/* Estatística */}
+        <div className="flex gap-3 pt-2">
+          <span className="text-xs text-muted-foreground">Últimos {stats.total}:</span>
+          <span className="text-xs text-emerald-600 font-medium">{stats.success} enviados</span>
+          <span className="text-xs text-destructive font-medium">{stats.failed} falhas</span>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+        ) : logs.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">
+            Nenhum envio registrado ainda. Os envios aparecem aqui após uma automação com a ação "Evento Meta CAPI" rodar.
+          </p>
+        ) : (
+          <div className="divide-y divide-border">
+            {logs.map((log) => {
+              const ok = log.status === "success";
+              return (
+                <button
+                  key={log.id}
+                  onClick={() => setDetail(log)}
+                  className="w-full flex items-center gap-3 py-2.5 text-left hover:bg-muted/30 rounded px-2 -mx-2"
+                >
+                  <div className={`h-7 w-7 shrink-0 rounded-full flex items-center justify-center ${ok ? "bg-emerald-500/10 text-emerald-600" : "bg-destructive/10 text-destructive"}`}>
+                    {ok ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{log.metaEvent}</span>
+                      {log.httpStatus != null && (
+                        <Badge variant="outline" className="text-[10px]">HTTP {log.httpStatus}</Badge>
+                      )}
+                    </div>
+                    {!ok && log.failReason && (
+                      <p className="text-xs text-destructive truncate">{log.failReason}</p>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-muted-foreground shrink-0">
+                    {format(new Date(log.createdAt), "dd/MM HH:mm:ss", { locale: ptBR })}
+                  </span>
+                  <Eye className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+
+      {/* Detalhe: payload + resposta */}
+      <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-poppins flex items-center gap-2">
+              {detail?.status === "success" ? <Check className="h-4 w-4 text-emerald-600" /> : <X className="h-4 w-4 text-destructive" />}
+              {detail?.metaEvent} — {detail?.status === "success" ? "Enviado" : "Falhou"}
+            </DialogTitle>
+          </DialogHeader>
+          {detail && (
+            <div className="space-y-3 text-sm">
+              {detail.failReason && (
+                <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
+                  <p className="text-xs font-medium text-destructive">Motivo da falha</p>
+                  <p className="text-xs mt-1">{detail.failReason}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div><span className="text-muted-foreground">HTTP:</span> {detail.httpStatus ?? "—"}</div>
+                <div><span className="text-muted-foreground">Quando:</span> {format(new Date(detail.createdAt), "dd/MM/yy HH:mm:ss", { locale: ptBR })}</div>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Resposta da Meta</p>
+                <pre className="text-[11px] bg-muted/50 rounded-lg p-3 overflow-x-auto">{JSON.stringify(detail.responseJson, null, 2)}</pre>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Payload enviado (PII já em hash)</p>
+                <pre className="text-[11px] bg-muted/50 rounded-lg p-3 overflow-x-auto">{JSON.stringify(detail.requestJson, null, 2)}</pre>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 }
 
