@@ -664,10 +664,9 @@ async function runFromNode(
       const orgId: string = ctx.organization_id || ""
       const leadId: string | undefined = ctx.lead_id
       if (orgId && leadId) {
-        await sendMetaCapiForLead(orgId, leadId, eventName, value, currency).catch((e) => {
-          actionOk = false; actionErr = "Falha ao enviar evento à Meta"
-          console.error("[automationRunner] meta capi:", e)
-        })
+        const r = await sendMetaCapiForLead(orgId, leadId, eventName, value, currency)
+          .catch((e) => { console.error("[automationRunner] meta capi:", e); return { ok: false, error: String(e?.message || e) } })
+        if (!r.ok) { actionOk = false; actionErr = r.error || "Falha ao enviar evento à Meta" }
       } else {
         actionOk = false
         actionErr = !leadId ? "Sem lead vinculado — não há dados para enviar à Meta" : "Sem organização no contexto"
@@ -845,6 +844,14 @@ async function sha256(text: string): Promise<string> {
   return createHash("sha256").update(text).digest("hex")
 }
 
+// Normaliza telefone BR para E.164 (55 + DDD + número) — a Meta casa melhor assim.
+function toE164Brazil(raw: string): string {
+  let d = String(raw || "").replace(/\D/g, "").replace(/^0+/, "")
+  if (d.startsWith("55") && (d.length === 12 || d.length === 13)) return d
+  if (d.length === 10 || d.length === 11) return "55" + d
+  return d
+}
+
 async function sendMetaCapiForLead(
   orgId: string,
   leadId: string,
@@ -852,22 +859,24 @@ async function sendMetaCapiForLead(
   value?: number,
   currency?: string,
   extraParams?: Record<string, string>
-): Promise<void> {
+): Promise<{ ok: boolean; error?: string }> {
   const settings = await (prisma as any).metaCapiSettings?.findFirst?.({
     where: { organizationId: orgId, enabled: true },
   }).catch(() => null)
-  if (!settings?.pixelId || !settings?.accessToken) return
+  if (!settings?.pixelId || !settings?.accessToken) {
+    return { ok: false, error: "Meta CAPI não configurado ou desativado (pixel/token ausente)" }
+  }
 
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
     select: { name: true, phone: true, email: true, valorNegocio: true, cidade: true, estado: true, fbc: true, fbp: true, metaCampaignId: true, metaAdsetId: true, metaAdId: true },
   }).catch(() => null)
-  if (!lead) return
+  if (!lead) return { ok: false, error: "Lead não encontrado" }
 
   const userData: Record<string, unknown> = {}
   // Identificadores com hash (SHA256)
   if (lead.email) userData.em = [await sha256(lead.email.toLowerCase().trim())]
-  if (lead.phone) userData.ph = [await sha256(lead.phone.replace(/\D/g, ""))]
+  if (lead.phone) userData.ph = [await sha256(toE164Brazil(lead.phone))]
   if (lead.name) {
     const parts = lead.name.trim().split(" ")
     userData.fn = [await sha256(parts[0].toLowerCase())]
@@ -926,10 +935,47 @@ async function sendMetaCapiForLead(
   }
   if (settings.testEventCode) payload.test_event_code = settings.testEventCode
 
-  await fetch(
-    `https://graph.facebook.com/v18.0/${settings.pixelId}/events?access_token=${settings.accessToken}`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
-  ).catch((e) => console.error("[automationRunner] Meta CAPI error:", e))
+  let httpStatus: number | null = null
+  let responseJson: any = null
+  let ok = false
+  let error: string | undefined
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v18.0/${settings.pixelId}/events?access_token=${settings.accessToken}`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
+    )
+    httpStatus = res.status
+    responseJson = await res.json().catch(() => null)
+
+    if (res.ok && responseJson && responseJson.events_received >= 1) {
+      ok = true
+    } else {
+      // Extrai a mensagem de erro da Meta (formato: { error: { message, ... } })
+      const metaErr = responseJson?.error
+      error = metaErr?.error_user_title || metaErr?.message
+        || (res.ok ? `Meta não recebeu o evento (events_received: ${responseJson?.events_received ?? 0})` : `HTTP ${res.status}`)
+    }
+  } catch (e: any) {
+    error = `Erro de rede ao chamar a Meta: ${e?.message || e}`
+    console.error("[automationRunner] Meta CAPI error:", e)
+  }
+
+  // Auditoria: grava o log (payload já vai com PII hasheada; token fica só na URL)
+  await (prisma as any).metaCapiLog?.create?.({
+    data: {
+      organizationId: orgId,
+      leadId,
+      metaEvent: eventName,
+      status: ok ? "success" : "failed",
+      httpStatus: httpStatus ?? undefined,
+      requestJson: payload as any,
+      responseJson: responseJson as any,
+      failReason: error || null,
+    },
+  }).catch(() => null)
+
+  return { ok, error }
 }
 
 // ── fire automation trigger ───────────────────────────────────────────────────
