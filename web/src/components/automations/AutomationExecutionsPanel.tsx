@@ -43,6 +43,20 @@ export function AutomationExecutionsPanel({ organizationId }: Props) {
   const [loading, setLoading] = useState(true);
   const [workerRunning, setWorkerRunning] = useState(false);
   const [detailRun, setDetailRun] = useState<Run | null>(null);
+  const [steps, setSteps] = useState<any[]>([]);
+  const [stepsLoading, setStepsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!detailRun) { setSteps([]); return; }
+    let cancelled = false;
+    setStepsLoading(true);
+    api.automations.runSteps(detailRun.id)
+      .then((data) => { if (!cancelled) setSteps(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) setSteps([]); })
+      .finally(() => { if (!cancelled) setStepsLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailRun?.id]);
 
   const fetchRuns = useCallback(async () => {
     if (!organizationId) { setLoading(false); return; }
@@ -223,6 +237,53 @@ export function AutomationExecutionsPanel({ organizationId }: Props) {
                   <p className="font-poppins mt-1 text-xs">{detailRun.errorMessage}</p>
                 </div>
               )}
+
+              {/* Passos (blocos) da execução */}
+              <div>
+                <p className="font-poppins font-medium text-xs text-muted-foreground uppercase tracking-wider mb-2">
+                  Blocos executados
+                </p>
+                {stepsLoading ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : steps.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">
+                    Sem passos registrados. (Execuções antigas, anteriores a esta atualização, não têm o detalhamento.)
+                  </p>
+                ) : (
+                  <div className="relative pl-1">
+                    {steps.map((s, i) => {
+                      const failed = s.status === "failed";
+                      const label = s.outputData?.label || s.nodeType || "Bloco";
+                      return (
+                        <div key={s.id || i} className="flex gap-3 pb-3 relative">
+                          {i < steps.length - 1 && (
+                            <span className="absolute left-[11px] top-6 bottom-0 w-px bg-border" />
+                          )}
+                          <div className={`h-6 w-6 shrink-0 rounded-full flex items-center justify-center ${
+                            failed ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-600"
+                          }`}>
+                            {failed ? <XCircle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                          </div>
+                          <div className="min-w-0 pt-0.5">
+                            <p className="text-sm font-poppins font-medium">{label}</p>
+                            {s.errorMessage && (
+                              <p className="text-xs text-destructive font-poppins">{s.errorMessage}</p>
+                            )}
+                            {s.createdAt && (
+                              <p className="text-[11px] text-muted-foreground font-poppins">
+                                {format(new Date(s.createdAt), "HH:mm:ss", { locale: ptBR })}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               <p className="font-poppins text-xs text-muted-foreground">ID: {detailRun.id}</p>
             </div>
           )}
