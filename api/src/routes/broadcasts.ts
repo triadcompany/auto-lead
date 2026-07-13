@@ -113,18 +113,40 @@ export default async function broadcastsRoutes(fastify: FastifyInstance) {
   // PATCH /broadcasts/:id
   fastify.patch<{
     Params: { id: string }
-    Body: Record<string, unknown>
+    Body: {
+      name?: string
+      payload?: Record<string, unknown>
+      settings?: Record<string, unknown>
+      buttons?: Array<{ label: string; value: string }> | null
+      response_window_hours?: number
+      enable_automation?: boolean
+      automation_id?: string | null
+      scheduled_at?: string | null
+    }
   }>("/broadcasts/:id", async (req, reply) => {
+    const b = req.body
+    // Mapeia snake_case (contrato da API) -> camelCase (campos do Prisma)
+    const data: Record<string, unknown> = { updatedAt: new Date() }
+    if (b.name !== undefined) data.name = b.name
+    if (b.payload !== undefined) data.payload = b.payload as any
+    if (b.settings !== undefined) data.settings = b.settings as any
+    if (b.buttons !== undefined) data.buttons = b.buttons as any
+    if (b.response_window_hours !== undefined) data.responseWindowHours = b.response_window_hours
+    if (b.enable_automation !== undefined) data.enableAutomation = b.enable_automation
+    if (b.automation_id !== undefined) data.automationId = b.automation_id
+    if (b.scheduled_at !== undefined) data.scheduledAt = b.scheduled_at ? new Date(b.scheduled_at) : null
+
     try {
       // Permite editar em qualquer status, exceto enquanto está disparando ("running").
       const updated = await prisma.broadcastCampaign.updateMany({
         where: { id: req.params.id, ...orgScope(req), status: { not: "running" } },
-        data: { ...req.body as any, updatedAt: new Date() },
+        data,
       })
       if (!updated.count) return reply.code(404).send({ error: "Não encontrada ou está em andamento" })
       return { success: true }
-    } catch {
-      return reply.code(404).send({ error: "Not found or campaign already running" })
+    } catch (e: any) {
+      fastify.log.error({ err: e }, "PATCH /broadcasts/:id failed")
+      return reply.code(500).send({ error: e.message || "Erro ao atualizar campanha" })
     }
   })
 
