@@ -1,7 +1,7 @@
 {
-  "name": "AutoLead CRM - Sistema de Gestão de Leads",
-  "short_name": "AutoLead",
-  "description": "Sistema completo de gestão de leads e vendas para concessionárias. Kanban, funil de vendas e relatórios detalhados.",
+  "name": "Triad CRM",
+  "short_name": "Triad CRM",
+  "description": "Gestão de leads, funil de vendas, automações e disparos via WhatsApp.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
