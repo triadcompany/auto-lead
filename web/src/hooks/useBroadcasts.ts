@@ -170,6 +170,28 @@ export function useBroadcasts() {
     onError: (err: any) => toast.error('Erro ao excluir', { description: err.message }),
   });
 
+  const updateCampaign = useMutation({
+    mutationFn: async (params: {
+      id: string;
+      name?: string;
+      payload?: Record<string, any>;
+      settings?: Record<string, any>;
+      response_window_hours?: number;
+      enable_automation?: boolean;
+      automation_id?: string | null;
+      scheduled_at?: string | null;
+    }) => {
+      const { id, ...data } = params;
+      return api.broadcasts.update(id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
+      queryClient.invalidateQueries({ queryKey: ['broadcast'] });
+      toast.success('Campanha atualizada');
+    },
+    onError: (err: any) => toast.error('Erro ao atualizar campanha', { description: err.message }),
+  });
+
   const updateCampaignStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       if (status === 'paused') return api.broadcasts.pause(id);
@@ -251,6 +273,7 @@ export function useBroadcasts() {
     pauseCampaign: (id: string) => pauseCampaign.mutateAsync(id),
     resumeCampaign: (id: string) => resumeCampaign.mutateAsync(id),
     deleteCampaign,
+    updateCampaign,
     updateCampaignStatus,
     retryFailed,
     duplicateCampaign,
