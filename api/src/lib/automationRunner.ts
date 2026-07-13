@@ -6,10 +6,11 @@ import { logLeadActivity } from "./leadActivity.js"
 // ── distribuição de leads ──────────────────────────────────────────────────────
 // Resolve o responsável de um novo lead quando "distribuição automática" está ativa:
 //  1) owner_id explícito → usa ele
-//  2) usuários configurados na distribuição → round-robin entre eles
-//  3) senão → round-robin entre os VENDEDORES da org (fallback: admins)
+//  2) lista de participantes escolhida NA AÇÃO (nó "Criar negócio") → round-robin entre eles
+//  3) usuários configurados na distribuição global (Configurações) → round-robin entre eles
+//  4) senão → round-robin entre os VENDEDORES da org (fallback: admins)
 // O cursor de rodízio é persistido em LeadDistributionSettings.rrCursor.
-async function resolveLeadOwner(orgId: string, ownerId?: string): Promise<string | null> {
+async function resolveLeadOwner(orgId: string, ownerId?: string, explicitCandidateIds?: string[]): Promise<string | null> {
   if (ownerId) return ownerId
 
   const settings = await prisma.leadDistributionSettings.findFirst({
@@ -17,8 +18,13 @@ async function resolveLeadOwner(orgId: string, ownerId?: string): Promise<string
     include: { users: { where: { isActive: true }, orderBy: { orderPosition: "asc" } } },
   }).catch(() => null)
 
-  // Candidatos: usuários explicitamente configurados na distribuição...
-  let candidateIds: string[] = (settings?.users || []).map((u) => u.userId).filter(Boolean)
+  // Candidatos: lista escolhida na própria ação da automação (maior prioridade)...
+  let candidateIds: string[] = (explicitCandidateIds || []).filter(Boolean)
+
+  // ...senão, usuários configurados na distribuição global...
+  if (candidateIds.length === 0) {
+    candidateIds = (settings?.users || []).map((u) => u.userId).filter(Boolean)
+  }
 
   // ...ou, se não houver lista configurada, os vendedores da org (senão os admins)
   if (candidateIds.length === 0) {
@@ -484,7 +490,11 @@ async function runFromNode(
             stageId = firstStage?.id || null
           }
 
-          const ownerId = await resolveLeadOwner(orgId, p.owner_id || undefined)
+          const distributionUserIds: string[] | undefined =
+            Array.isArray(p.distribution_user_ids) && p.distribution_user_ids.length > 0
+              ? p.distribution_user_ids
+              : undefined
+          const ownerId = await resolveLeadOwner(orgId, p.owner_id || undefined, distributionUserIds)
           const name: string = String(ctx.nome || ctx.contact_name || ctx.name || `Lead ${phone.slice(-4)}`)
 
           const created = await prisma.lead.create({
