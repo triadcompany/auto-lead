@@ -3,6 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -67,7 +68,7 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
-  const [members, setMembers] = useState<{ id: string; name: string }[]>([]);
+  const [members, setMembers] = useState<{ id: string; name: string; role: string }[]>([]);
   const [eventDefs, setEventDefs] = useState<{ id: string; name: string; meta_event_name: string }[]>([]);
   const [showCreateEvent, setShowCreateEvent] = useState(false);
 
@@ -84,7 +85,11 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
       ]);
       setPipelines(pipelines || []);
       setSources(sources || []);
-      setMembers((members || []).map((m: any) => ({ id: m.id || m.user_id, name: m.name || m.full_name || m.clerk_user_id })));
+      setMembers((members || []).map((m: any) => ({
+        id: m.id || m.user_id,
+        name: m.name || m.full_name || m.clerk_user_id,
+        role: m.role || "seller",
+      })));
       setEventDefs((eventDefs || []).map((d: any) => ({ id: d.id, name: d.name, meta_event_name: d.metaEventName || d.meta_event_name })));
     };
     fetchData();
@@ -103,7 +108,7 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
     fetchStages();
   }, [params.pipeline_id]);
 
-  const updateParams = (key: string, value: string | boolean) => {
+  const updateParams = (key: string, value: string | boolean | string[]) => {
     onChange({ ...config, params: { ...params, [key]: value } });
   };
 
@@ -250,6 +255,42 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
               Se não escolher um responsável, o sistema atribui automaticamente via distribuição ou fallback (admin/primeiro vendedor).
             </p>
           </div>
+
+          {/* Participantes do rodízio (só aparece quando é distribuição automática) */}
+          {!params.owner_id && (
+            <div>
+              <Label className="font-poppins text-sm">Quem participa do rodízio</Label>
+              <p className="text-[10px] text-muted-foreground mt-0.5 mb-2">
+                Selecione quem deve receber leads nesta distribuição automática (admins não entram por padrão — marque aqui se quiser incluir). Deixe tudo desmarcado para usar todos os vendedores.
+              </p>
+              <div className="space-y-1.5 max-h-40 overflow-y-auto border border-border rounded-md p-2 bg-background/50">
+                {members.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Carregando membros...</p>
+                )}
+                {members.map((m) => {
+                  const selected: string[] = params.distribution_user_ids || [];
+                  const checked = selected.includes(m.id);
+                  return (
+                    <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer py-0.5">
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(v) => {
+                          const next = v
+                            ? [...selected, m.id]
+                            : selected.filter((id) => id !== m.id);
+                          updateParams("distribution_user_ids", next);
+                        }}
+                      />
+                      <span>{m.name}</span>
+                      {m.role === "admin" && (
+                        <span className="text-[10px] text-muted-foreground">(admin)</span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Deduplicação */}
           <div className="flex items-center justify-between">
