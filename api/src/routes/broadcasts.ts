@@ -116,11 +116,12 @@ export default async function broadcastsRoutes(fastify: FastifyInstance) {
     Body: Record<string, unknown>
   }>("/broadcasts/:id", async (req, reply) => {
     try {
+      // Permite editar em qualquer status, exceto enquanto está disparando ("running").
       const updated = await prisma.broadcastCampaign.updateMany({
-        where: { id: req.params.id, ...orgScope(req), status: { in: ["draft", "paused"] } },
+        where: { id: req.params.id, ...orgScope(req), status: { not: "running" } },
         data: { ...req.body as any, updatedAt: new Date() },
       })
-      if (!updated.count) return reply.code(404).send({ error: "Not found or campaign already running" })
+      if (!updated.count) return reply.code(404).send({ error: "Não encontrada ou está em andamento" })
       return { success: true }
     } catch {
       return reply.code(404).send({ error: "Not found or campaign already running" })
