@@ -507,11 +507,10 @@ export default function LandingPage() {
             <h1>
               <span className="line l1">Seu WhatsApp lota.</span>
               <br />
-              <span className="flip line l2">Suas vendas, não.</span>
+              <span className="flip line l2">Seu rival agradece.</span>
             </h1>
             <p className="lead">
-              Transforme a bagunça do WhatsApp em um funil organizado, com IA respondendo,
-              automações cobrando follow-up e a Meta recebendo dados de quem realmente compra.
+              Lead sem resposta vira venda de outro lugar. Automatize do seu jeito e deixe sua Meta Ads aprender quem compra.
             </p>
             <div className="hero-ctas">
               <a className="btn btn-primary btn-lg" href="#" onClick={(e) => { e.preventDefault(); goToSignup(); }}>
