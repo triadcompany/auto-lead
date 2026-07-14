@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { CRMLayout } from "@/components/layout/CRMLayout";
 import { ClerkProvider } from "@/providers/ClerkProvider";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppGate } from "@/components/AppGate";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { Dashboard } from "@/pages/Dashboard";
@@ -50,6 +50,21 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Raiz do domínio: mostra a landing page pra visitante; usuário já logado
+// vai direto pro dashboard (evita cair na página de marketing toda vez).
+function RootRoute() {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (user) return <Navigate to="/dashboard" replace />;
+  return <LandingPage />;
+}
 
 const App = () => {
   useEffect(() => {
@@ -139,7 +154,7 @@ const App = () => {
                   </Route>
 
                   {/* ── Catch-all ── */}
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/" element={<RootRoute />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
                 <TabBar />
