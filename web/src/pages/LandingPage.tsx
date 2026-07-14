@@ -1,624 +1,856 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet";
-import { 
-  Target, Users, TrendingUp, BarChart3, Zap, Shield, 
-  ArrowRight, CheckCircle2, XCircle, Building2, Smartphone,
-  Lock, Server, UserCheck, Layers, Clock, Eye, MessageSquare,
-  ChevronRight, Sparkles, Play, Menu
-} from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
-import PricingSection from "@/components/landing/PricingSection";
-import { AnimatedBackground, ScrollProgressBar } from "@/components/landing/AnimatedBackground";
-import { ContinuousBackground } from "@/components/landing/ContinuousBackground";
-import { TextReveal, TextRevealOnScroll } from "@/components/landing/TextReveal";
-import { TiltCard } from "@/components/landing/TiltCard";
+
+// CSS escopado sob .triad-lp — a página original era um HTML autocontido
+// (com seletores globais tipo body/html/*), mas aqui roda dentro de uma SPA
+// com outras rotas, então todo seletor precisa estar sob o wrapper .triad-lp
+// para não vazar estilo pro resto do app.
+const CSS = `
+.triad-lp{
+  --bg:#0C0A09;
+  --surface:#171412;
+  --surface-2:#1F1B18;
+  --line:#2B2622;
+  --ember:#FF6B2C;
+  --ember-soft:rgba(255,107,44,.12);
+  --ember-line:rgba(255,107,44,.35);
+  --text:#FAF7F4;
+  --muted:#A69C93;
+  --green:#4ADE80;
+  --red:#F87171;
+  --radius:14px;
+  --display:'Bricolage Grotesque',sans-serif;
+  --body:'Inter',sans-serif;
+  background:var(--bg);color:var(--text);font-family:var(--body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+.triad-lp *{margin:0;padding:0;box-sizing:border-box}
+.triad-lp img{max-width:100%}
+.triad-lp a{color:inherit;text-decoration:none}
+.triad-lp .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+.triad-lp section{padding:96px 0}
+
+.triad-lp h1,.triad-lp h2,.triad-lp h3{font-family:var(--display);line-height:1.08;letter-spacing:-.02em}
+.triad-lp h2{font-size:clamp(1.9rem,4vw,2.75rem);font-weight:700}
+.triad-lp .lead{color:var(--muted);font-size:1.06rem;max-width:560px}
+.triad-lp .center{text-align:center}
+.triad-lp .center .lead{margin:16px auto 0}
+
+.triad-lp .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:.78rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ember);background:var(--ember-soft);border:1px solid var(--ember-line);padding:6px 14px;border-radius:999px;margin-bottom:20px}
+.triad-lp .eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ember)}
+
+/* ---------- NAV ---------- */
+.triad-lp nav{position:sticky;top:0;z-index:50;background:rgba(12,10,9,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.triad-lp .nav-inner{display:flex;align-items:center;justify-content:space-between;height:68px}
+.triad-lp .logo{font-family:var(--display);font-weight:800;font-size:1.25rem;display:flex;align-items:center;gap:9px}
+.triad-lp .logo-mark{width:28px;height:28px;border-radius:8px;background:var(--ember);display:grid;place-items:center;font-size:.9rem;color:#0C0A09}
+.triad-lp .nav-links{display:flex;gap:28px;font-size:.92rem;color:var(--muted)}
+.triad-lp .nav-links a:hover{color:var(--text)}
+.triad-lp .nav-cta{display:flex;gap:12px;align-items:center}
+.triad-lp .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;font-size:.95rem;padding:12px 24px;border-radius:10px;border:1px solid transparent;cursor:pointer;transition:transform .15s ease,background .15s ease,border-color .15s ease;font-family:var(--body)}
+.triad-lp .btn:active{transform:scale(.97)}
+.triad-lp .btn-primary{background:var(--ember);color:#140A04}
+.triad-lp .btn-primary:hover{background:#FF8049}
+.triad-lp .btn-ghost{border-color:var(--line);color:var(--text)}
+.triad-lp .btn-ghost:hover{border-color:var(--ember-line)}
+.triad-lp .btn-lg{padding:15px 30px;font-size:1.02rem}
+
+/* ---------- HERO ---------- */
+.triad-lp .hero{padding:110px 0 80px;position:relative}
+.triad-lp .hero::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 60% 45% at 50% -5%,rgba(255,107,44,.14),transparent 70%);pointer-events:none;opacity:0;animation:tlpGlowIn 1.6s ease forwards}
+.triad-lp .hero-grid{position:relative;text-align:center;max-width:820px;margin:0 auto}
+.triad-lp .hero h1{font-size:clamp(2.6rem,6.4vw,4.4rem);font-weight:800}
+.triad-lp .hero h1 .flip{color:var(--ember)}
+.triad-lp .hero .lead{margin:24px auto 0;max-width:640px;font-size:1.15rem}
+.triad-lp .hero-ctas{margin-top:36px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.triad-lp .hero-notes{margin-top:20px;display:flex;gap:22px;justify-content:center;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.triad-lp .hero-notes span::before{content:"✓";color:var(--green);margin-right:6px;font-weight:700}
+
+@keyframes tlpGlowIn{to{opacity:1}}
+@keyframes tlpHeroUp{from{opacity:0;transform:translateY(16px);filter:blur(8px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
+.triad-lp .hero-grid .eyebrow{opacity:0;animation:tlpHeroUp 1.1s cubic-bezier(.22,1,.36,1) forwards;animation-delay:.1s}
+.triad-lp .hero-grid h1 .line{display:inline-block;opacity:0;transform:translateY(18px);filter:blur(8px);animation:tlpHeroUp 1.15s cubic-bezier(.22,1,.36,1) forwards}
+.triad-lp .hero-grid h1 .line.l1{animation-delay:.28s}
+.triad-lp .hero-grid h1 .line.l2{animation-delay:.48s}
+.triad-lp .hero-grid .lead{opacity:0;animation:tlpHeroUp 1.1s cubic-bezier(.22,1,.36,1) forwards;animation-delay:.72s}
+.triad-lp .hero-grid .hero-ctas{opacity:0;animation:tlpHeroUp 1.1s cubic-bezier(.22,1,.36,1) forwards;animation-delay:.92s}
+.triad-lp .hero-grid .hero-notes{opacity:0;animation:tlpHeroUp 1s cubic-bezier(.22,1,.36,1) forwards;animation-delay:1.08s}
+
+.triad-lp .pipeline{margin:72px auto 0;max-width:960px;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:28px;position:relative;overflow:hidden}
+.triad-lp .hero-pipeline{opacity:0;transform:perspective(1400px) rotateX(5deg) translateY(34px) scale(.97);filter:blur(6px);transform-origin:center top;animation:tlpPipelineIn 1.4s cubic-bezier(.22,1,.36,1) forwards;animation-delay:1.25s}
+@keyframes tlpPipelineIn{to{opacity:1;transform:perspective(1400px) rotateX(0deg) translateY(0) scale(1);filter:blur(0)}}
+.triad-lp .pipeline-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;font-size:.82rem;color:var(--muted)}
+.triad-lp .pipeline-head .dot-row{display:flex;gap:6px}
+.triad-lp .pipeline-head .dot-row i{width:9px;height:9px;border-radius:50%;background:var(--line)}
+.triad-lp .stages{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.triad-lp .stage{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:14px;min-height:180px}
+.triad-lp .stage h4{font-size:.72rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;display:flex;justify-content:space-between}
+.triad-lp .stage h4 em{font-style:normal;color:var(--text)}
+.triad-lp .card{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:.8rem;margin-bottom:8px;display:flex;align-items:center;gap:8px;animation:tlpPop .5s ease both}
+.triad-lp .card .avatar{width:22px;height:22px;border-radius:50%;background:var(--ember-soft);border:1px solid var(--ember-line);display:grid;place-items:center;font-size:.6rem;color:var(--ember);font-weight:700;flex-shrink:0}
+.triad-lp .card.won{border-color:rgba(74,222,128,.4)}
+.triad-lp .card.won::after{content:"R$";margin-left:auto;color:var(--green);font-weight:700;font-size:.72rem}
+.triad-lp .card.hot::after{content:"🔥";margin-left:auto;font-size:.72rem}
+@keyframes tlpPop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.triad-lp .meta-badge{position:absolute;right:24px;bottom:20px;background:var(--bg);border:1px solid var(--ember-line);border-radius:999px;padding:8px 16px;font-size:.78rem;color:var(--muted);display:flex;align-items:center;gap:8px}
+.triad-lp .meta-badge b{color:var(--ember)}
+.triad-lp .meta-badge .pulse{width:8px;height:8px;border-radius:50%;background:var(--green);animation:tlpPulse 1.6s infinite}
+@keyframes tlpPulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ---------- DORES ---------- */
+.triad-lp .dores{background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.triad-lp .dores-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:48px}
+.triad-lp .dor{background:var(--bg);border:1px solid var(--line);border-left:3px solid var(--red);border-radius:var(--radius);padding:26px 28px;font-size:1.02rem;color:var(--text)}
+.triad-lp .dor q{quotes:"“" "”";font-style:italic}
+.triad-lp .dor small{display:block;margin-top:10px;color:var(--muted);font-size:.8rem;font-style:normal}
+
+/* ---------- SOLUÇÃO (scrollytelling) ---------- */
+.triad-lp .story-grid{display:flex;gap:64px;align-items:flex-start;margin-top:56px}
+.triad-lp .story-steps{flex:1.05;position:relative;padding-left:44px}
+.triad-lp .story-rail{position:absolute;left:5px;top:8px;bottom:8px;width:2px;background:var(--line);border-radius:2px}
+.triad-lp .story-rail-fill{position:absolute;left:5px;top:8px;width:2px;background:var(--ember);height:0;border-radius:2px;transition:height .35s ease}
+.triad-lp .step{position:relative;padding:140px 0;opacity:.35;filter:saturate(.7);transition:opacity .4s ease,filter .4s ease;min-height:52vh;display:flex;flex-direction:column;justify-content:center}
+.triad-lp .step:first-child{padding-top:20px}
+.triad-lp .step.active{opacity:1;filter:saturate(1)}
+.triad-lp .step .dot{position:absolute;left:-44px;top:50%;transform:translateY(-50%);width:12px;height:12px;border-radius:50%;background:var(--surface);border:2px solid var(--line);transition:all .3s ease}
+.triad-lp .step:first-child .dot{top:34px}
+.triad-lp .step.active .dot{border-color:var(--ember);background:var(--ember);box-shadow:0 0 0 6px var(--ember-soft)}
+.triad-lp .step .tag{display:inline-block;font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ember);margin-bottom:10px}
+.triad-lp .step h3{font-size:1.5rem;font-weight:700;margin-bottom:10px}
+.triad-lp .step p{color:var(--muted);font-size:1rem;max-width:400px}
+
+.triad-lp .story-visual{flex:1;position:sticky;top:calc(50vh - 250px);height:500px}
+.triad-lp .visual-frame{position:relative;width:100%;height:100%;background:var(--surface);border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:0 40px 70px -30px rgba(0,0,0,.6)}
+.triad-lp .visual-frame::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 85% 12%,rgba(255,107,44,.10),transparent 55%);pointer-events:none}
+.triad-lp .mockup{position:absolute;inset:0;padding:32px;opacity:0;transform:scale(.94) translateY(14px);transition:opacity .5s cubic-bezier(.2,.7,.3,1),transform .5s cubic-bezier(.2,.7,.3,1);pointer-events:none;display:flex;flex-direction:column}
+.triad-lp .mockup.active{opacity:1;transform:scale(1) translateY(0);pointer-events:auto}
+
+.triad-lp .chat-mock .chat-head{display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--muted);font-weight:600;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.triad-lp .chat-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(74,222,128,.18)}
+.triad-lp .chat-body{flex:1;display:flex;flex-direction:column;gap:10px;justify-content:flex-end;padding-top:18px}
+.triad-lp .bubble{max-width:80%;padding:12px 16px;border-radius:15px;font-size:.87rem;line-height:1.45}
+.triad-lp .bubble.in{align-self:flex-start;background:var(--surface-2);border:1px solid var(--line);border-bottom-left-radius:4px}
+.triad-lp .bubble.ai{align-self:flex-end;background:var(--ember);color:#140A04;border-bottom-right-radius:4px;font-weight:500}
+.triad-lp .ai-tag{display:inline-block;background:rgba(0,0,0,.2);font-size:.6rem;font-weight:800;padding:2px 7px;border-radius:5px;margin-right:6px;letter-spacing:.05em;vertical-align:1px}
+.triad-lp .typing{align-self:flex-start;display:flex;gap:4px;padding:11px 15px;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;border-bottom-left-radius:4px;width:fit-content}
+.triad-lp .typing span{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:tlpBlink 1.3s infinite}
+.triad-lp .typing span:nth-child(2){animation-delay:.2s}
+.triad-lp .typing span:nth-child(3){animation-delay:.4s}
+@keyframes tlpBlink{0%,60%,100%{opacity:.25}30%{opacity:1}}
+
+.triad-lp .kanban-mock .km-head{font-size:.82rem;color:var(--muted);font-weight:600;margin-bottom:20px}
+.triad-lp .km-cols{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;position:relative}
+.triad-lp .km-col{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px}
+.triad-lp .km-col h5{font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px}
+.triad-lp .km-card{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:.78rem}
+.triad-lp .km-flying{position:absolute;top:34px;background:var(--bg);border:1px solid var(--ember-line);border-radius:8px;padding:9px 10px;font-size:.78rem;box-shadow:0 10px 24px rgba(0,0,0,.45);animation:tlpFlyCard 3.4s ease-in-out infinite}
+@keyframes tlpFlyCard{0%,6%{left:2%;opacity:0}14%,44%{left:2%;opacity:1}56%,86%{left:36%;opacity:1}94%,100%{left:36%;opacity:0}}
+
+.triad-lp .followup-mock{gap:16px}
+.triad-lp .fu-toast{display:flex;align-items:center;gap:12px;background:var(--surface-2);border:1px solid var(--ember-line);border-radius:12px;padding:14px 16px;animation:tlpToastIn .5s ease both}
+.triad-lp .fu-toast .fu-ico{font-size:1.2rem}
+.triad-lp .fu-toast strong{display:block;font-size:.88rem}
+.triad-lp .fu-toast small{color:var(--muted);font-size:.78rem}
+@keyframes tlpToastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.triad-lp .fu-list{display:flex;flex-direction:column;gap:9px;margin-top:auto}
+.triad-lp .fu-item{display:flex;align-items:center;gap:10px;font-size:.85rem;padding:11px 14px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--muted)}
+.triad-lp .fu-item .chk{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font-size:.65rem;flex-shrink:0}
+.triad-lp .fu-item.done{opacity:.6;text-decoration:line-through}
+.triad-lp .fu-item.done .chk{background:var(--green);border-color:var(--green);color:#0C0A09}
+.triad-lp .fu-item.pending{color:var(--text);border-color:var(--ember-line)}
+.triad-lp .fu-item.pending .chk{border-color:var(--ember);animation:tlpRingPulse 1.4s infinite}
+@keyframes tlpRingPulse{0%,100%{box-shadow:0 0 0 0 var(--ember-soft)}50%{box-shadow:0 0 0 5px var(--ember-soft)}}
+
+.triad-lp .meta-mock{justify-content:center;gap:22px}
+.triad-lp .meta-stats{display:flex;align-items:center;gap:18px}
+.triad-lp .meta-stats>div{display:flex;flex-direction:column;gap:4px}
+.triad-lp .meta-stats span{font-size:.74rem;color:var(--muted)}
+.triad-lp .meta-stats strong{font-family:var(--display);font-size:1.6rem}
+.triad-lp .meta-stats strong.good{color:var(--green)}
+.triad-lp .meta-stats .arrow{color:var(--ember);font-size:1.2rem}
+.triad-lp .meta-chart{width:100%;height:120px}
+.triad-lp .meta-chart polyline{fill:none;stroke:var(--ember);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:420;stroke-dashoffset:420;animation:tlpDraw 1.8s ease forwards}
+@keyframes tlpDraw{to{stroke-dashoffset:0}}
+
+.triad-lp .rank-mock{justify-content:center;gap:22px}
+.triad-lp .rank-row{display:flex;align-items:center;gap:14px}
+.triad-lp .rank-row>span{width:96px;font-size:.85rem;flex-shrink:0}
+.triad-lp .rank-row .bar{flex:1;height:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.triad-lp .rank-row .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ember),#FFA06A);border-radius:999px;animation:tlpGrow 1.4s ease forwards;animation-delay:.15s}
+@keyframes tlpGrow{to{width:var(--w)}}
+
+.triad-lp .flow-mock{justify-content:center;align-items:center;gap:0}
+.triad-lp .flow-node{background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:13px 20px;font-size:.88rem;font-weight:600;text-align:center;width:220px}
+.triad-lp .flow-line{height:34px;width:2px;background:var(--line);position:relative}
+.triad-lp .flow-line .pulse-dot{position:absolute;left:-3px;top:0;width:8px;height:8px;border-radius:50%;background:var(--ember);animation:tlpFlowDot 1.6s linear infinite}
+@keyframes tlpFlowDot{0%{top:0;opacity:0}10%{opacity:1}90%{opacity:1}100%{top:100%;opacity:0}}
+
+@media (max-width:880px){
+  .triad-lp .story-grid{flex-direction:column;gap:8px}
+  .triad-lp .story-visual{order:-1;position:sticky;top:64px;transform:none;height:340px;width:100%;margin-bottom:28px}
+  .triad-lp .story-steps{padding-left:36px;order:2}
+  .triad-lp .step .dot{left:-36px}
+}
+
+/* ---------- PARA QUEM ---------- */
+.triad-lp .quem-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:48px}
+.triad-lp .quem{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:26px;text-align:center}
+.triad-lp .quem .ico{font-size:1.6rem;margin-bottom:14px}
+.triad-lp .quem h3{font-size:1rem;font-weight:700;margin-bottom:6px}
+.triad-lp .quem p{color:var(--muted);font-size:.86rem}
+
+/* ---------- DIFERENCIAIS ---------- */
+.triad-lp .dif{background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.triad-lp .dif-list{margin-top:48px;display:flex;flex-direction:column}
+.triad-lp .dif-item{display:grid;grid-template-columns:64px 1fr 1.2fr;gap:24px;align-items:baseline;padding:26px 8px;border-bottom:1px solid var(--line)}
+.triad-lp .dif-item:last-child{border-bottom:none}
+.triad-lp .dif-item .n{font-family:var(--display);font-weight:800;font-size:1.5rem;color:var(--ember)}
+.triad-lp .dif-item h3{font-size:1.18rem;font-weight:700}
+.triad-lp .dif-item p{color:var(--muted);font-size:.95rem}
+
+/* ---------- SEGURANÇA ---------- */
+.triad-lp .seg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:48px}
+.triad-lp .seg{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:26px}
+.triad-lp .seg .ico{font-size:1.3rem;margin-bottom:14px}
+.triad-lp .seg h3{font-size:.98rem;font-weight:700;margin-bottom:6px}
+.triad-lp .seg p{color:var(--muted);font-size:.85rem}
+
+/* ---------- PLANOS ---------- */
+.triad-lp .planos{position:relative}
+.triad-lp .planos::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 50% 40% at 50% 20%,rgba(255,107,44,.08),transparent 70%);pointer-events:none}
+.triad-lp .billing{display:flex;justify-content:center;gap:8px;margin-top:32px}
+.triad-lp .billing button{background:var(--surface);border:1px solid var(--line);color:var(--muted);padding:9px 20px;border-radius:999px;font-size:.85rem;font-weight:600;cursor:pointer;font-family:var(--body)}
+.triad-lp .billing button.on{background:var(--ember-soft);border-color:var(--ember-line);color:var(--ember)}
+.triad-lp .billing button b{color:var(--green);font-size:.72rem;margin-left:5px}
+.triad-lp .planos-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:44px;max-width:880px;margin-left:auto;margin-right:auto;position:relative}
+.triad-lp .plano{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:36px}
+.triad-lp .plano.rec{border-color:var(--ember-line);background:linear-gradient(170deg,var(--ember-soft),var(--surface) 45%);position:relative}
+.triad-lp .plano.rec .badge{position:absolute;top:-13px;right:26px;background:var(--ember);color:#140A04;font-size:.72rem;font-weight:700;padding:5px 14px;border-radius:999px;letter-spacing:.04em}
+.triad-lp .plano h3{font-size:1.35rem;font-weight:800}
+.triad-lp .plano .pos{color:var(--muted);font-size:.9rem;margin:6px 0 22px;min-height:44px}
+.triad-lp .preco{font-family:var(--display);font-size:2.6rem;font-weight:800;letter-spacing:-.02em}
+.triad-lp .preco small{font-size:.95rem;color:var(--muted);font-weight:500;font-family:var(--body)}
+.triad-lp .preco-nota{font-size:.78rem;color:var(--muted);margin-top:2px}
+.triad-lp .plano .btn{width:100%;margin:24px 0 26px}
+.triad-lp .plano ul{list-style:none;font-size:.9rem;display:flex;flex-direction:column;gap:10px}
+.triad-lp .plano ul li::before{content:"✓";color:var(--green);font-weight:700;margin-right:9px}
+.triad-lp .plano ul li.no{color:var(--muted)}
+.triad-lp .plano ul li.no::before{content:"✕";color:var(--red);opacity:.7}
+.triad-lp .plano ul .grupo{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:8px}
+.triad-lp .plano ul .grupo::before{content:none}
+.triad-lp .planos-nota{text-align:center;color:var(--muted);font-size:.85rem;margin-top:32px}
+
+/* ---------- FAQ ---------- */
+.triad-lp .faq-list{max-width:720px;margin:48px auto 0}
+.triad-lp details{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:12px;overflow:hidden}
+.triad-lp summary{cursor:pointer;padding:20px 24px;font-weight:600;font-size:.98rem;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:16px}
+.triad-lp summary::-webkit-details-marker{display:none}
+.triad-lp summary::after{content:"+";font-family:var(--display);font-size:1.3rem;color:var(--ember);transition:transform .2s ease;flex-shrink:0}
+.triad-lp details[open] summary::after{transform:rotate(45deg)}
+.triad-lp details .faq-body{padding:0 24px 20px;color:var(--muted);font-size:.92rem}
+
+/* ---------- CTA FINAL ---------- */
+.triad-lp .cta-final{text-align:center;padding:120px 0;position:relative}
+.triad-lp .cta-final::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 55% 55% at 50% 60%,rgba(255,107,44,.13),transparent 70%);pointer-events:none}
+.triad-lp .cta-final h2{font-size:clamp(2rem,5vw,3.2rem);max-width:760px;margin:0 auto}
+.triad-lp .cta-final .lead{margin:20px auto 0}
+.triad-lp .cta-final .btn{margin-top:36px}
+.triad-lp .cta-final small{display:block;margin-top:16px;color:var(--muted);font-size:.84rem}
+
+/* ---------- FOOTER ---------- */
+.triad-lp footer{border-top:1px solid var(--line);padding:56px 0 40px;background:var(--surface)}
+.triad-lp .foot-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:40px}
+.triad-lp .foot-grid p{color:var(--muted);font-size:.88rem;max-width:280px;margin-top:12px}
+.triad-lp .foot-col h4{font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
+.triad-lp .foot-col a{display:block;font-size:.9rem;color:var(--muted);margin-bottom:10px}
+.triad-lp .foot-col a:hover{color:var(--text)}
+.triad-lp .foot-base{display:flex;justify-content:space-between;align-items:center;margin-top:48px;padding-top:24px;border-top:1px solid var(--line);font-size:.8rem;color:var(--muted);flex-wrap:wrap;gap:12px}
+.triad-lp .foot-base .links{display:flex;gap:20px}
+
+/* reveal on scroll */
+.triad-lp .reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
+.triad-lp .reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){
+  .triad-lp .reveal{opacity:1;transform:none;transition:none}
+  .triad-lp .card{animation:none}
+  .triad-lp .pulse{animation:none}
+  .triad-lp .hero::before{animation:none;opacity:1}
+  .triad-lp .hero-grid .eyebrow,.triad-lp .hero-grid h1 .line,.triad-lp .hero-grid .lead,.triad-lp .hero-grid .hero-ctas,.triad-lp .hero-grid .hero-notes{animation:none;opacity:1;transform:none}
+  .triad-lp .hero-pipeline{animation:none;opacity:1;transform:none}
+}
+
+/* ---------- RESPONSIVO ---------- */
+@media (max-width:920px){
+  .triad-lp .sol-grid{grid-template-columns:repeat(2,1fr)}
+  .triad-lp .quem-grid,.triad-lp .seg-grid{grid-template-columns:repeat(2,1fr)}
+  .triad-lp .stages{grid-template-columns:repeat(2,1fr)}
+  .triad-lp .dif-item{grid-template-columns:48px 1fr;gap:8px 18px}
+  .triad-lp .dif-item p{grid-column:2}
+  .triad-lp .foot-grid{grid-template-columns:1fr 1fr}
+}
+@media (max-width:640px){
+  .triad-lp section{padding:72px 0}
+  .triad-lp .nav-links{display:none}
+  .triad-lp .dores-grid,.triad-lp .sol-grid,.triad-lp .planos-grid{grid-template-columns:1fr}
+  .triad-lp .quem-grid,.triad-lp .seg-grid{grid-template-columns:1fr}
+  .triad-lp .hero{padding:72px 0 56px}
+  .triad-lp .foot-grid{grid-template-columns:1fr}
+  .triad-lp .meta-badge{position:static;margin-top:18px;justify-content:center}
+}
+`;
 
 export default function LandingPage() {
+  const rootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const heroRef = useRef<HTMLElement>(null);
-  const { scrollYProgress: heroScroll } = useScroll({
-    target: heroRef,
-    offset: ["start start", "end start"],
-  });
-  const heroY = useTransform(heroScroll, [0, 1], [0, 200]);
-  const heroOpacity = useTransform(heroScroll, [0, 0.8], [1, 0]);
 
-  const problems = [
-    { icon: XCircle, text: "Leads chegam e se perdem em planilhas ou WhatsApp" },
-    { icon: XCircle, text: "Falta de organização gera esquecimentos e vendas perdidas" },
-    { icon: XCircle, text: "Follow-ups são feitos sem padrão ou simplesmente esquecidos" },
-    { icon: XCircle, text: "Sem visibilidade do que cada vendedor está fazendo" },
-  ];
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
 
-  const features = [
-    { icon: Target, title: "Gestão de Leads", description: "Capture, organize e acompanhe cada lead do primeiro contato até a venda." },
-    { icon: TrendingUp, title: "Funil de Vendas", description: "Visualize todas as oportunidades em um quadro intuitivo e fácil de gerenciar." },
-    { icon: Clock, title: "Atividades e Follow-ups", description: "Agende tarefas, ligações e lembretes automáticos para nunca perder um contato." },
-    { icon: Users, title: "Gestão de Equipe", description: "Distribua leads, acompanhe a performance e mantenha o time alinhado." },
-    { icon: Eye, title: "Histórico Centralizado", description: "Todo o histórico de interações em um só lugar, acessível por toda a equipe." },
-    { icon: BarChart3, title: "Relatórios Inteligentes", description: "Dashboards e métricas para decisões baseadas em dados reais." },
-  ];
+    const prevTitle = document.title;
+    document.title = "Triad CRM — Todo lead ignorado vira venda do concorrente";
 
-  const audiences = [
-    { icon: Building2, title: "Pequenas e médias empresas", description: "Que querem crescer de forma organizada" },
-    { icon: Users, title: "Times comerciais", description: "Que precisam de processos claros e eficientes" },
-    { icon: Smartphone, title: "Prestadores de serviço", description: "Que vendem pelo WhatsApp ou telefone" },
-    { icon: MessageSquare, title: "Negócios online", description: "Que recebem leads de múltiplos canais" },
-  ];
+    // ── reveal on scroll ──────────────────────────────────────────────────
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add("in");
+            io.unobserve(e.target);
+          }
+        });
+      },
+      { threshold: 0.12 }
+    );
+    root.querySelectorAll(".reveal").forEach((el) => io.observe(el));
 
-  const differentials = [
-    { icon: Zap, title: "Interface simples", description: "Sem complexidade, começa a usar em minutos" },
-    { icon: Clock, title: "Rápida implementação", description: "Sem instalação, funciona no navegador" },
-    { icon: Layers, title: "Multiempresa", description: "Gerencie múltiplas unidades em um só lugar" },
-    { icon: UserCheck, title: "Controle de permissões", description: "Defina quem vê e edita cada informação" },
-    { icon: Target, title: "Foco em produtividade", description: "Telas otimizadas para o dia a dia comercial" },
-  ];
+    // ── scrollytelling da seção "solução" ────────────────────────────────
+    const steps = [...root.querySelectorAll<HTMLElement>("#storySteps .step")];
+    const mockups = [...root.querySelectorAll<HTMLElement>(".mockup")];
+    const railFill = root.querySelector<HTMLElement>("#railFill");
+    const rail = root.querySelector<HTMLElement>(".story-rail");
+    let scrollTicking = false;
 
-  const securities = [
-    { icon: Lock, title: "Dados protegidos", description: "Criptografia de ponta a ponta" },
-    { icon: UserCheck, title: "Controle de acesso", description: "Permissões granulares por usuário" },
-    { icon: Shield, title: "Autenticação segura", description: "Login seguro com verificação em duas etapas" },
-    { icon: Server, title: "Infraestrutura confiável", description: "Servidores com 99.9% de disponibilidade" },
-  ];
+    function activateStep(i: number) {
+      steps.forEach((s, idx) => s.classList.toggle("active", idx === i));
+      mockups.forEach((m, idx) => m.classList.toggle("active", idx === i));
+      if (rail && railFill && steps[i]) {
+        const dot = steps[i].querySelector(".dot");
+        if (dot) {
+          const railRect = rail.getBoundingClientRect();
+          const dotRect = dot.getBoundingClientRect();
+          const h = Math.max(0, dotRect.top + dotRect.height / 2 - railRect.top);
+          railFill.style.height = h + "px";
+        }
+      }
+    }
+
+    function updateActiveStep() {
+      const target = window.innerHeight / 2;
+      let closestIdx = 0;
+      let closestDist = Infinity;
+      steps.forEach((s, idx) => {
+        const r = s.getBoundingClientRect();
+        const center = r.top + r.height / 2;
+        const dist = Math.abs(center - target);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestIdx = idx;
+        }
+      });
+      activateStep(closestIdx);
+      scrollTicking = false;
+    }
+    function onScroll() {
+      if (!scrollTicking) {
+        requestAnimationFrame(updateActiveStep);
+        scrollTicking = true;
+      }
+    }
+    if (steps.length) {
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll);
+      updateActiveStep();
+    }
+
+    // ── pipeline vivo (assinatura visual do hero) ────────────────────────
+    const nomes = ["MC", "JP", "AL", "RS", "BF", "TK", "LV", "GD", "PH", "CN"];
+    const stagesEl = [...root.querySelectorAll<HTMLElement>("#stages .stage")];
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function makeCard(name: string, cls?: string) {
+      const d = document.createElement("div");
+      d.className = "card" + (cls ? " " + cls : "");
+      d.innerHTML = `<span class="avatar">${name}</span><span>Lead ${name}</span>`;
+      return d;
+    }
+    function seed() {
+      const dist: [number, string][] = [
+        [3, ""],
+        [2, "hot"],
+        [2, ""],
+        [2, "won"],
+      ];
+      let idx = 0;
+      stagesEl.forEach((st, i) => {
+        const box = st.querySelector(".cards");
+        if (!box) return;
+        box.innerHTML = "";
+        const [n, cls] = dist[i];
+        for (let k = 0; k < n; k++) {
+          const card = makeCard(nomes[(i * 3 + k) % nomes.length], k === 0 ? cls : "");
+          card.style.animationDelay = idx * 80 + "ms";
+          idx++;
+          box.appendChild(card);
+        }
+        const count = st.querySelector("[data-count]");
+        if (count) count.textContent = String(n);
+      });
+    }
+
+    let pipelineInterval: ReturnType<typeof setInterval> | undefined;
+    let pipelineTimeout: ReturnType<typeof setTimeout> | undefined;
+    if (stagesEl.length) {
+      pipelineTimeout = setTimeout(
+        () => {
+          seed();
+          if (!reduced) {
+            let t = 0;
+            pipelineInterval = setInterval(() => {
+              t++;
+              const from = stagesEl[t % 3];
+              const to = stagesEl[(t % 3) + 1];
+              const card = from?.querySelector(".card");
+              if (card && to) {
+                card.remove();
+                const nc = makeCard(
+                  nomes[Math.floor(Math.random() * nomes.length)],
+                  (t % 3) + 1 === 3 ? "won" : ""
+                );
+                to.querySelector(".cards")?.prepend(nc);
+              }
+              if (t % 2 === 0) {
+                const nc = makeCard(nomes[Math.floor(Math.random() * nomes.length)], "");
+                const box0 = stagesEl[0]?.querySelector(".cards");
+                box0?.prepend(nc);
+                const cards0 = stagesEl[0]?.querySelectorAll(".card") || [];
+                if (cards0.length > 4) cards0[cards0.length - 1].remove();
+              }
+              stagesEl.forEach((st) => {
+                const cards = st.querySelectorAll(".card");
+                if (cards.length > 4) cards[cards.length - 1].remove();
+                const count = st.querySelector("[data-count]");
+                if (count) count.textContent = String(st.querySelectorAll(".card").length);
+              });
+            }, 2600);
+          }
+        },
+        reduced ? 0 : 2050
+      );
+    }
+
+    // ── toggle de cobrança (mensal/semestral) ────────────────────────────
+    const billingButtons = [...root.querySelectorAll<HTMLButtonElement>(".billing button")];
+    function handleBillingClick(this: HTMLButtonElement) {
+      billingButtons.forEach((b) => b.classList.remove("on"));
+      this.classList.add("on");
+      const c = this.dataset.cycle as string;
+      root!.querySelectorAll<HTMLElement>("[data-price]").forEach((p) => {
+        p.textContent = p.dataset[c] || p.textContent;
+      });
+      root!.querySelectorAll<HTMLElement>("[data-nota]").forEach((n) => {
+        n.textContent = n.dataset[c] || n.textContent;
+      });
+    }
+    billingButtons.forEach((btn) => btn.addEventListener("click", handleBillingClick));
+
+    return () => {
+      document.title = prevTitle;
+      io.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (pipelineInterval) clearInterval(pipelineInterval);
+      if (pipelineTimeout) clearTimeout(pipelineTimeout);
+      billingButtons.forEach((btn) => btn.removeEventListener("click", handleBillingClick));
+    };
+  }, []);
+
+  const goToSignup = () => navigate("/auth?signup=true");
+  const goToLogin = () => navigate("/auth");
 
   return (
-    <div className="dark min-h-screen bg-background text-foreground overflow-x-hidden relative">
-      <ContinuousBackground />
-      <ScrollProgressBar />
+    <div className="triad-lp" ref={rootRef}>
+      <style>{CSS}</style>
 
-      {/* Header */}
-      <motion.header 
-        initial={{ y: -100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className="fixed top-0 left-0 right-0 z-50 bg-background/70 backdrop-blur-xl border-b border-border/50"
-      >
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="h-16 md:h-20 flex items-center justify-between">
-            <motion.div 
-              className="flex items-center gap-2"
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: "spring", stiffness: 400 }}
-            >
-              <div className="relative w-9 h-9 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary to-accent animate-gradient-x bg-200%" />
-                <Sparkles className="w-5 h-5 text-primary-foreground relative z-10" />
-              </div>
-              <span className="font-bold text-xl">AutoLead</span>
-            </motion.div>
-            <nav className="hidden md:flex items-center gap-8">
-              {[
-                { href: "#solucao", label: "Solução" },
-                { href: "#funcionalidades", label: "Funcionalidades" },
-                { href: "#planos", label: "Planos" },
-                { href: "#seguranca", label: "Segurança" },
-              ].map((item) => (
-                <a 
-                  key={item.href}
-                  href={item.href} 
-                  className="relative text-sm font-medium text-muted-foreground hover:text-foreground transition-colors group"
-                >
-                  {item.label}
-                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-primary to-accent group-hover:w-full transition-all duration-300" />
-                </a>
-              ))}
-            </nav>
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Button variant="ghost" onClick={() => navigate("/auth")} className="hidden sm:flex">
-                Entrar
-              </Button>
-              <Button 
-                onClick={() => navigate("/auth")} 
-                size="sm"
-                className="font-semibold relative overflow-hidden group md:h-10 md:px-4"
-              >
-                <span className="relative z-10 text-xs sm:text-sm">Começar agora</span>
-                <span className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary bg-200% animate-gradient-x opacity-0 group-hover:opacity-100 transition-opacity" />
-              </Button>
-
-              {/* Mobile menu */}
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="md:hidden h-9 w-9">
-                    <Menu className="h-5 w-5" />
-                    <span className="sr-only">Abrir menu</span>
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-[80vw] sm:max-w-sm bg-background/95 backdrop-blur-xl">
-                  <nav className="flex flex-col gap-1 mt-10">
-                    {[
-                      { href: "#solucao", label: "Solução" },
-                      { href: "#funcionalidades", label: "Funcionalidades" },
-                      { href: "#planos", label: "Planos" },
-                      { href: "#seguranca", label: "Segurança" },
-                    ].map((item) => (
-                      <SheetClose asChild key={item.href}>
-                        <a 
-                          href={item.href}
-                          className="px-4 py-3 rounded-lg text-base font-medium text-foreground hover:bg-muted transition-colors"
-                        >
-                          {item.label}
-                        </a>
-                      </SheetClose>
-                    ))}
-                    <SheetClose asChild>
-                      <Button 
-                        variant="outline" 
-                        onClick={() => navigate("/auth")}
-                        className="mt-6 h-12 text-base"
-                      >
-                        Entrar
-                      </Button>
-                    </SheetClose>
-                  </nav>
-                </SheetContent>
-              </Sheet>
-            </div>
+      <nav>
+        <div className="wrap nav-inner">
+          <a className="logo" href="#top">
+            <span className="logo-mark">▲</span>Triad CRM
+          </a>
+          <div className="nav-links">
+            <a href="#solucao">Solução</a>
+            <a href="#diferenciais">Diferenciais</a>
+            <a href="#planos">Planos</a>
+            <a href="#faq">FAQ</a>
+          </div>
+          <div className="nav-cta">
+            <a className="btn btn-ghost" href="#" onClick={(e) => { e.preventDefault(); goToLogin(); }}>Entrar</a>
+            <a className="btn btn-primary" href="#" onClick={(e) => { e.preventDefault(); goToSignup(); }}>Testar grátis</a>
           </div>
         </div>
-      </motion.header>
+      </nav>
 
-      {/* Hero Section */}
-      <section ref={heroRef} className="pt-24 pb-14 sm:pt-32 sm:pb-20 md:pt-40 md:pb-32 relative md:min-h-screen flex items-center">
-        <AnimatedBackground variant="hero" parallax />
-
-        <motion.div 
-          style={{ y: heroY, opacity: heroOpacity }}
-          className="container mx-auto px-4 sm:px-6 lg:px-8 relative"
-        >
-          <div className="max-w-4xl mx-auto text-center">
-            {/* Badge */}
-            <motion.div 
-              className="inline-flex items-center gap-2 bg-primary/10 backdrop-blur border border-primary/20 text-primary px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium mb-5 sm:mb-8 relative overflow-hidden group"
-              initial={{ opacity: 0, scale: 0.9, y: -20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-            >
-              <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent animate-shine" />
-              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10" />
-              <span className="relative z-10">CRM para times que querem vender mais</span>
-            </motion.div>
-
-            {/* Headline */}
-            <h1 className="text-[2.25rem] leading-[1.05] sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-5 sm:mb-6 tracking-tight">
-              <TextReveal text="Organize suas vendas." className="text-foreground block" delay={0.3} as="span" />
-              <TextReveal 
-                text="Feche mais negócios." 
-                className="block mt-1 sm:mt-2"
-                delay={0.7}
-                gradient
-                as="span"
-              />
+      {/* HERO */}
+      <header className="hero" id="top">
+        <div className="wrap">
+          <div className="hero-grid">
+            <span className="eyebrow">CRM + WhatsApp + Meta Ads</span>
+            <h1>
+              <span className="line l1">Seu WhatsApp lota.</span>
+              <br />
+              <span className="flip line l2">Suas vendas, não.</span>
             </h1>
-
-            {/* Subheadline */}
-            <motion.p 
-              className="text-base sm:text-xl text-muted-foreground mb-8 sm:mb-10 max-w-2xl mx-auto leading-relaxed px-2 sm:px-0"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.2, duration: 0.6 }}
-            >
-              O CRM simples e poderoso para pequenas e médias empresas. 
-              Gerencie leads, acompanhe o funil de vendas e aumente sua conversão — tudo em um só lugar.
-            </motion.p>
-
-            {/* CTAs */}
-            <motion.div 
-              className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-2 sm:px-0"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.4, duration: 0.6 }}
-            >
-              <Button 
-                size="lg" 
-                onClick={() => navigate("/auth")} 
-                className="h-12 sm:h-14 px-6 sm:px-8 text-base font-semibold shadow-lg shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all hover:-translate-y-1 relative overflow-hidden group w-full sm:w-auto"
-              >
-                <span className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary bg-200% animate-gradient-x" />
-                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-                <span className="relative z-10 flex items-center justify-center">
-                  Começar agora
-                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </span>
-              </Button>
-              <Button 
-                size="lg" 
-                variant="outline" 
-                className="h-12 sm:h-14 px-6 sm:px-8 text-base font-semibold group backdrop-blur bg-foreground/5 hover:bg-background border-2 hover:border-primary/50 transition-all hover:-translate-y-1 w-full sm:w-auto"
-              >
-                <Play className="mr-2 h-5 w-5 group-hover:text-primary group-hover:scale-125 transition-all" />
-                Ver como funciona
-              </Button>
-            </motion.div>
-
-            {/* Trust indicators */}
-            <motion.div 
-              className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:gap-6 mt-8 sm:mt-12 text-xs sm:text-sm text-muted-foreground"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1.7, duration: 0.6 }}
-            >
-              {["Teste grátis", "Sem cartão de crédito", "Pronto em minutos"].map((text, i) => (
-                <motion.div 
-                  key={text}
-                  className="flex items-center gap-1.5 sm:gap-2"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 1.7 + i * 0.1 }}
-                >
-                  <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                  <span>{text}</span>
-                </motion.div>
-              ))}
-            </motion.div>
+            <p className="lead">
+              Transforme a bagunça do WhatsApp em um funil organizado, com IA respondendo,
+              automações cobrando follow-up e a Meta recebendo dados de quem realmente compra.
+            </p>
+            <div className="hero-ctas">
+              <a className="btn btn-primary btn-lg" href="#" onClick={(e) => { e.preventDefault(); goToSignup(); }}>
+                Organizar meus leads grátis
+              </a>
+              <a className="btn btn-ghost btn-lg" href="#solucao">Ver como funciona</a>
+            </div>
+            <div className="hero-notes">
+              <span>Teste grátis</span>
+              <span>Sem cartão de crédito</span>
+              <span>Pronto em minutos</span>
+            </div>
           </div>
 
-          {/* Floating decorative elements */}
-          <motion.div
-            className="absolute top-20 left-10 w-2 h-2 bg-primary rounded-full hidden lg:block"
-            animate={{ y: [0, -20, 0], opacity: [0.4, 1, 0.4] }}
-            transition={{ duration: 3, repeat: Infinity }}
-          />
-          <motion.div
-            className="absolute top-40 right-20 w-3 h-3 bg-accent rounded-full hidden lg:block"
-            animate={{ y: [0, -30, 0], opacity: [0.4, 1, 0.4] }}
-            transition={{ duration: 4, repeat: Infinity, delay: 0.5 }}
-          />
-          <motion.div
-            className="absolute bottom-20 left-1/4 w-2 h-2 bg-primary-glow rounded-full hidden lg:block"
-            animate={{ y: [0, -25, 0], opacity: [0.4, 1, 0.4] }}
-            transition={{ duration: 3.5, repeat: Infinity, delay: 1 }}
-          />
-        </motion.div>
-      </section>
+          <div className="pipeline hero-pipeline">
+            <div className="pipeline-head">
+              <div className="dot-row"><i></i><i></i><i></i></div>
+              <span>Funil de vendas · tempo real</span>
+            </div>
+            <div className="stages" id="stages">
+              <div className="stage"><h4>Novo lead <em data-count>4</em></h4><div className="cards"></div></div>
+              <div className="stage"><h4>Em conversa <em data-count>3</em></h4><div className="cards"></div></div>
+              <div className="stage"><h4>Proposta <em data-count>2</em></h4><div className="cards"></div></div>
+              <div className="stage"><h4>Ganho <em data-count>2</em></h4><div className="cards"></div></div>
+            </div>
+            <div className="meta-badge"><span className="pulse"></span>Venda enviada pra <b>Meta Ads</b> — campanha otimizando</div>
+          </div>
+        </div>
+      </header>
 
-      {/* Problems Section */}
-      <section className="py-14 sm:py-20 md:py-28 relative">
-        {/* sem fundo: o ContinuousBackground global cuida da continuidade */}
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <motion.div 
-            className="max-w-3xl mx-auto text-center mb-10 sm:mb-16"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 leading-tight">
-              <TextRevealOnScroll text="Você conhece esses problemas?" as="span" />
-            </h2>
-            <p className="text-base sm:text-lg text-muted-foreground">
-              Se sua equipe comercial enfrenta algum desses desafios, o AutoLead foi feito para você.
-            </p>
-          </motion.div>
-
-          <div className="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
-            {problems.map((problem, index) => (
-              <motion.div
-                key={index}
-                className="group flex items-start gap-4 p-6 bg-background/80 backdrop-blur rounded-2xl border border-border/50 shadow-sm hover:shadow-xl hover:shadow-destructive/5 hover:border-destructive/30 transition-all duration-500 hover:-translate-y-1"
-                initial={{ opacity: 0, x: index % 2 === 0 ? -30 : 30 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1, duration: 0.5 }}
-              >
-                <div className="p-2 bg-destructive/10 rounded-lg shrink-0 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                  <problem.icon className="h-5 w-5 text-destructive" />
-                </div>
-                <p className="text-foreground font-medium">{problem.text}</p>
-              </motion.div>
-            ))}
+      {/* DORES */}
+      <section className="dores">
+        <div className="wrap">
+          <div className="center reveal">
+            <span className="eyebrow">Soa familiar?</span>
+            <h2>Se você já pensou alguma dessas frases,<br />o Triad foi feito pra você</h2>
+          </div>
+          <div className="dores-grid">
+            <div className="dor reveal"><q>O lead chamou no WhatsApp de madrugada. Quando o vendedor viu, ele já tinha comprado em outro lugar.</q><small>, Velocidade de resposta</small></div>
+            <div className="dor reveal"><q>Eu pergunto como estão as negociações e cada vendedor responde uma coisa. Ninguém sabe o número real.</q><small>, Visibilidade do time</small></div>
+            <div className="dor reveal"><q>Combinamos de retornar em 3 dias. Ninguém retornou. Ninguém nem lembrava.</q><small>, Follow-ups perdidos</small></div>
+            <div className="dor reveal"><q>Gasto milhares em anúncio todo mês e não faço ideia de qual campanha traz cliente que compra.</q><small>, Dinheiro no escuro</small></div>
           </div>
         </div>
       </section>
 
-      {/* Solution Section */}
-      <section id="solucao" className="py-14 sm:py-20 md:py-28 relative">
-        {/* fundo global */}
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <motion.div 
-            className="max-w-3xl mx-auto text-center mb-10 sm:mb-16"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <motion.div 
-              className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-4 py-2 sm:px-6 sm:py-3 rounded-full text-sm sm:text-base md:text-lg font-semibold mb-4 shadow-lg shadow-primary/10"
-              initial={{ opacity: 0, scale: 0.8 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-            >
-              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-              A solução
-            </motion.div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 leading-tight">
-              <TextRevealOnScroll text="Um CRM que sua equipe vai usar de verdade" as="span" />
-            </h2>
-            <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
-              Interface intuitiva, implementação em minutos e tudo que você precisa para 
-              gerenciar seu funil de vendas. Sem complicação, sem curva de aprendizado longa.
-            </p>
-          </motion.div>
-
-          <div id="funcionalidades" className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feature, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ delay: index * 0.1, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <TiltCard intensity={6}>
-                  <Card className="h-full border-2 border-border/50 hover:border-primary/40 transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10 group bg-gradient-to-br from-background to-muted/30 relative overflow-hidden">
-                    {/* Shine effect */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 pointer-events-none" />
-                    <CardContent className="p-6 relative">
-                      <div className="relative w-14 h-14 mb-5">
-                        <div className="absolute inset-0 bg-primary/10 rounded-2xl group-hover:bg-primary/20 transition-colors" />
-                        <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/30 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-500" />
-                        <div className="relative w-14 h-14 flex items-center justify-center">
-                          <feature.icon className="h-7 w-7 text-primary group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300" />
-                        </div>
-                      </div>
-                      <h3 className="text-xl font-semibold mb-3 group-hover:text-primary transition-colors">{feature.title}</h3>
-                      <p className="text-muted-foreground">{feature.description}</p>
-                    </CardContent>
-                  </Card>
-                </TiltCard>
-              </motion.div>
-            ))}
+      {/* SOLUÇÃO */}
+      <section id="solucao">
+        <div className="wrap">
+          <div className="center reveal">
+            <span className="eyebrow">A solução</span>
+            <h2>Do clique no anúncio ao fechamento:<br />cada lead com dono, prazo e próximo passo</h2>
           </div>
-        </div>
-      </section>
 
-      {/* For Who Section */}
-      <section className="py-14 sm:py-20 md:py-28 relative">
-        {/* fundo global */}
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <motion.div 
-            className="max-w-3xl mx-auto text-center mb-10 sm:mb-16"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 leading-tight">
-              <TextRevealOnScroll text="Para quem é o AutoLead?" as="span" />
-            </h2>
-            <p className="text-base sm:text-lg text-muted-foreground">
-              Feito para quem precisa organizar vendas sem burocracia
-            </p>
-          </motion.div>
+          <div className="story-grid">
+            <div className="story-steps" id="storySteps">
+              <div className="story-rail"></div>
+              <div className="story-rail-fill" id="railFill"></div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
-            {audiences.map((audience, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1, duration: 0.6 }}
-              >
-                <TiltCard intensity={8}>
-                  <div className="text-center p-6 rounded-2xl bg-background/80 backdrop-blur border border-border/50 hover:border-primary/40 transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10 group h-full">
-                    <div className="relative w-16 h-16 mx-auto mb-4">
-                      <div className="absolute inset-0 bg-primary/10 rounded-2xl group-hover:bg-primary/20 transition-colors" />
-                      <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/40 rounded-2xl blur-xl transition-all duration-500" />
-                      <div className="relative w-16 h-16 flex items-center justify-center">
-                        <audience.icon className="h-8 w-8 text-primary group-hover:scale-110 transition-transform" />
-                      </div>
-                    </div>
-                    <h3 className="font-semibold text-lg mb-2 group-hover:text-primary transition-colors">{audience.title}</h3>
-                    <p className="text-sm text-muted-foreground">{audience.description}</p>
-                  </div>
-                </TiltCard>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Differentials Section */}
-      <section className="py-14 sm:py-20 md:py-28 relative">
-        {/* fundo global */}
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <motion.div 
-            className="max-w-3xl mx-auto text-center mb-10 sm:mb-16"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 leading-tight">
-              <TextRevealOnScroll text="Por que escolher o AutoLead?" as="span" />
-            </h2>
-            <p className="text-base sm:text-lg text-muted-foreground">
-              Diferenciais que fazem a diferença no seu dia a dia
-            </p>
-          </motion.div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 max-w-6xl mx-auto">
-            {differentials.map((diff, index) => (
-              <motion.div
-                key={index}
-                className="group flex flex-col items-center text-center p-6 rounded-2xl bg-gradient-to-b from-muted/50 to-background border border-border/50 hover:border-primary/40 transition-all duration-500 hover:-translate-y-2 hover:shadow-xl hover:shadow-primary/10"
-                initial={{ opacity: 0, y: 40, rotateX: -15 }}
-                whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1, duration: 0.6 }}
-              >
-                <div className="relative w-12 h-12 mb-4">
-                  <div className="absolute inset-0 bg-primary/10 rounded-xl group-hover:bg-primary/20 transition-colors" />
-                  <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/30 rounded-xl blur-lg transition-all" />
-                  <div className="relative w-12 h-12 flex items-center justify-center">
-                    <diff.icon className="h-6 w-6 text-primary group-hover:rotate-12 group-hover:scale-110 transition-transform" />
-                  </div>
-                </div>
-                <h3 className="font-semibold mb-2 group-hover:text-primary transition-colors">{diff.title}</h3>
-                <p className="text-sm text-muted-foreground">{diff.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Security Section */}
-      <section id="seguranca" className="py-14 sm:py-20 md:py-28 relative">
-        {/* fundo global */}
-        {/* Animated grid */}
-        <div 
-          className="absolute inset-0 opacity-[0.05]"
-          style={{
-            backgroundImage: `linear-gradient(hsl(var(--background)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--background)) 1px, transparent 1px)`,
-            backgroundSize: "50px 50px",
-          }}
-        />
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <motion.div 
-            className="max-w-3xl mx-auto text-center mb-10 sm:mb-16"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <motion.div 
-              className="inline-flex items-center gap-2 bg-primary/10 backdrop-blur border border-primary/30 text-primary px-4 py-2 sm:px-6 sm:py-3 rounded-full text-sm sm:text-base md:text-lg font-semibold mb-4 shadow-lg shadow-primary/10"
-              initial={{ opacity: 0, scale: 0.8 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-            >
-              <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
-              Segurança
-            </motion.div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 leading-tight">
-              <TextRevealOnScroll text="Seus dados protegidos" as="span" />
-            </h2>
-            <p className="text-base sm:text-lg text-muted-foreground">
-              Segurança de nível empresarial para você focar no que importa: vender
-            </p>
-          </motion.div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
-            {securities.map((security, index) => (
-              <motion.div
-                key={index}
-                className="group text-center p-6 rounded-2xl bg-foreground/5 backdrop-blur border border-foreground/10 hover:border-primary/40 hover:bg-foreground/10 transition-all duration-500 hover:-translate-y-2"
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1, duration: 0.6 }}
-              >
-                <div className="relative w-14 h-14 mx-auto mb-4">
-                  <div className="absolute inset-0 bg-foreground/10 rounded-2xl group-hover:bg-primary/20 transition-colors" />
-                  <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/40 rounded-2xl blur-xl transition-all duration-500" />
-                  <div className="relative w-14 h-14 flex items-center justify-center">
-                    <security.icon className="h-7 w-7 text-foreground group-hover:text-primary group-hover:scale-110 transition-all" />
-                  </div>
-                </div>
-                <h3 className="font-semibold text-lg mb-2">{security.title}</h3>
-                <p className="text-sm text-muted-foreground">{security.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <PricingSection />
-
-      {/* Final CTA Section */}
-      <section className="py-16 sm:py-24 md:py-32 relative">
-        {/* fundo global */}
-        
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <motion.div 
-            className="max-w-3xl mx-auto text-center"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 leading-tight">
-              <TextRevealOnScroll text="Pronto para organizar suas vendas?" as="span" />
-            </h2>
-            <motion.p 
-              className="text-base sm:text-lg text-muted-foreground mb-8 sm:mb-10 max-w-xl mx-auto"
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.4 }}
-            >
-              Comece agora e veja como é fácil gerenciar leads e fechar mais negócios com o AutoLead.
-            </motion.p>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.5, type: "spring", stiffness: 200 }}
-            >
-              <Button 
-                size="lg" 
-                onClick={() => navigate("/auth")} 
-                className="h-12 sm:h-14 px-8 sm:px-10 text-base font-semibold shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all hover:-translate-y-1 relative overflow-hidden group w-full sm:w-auto max-w-sm"
-              >
-                <span className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary bg-200% animate-gradient-x" />
-                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-                <span className="relative z-10 flex items-center justify-center">
-                  Criar conta gratuita
-                  <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </span>
-              </Button>
-            </motion.div>
-            <p className="text-sm text-muted-foreground mt-6">
-              Sem compromisso. Cancele quando quiser.
-            </p>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-10 sm:py-12 border-t border-border/50 relative bg-background/40 backdrop-blur">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10 sm:mb-12">
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-9 h-9 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <span className="font-bold text-xl">AutoLead</span>
+              <div className="step active" data-step="0">
+                <div className="dot"></div>
+                <h3>Nenhum lead sem resposta</h3>
+                <p>Todos os leads do WhatsApp caem num inbox único. A IA responde na hora, mesmo às 2h da manhã.</p>
               </div>
-              <p className="text-muted-foreground max-w-sm">
-                O CRM simples e poderoso para pequenas e médias empresas que querem vender mais.
-              </p>
+              <div className="step" data-step="1">
+                <div className="dot"></div>
+                <h3>Veja onde cada venda travou</h3>
+                <p>Funil kanban visual: arraste o lead de etapa em etapa e enxergue o pipeline inteiro em segundos.</p>
+              </div>
+              <div className="step" data-step="2">
+                <div className="dot"></div>
+                <h3>Follow-up cobrado automaticamente</h3>
+                <p>O sistema agenda e lembra cada retorno. Esquecer deixa de ser opção.</p>
+              </div>
+              <div className="step" data-step="3">
+                <div className="dot"></div>
+                <span className="tag">Ponto forte</span>
+                <h3>Sua Meta aprende quem compra</h3>
+                <p>Enviamos os dados de venda pra Meta Ads. Suas campanhas passam a buscar compradores, não curiosos.</p>
+              </div>
+              <div className="step" data-step="4">
+                <div className="dot"></div>
+                <h3>Saiba quem vende e quem enrola</h3>
+                <p>Performance de cada vendedor em tempo real: leads atendidos, tempo de resposta, conversão.</p>
+              </div>
+              <div className="step" data-step="5">
+                <div className="dot"></div>
+                <h3>Venda no automático</h3>
+                <p>Automações movem leads, disparam mensagens e distribuem contatos pro time sem você tocar em nada.</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold mb-4">Produto</h3>
-              <ul className="space-y-3 text-sm text-muted-foreground">
-                <li><a href="#funcionalidades" className="hover:text-foreground transition-colors">Funcionalidades</a></li>
-                <li><a href="#planos" className="hover:text-foreground transition-colors">Planos</a></li>
-                <li><a href="#seguranca" className="hover:text-foreground transition-colors">Segurança</a></li>
+
+            <div className="story-visual">
+              <div className="visual-frame">
+                <div className="mockup chat-mock active" data-mock="0">
+                  <div className="chat-head"><span className="chat-dot"></span>WhatsApp · Inbox</div>
+                  <div className="chat-body">
+                    <div className="bubble in">Oi! Vi o anúncio, ainda tá disponível?</div>
+                    <div className="bubble ai"><span className="ai-tag">IA</span>Sim! Temos 2 unidades. Posso te passar as condições agora?</div>
+                    <div className="typing"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+
+                <div className="mockup kanban-mock" data-mock="1">
+                  <div className="km-head">Funil de vendas</div>
+                  <div className="km-cols">
+                    <div className="km-col"><h5>Novo</h5></div>
+                    <div className="km-col"><h5>Conversa</h5><div className="km-card">Julia P.</div></div>
+                    <div className="km-col"><h5>Proposta</h5><div className="km-card">Marcos C.</div></div>
+                    <div className="km-flying">Ana L.</div>
+                  </div>
+                </div>
+
+                <div className="mockup followup-mock" data-mock="2">
+                  <div className="fu-toast">
+                    <span className="fu-ico">⏰</span>
+                    <div><strong>Retornar para Ana Paula</strong><small>Hoje, 15:00</small></div>
+                  </div>
+                  <div className="fu-list">
+                    <div className="fu-item done"><span className="chk">✓</span>Follow-up · Marcos</div>
+                    <div className="fu-item done"><span className="chk">✓</span>Follow-up · Julia</div>
+                    <div className="fu-item pending"><span className="chk"></span>Follow-up · Ana Paula</div>
+                  </div>
+                </div>
+
+                <div className="mockup meta-mock" data-mock="3">
+                  <div className="meta-stats">
+                    <div><span>CPL antes</span><strong>R$42</strong></div>
+                    <div className="arrow">→</div>
+                    <div><span>CPL agora</span><strong className="good">R$18</strong></div>
+                  </div>
+                  <svg className="meta-chart" viewBox="0 0 300 100" preserveAspectRatio="none">
+                    <polyline points="0,85 50,75 100,80 150,55 200,45 250,25 300,12" />
+                  </svg>
+                </div>
+
+                <div className="mockup rank-mock" data-mock="4">
+                  <div className="rank-row"><span>🥇 Marcos</span><div className="bar"><i style={{ ["--w" as any]: "92%" }}></i></div></div>
+                  <div className="rank-row"><span>🥈 Julia</span><div className="bar"><i style={{ ["--w" as any]: "68%" }}></i></div></div>
+                  <div className="rank-row"><span>🥉 Pedro</span><div className="bar"><i style={{ ["--w" as any]: "41%" }}></i></div></div>
+                </div>
+
+                <div className="mockup flow-mock" data-mock="5">
+                  <div className="flow-node">Lead entra</div>
+                  <div className="flow-line"><span className="pulse-dot"></span></div>
+                  <div className="flow-node">Mensagem enviada</div>
+                  <div className="flow-line"><span className="pulse-dot" style={{ animationDelay: ".8s" }}></span></div>
+                  <div className="flow-node">Tarefa criada</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* PARA QUEM */}
+      <section style={{ paddingTop: 0 }}>
+        <div className="wrap">
+          <div className="center reveal">
+            <span className="eyebrow">Pra quem é</span>
+            <h2>Feito pra quem vende de verdade</h2>
+          </div>
+          <div className="quem-grid">
+            <div className="quem reveal"><div className="ico">👥</div><h3>Times de 2 a 15 vendedores</h3><p>Que precisam de processo claro sem sistema complicado.</p></div>
+            <div className="quem reveal"><div className="ico">🎯</div><h3>Quem anuncia na Meta</h3><p>E quer que cada real investido traga leads mais qualificados que o anterior.</p></div>
+            <div className="quem reveal"><div className="ico">📱</div><h3>Quem vende pelo WhatsApp</h3><p>Onde o cliente chama a qualquer hora e não pode esperar.</p></div>
+            <div className="quem reveal"><div className="ico">🏢</div><h3>Grupos com várias unidades</h3><p>Que precisam ver tudo num painel só, sem trocar de conta.</p></div>
+          </div>
+        </div>
+      </section>
+
+      {/* DIFERENCIAIS */}
+      <section className="dif" id="diferenciais">
+        <div className="wrap">
+          <div className="center reveal">
+            <span className="eyebrow">Diferenciais</span>
+            <h2>O que o Triad faz que os outros não fazem</h2>
+          </div>
+          <div className="dif-list">
+            <div className="dif-item reveal"><span className="n">01</span><h3>Rodando hoje, não mês que vem</h3><p>Abre no navegador, sem instalação. Implementação em minutos.</p></div>
+            <div className="dif-item reveal"><span className="n">02</span><h3>WhatsApp dentro do CRM</h3><p>Seu time atende e atualiza o funil na mesma tela.</p></div>
+            <div className="dif-item reveal"><span className="n">03</span><h3>IA que atende primeiro</h3><p>Resposta imediata enquanto seu vendedor está com outro cliente.</p></div>
+            <div className="dif-item reveal"><span className="n">04</span><h3>Meta Ads integrado</h3><p>Coisa que a maioria dos CRMs do seu concorrente não faz.</p></div>
+            <div className="dif-item reveal"><span className="n">05</span><h3>Multiempresa de verdade</h3><p>Várias unidades, permissões separadas, visão unificada.</p></div>
+          </div>
+        </div>
+      </section>
+
+      {/* SEGURANÇA */}
+      <section>
+        <div className="wrap">
+          <div className="center reveal">
+            <span className="eyebrow">Segurança</span>
+            <h2>Seus leads são seu ativo mais caro.<br />Aqui, eles ficam trancados.</h2>
+          </div>
+          <div className="seg-grid">
+            <div className="seg reveal"><div className="ico">🔒</div><h3>Criptografia de ponta a ponta</h3><p>Seus dados e conversas protegidos em todo o trajeto.</p></div>
+            <div className="seg reveal"><div className="ico">🗝️</div><h3>Cada um vê só o que deve</h3><p>Permissões por usuário: vendedor não acessa dado de gestor.</p></div>
+            <div className="seg reveal"><div className="ico">🛡️</div><h3>Login em duas etapas</h3><p>Senha vazada não vira conta invadida.</p></div>
+            <div className="seg reveal"><div className="ico">☁️</div><h3>99,9% no ar</h3><p>Infraestrutura que não te deixa na mão no meio da venda.</p></div>
+          </div>
+        </div>
+      </section>
+
+      {/* PLANOS */}
+      <section className="planos" id="planos">
+        <div className="wrap">
+          <div className="center reveal">
+            <span className="eyebrow">Planos</span>
+            <h2>O plano se paga com um lead<br />que você deixaria escapar</h2>
+            <p className="lead">Comece organizando o funil. Escale quando quiser IA, automação ilimitada e campanhas mais baratas.</p>
+          </div>
+
+          <div className="billing reveal">
+            <button className="on" data-cycle="mensal">Mensal</button>
+            <button data-cycle="semestral">Semestral <b>−20%</b></button>
+          </div>
+
+          <div className="planos-grid">
+            <div className="plano reveal">
+              <h3>Start</h3>
+              <p className="pos">Pra quem quer parar de perder leads e ter o funil sob controle.</p>
+              <div className="preco"><span data-price data-mensal="R$157" data-semestral="R$126">R$157</span><small>/mês</small></div>
+              <p className="preco-nota" data-nota data-mensal="cobrado mensalmente" data-semestral="R$756 a cada 6 meses">cobrado mensalmente</p>
+              <a className="btn btn-ghost" href="#" onClick={(e) => { e.preventDefault(); goToSignup(); }}>Começar agora</a>
+              <ul>
+                <li className="grupo">O que está incluído</li>
+                <li>Gestão de leads (kanban)</li>
+                <li>2 pipelines de vendas</li>
+                <li>WhatsApp conectado (inbox)</li>
+                <li>Até 3 usuários</li>
+                <li>2 automações ativas</li>
+                <li>Follow-ups manuais</li>
+                <li>Relatórios básicos</li>
+                <li className="grupo">Não inclui</li>
+                <li className="no">IA de atendimento</li>
+                <li className="no">Disparo em massa</li>
+                <li className="no">Meta Ads (CAPI + Lead Ads)</li>
               </ul>
             </div>
-            <div>
-              <h3 className="font-semibold mb-4">Empresa</h3>
-              <ul className="space-y-3 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground transition-colors">Sobre</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Contato</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Blog</a></li>
+
+            <div className="plano rec reveal">
+              <span className="badge">Recomendado</span>
+              <h3>Scale ✦</h3>
+              <p className="pos">Pra quem quer vender enquanto dorme: IA atendendo, automações rodando e a Meta otimizando sozinha.</p>
+              <div className="preco"><span data-price data-mensal="R$317" data-semestral="R$254">R$317</span><small>/mês</small></div>
+              <p className="preco-nota" data-nota data-mensal="cobrado mensalmente" data-semestral="R$1.524 a cada 6 meses">cobrado mensalmente</p>
+              <a className="btn btn-primary" href="#" onClick={(e) => { e.preventDefault(); goToSignup(); }}>Começar agora →</a>
+              <ul>
+                <li className="grupo">O que está incluído</li>
+                <li><strong>Tudo do plano Start</strong></li>
+                <li>Pipelines ilimitados</li>
+                <li>Usuários ilimitados</li>
+                <li>Automações ilimitadas</li>
+                <li>IA de atendimento</li>
+                <li>Disparo em massa</li>
+                <li>Meta Ads</li>
+                <li>Relatórios avançados</li>
               </ul>
             </div>
           </div>
-          <div className="pt-8 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} AutoLead. Todos os direitos reservados.
-            </p>
-            <div className="flex gap-6 text-sm text-muted-foreground">
-              <a href="#" className="hover:text-foreground transition-colors">Privacidade</a>
-              <a href="#" className="hover:text-foreground transition-colors">Termos</a>
+          <p className="planos-nota">Todos os planos incluem suporte por chat e atualizações gratuitas. Cancele quando quiser, sem burocracia.</p>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" style={{ paddingTop: 0 }}>
+        <div className="wrap">
+          <div className="center reveal">
+            <span className="eyebrow">Dúvidas</span>
+            <h2>Perguntas frequentes</h2>
+          </div>
+          <div className="faq-list reveal">
+            <details>
+              <summary>Preciso instalar alguma coisa?</summary>
+              <div className="faq-body">Não. O Triad roda direto no navegador, no computador ou no celular. Você cria a conta e já começa a usar — a implementação leva minutos, não semanas.</div>
+            </details>
+            <details>
+              <summary>Como funciona a integração com o WhatsApp?</summary>
+              <div className="faq-body">Você conecta seu número e todas as conversas caem num inbox único dentro do CRM. Seu time atende, atualiza o funil e agenda follow-ups na mesma tela — sem alternar entre apps.</div>
+            </details>
+            <details>
+              <summary>O que exatamente o envio de dados pra Meta faz?</summary>
+              <div className="faq-body">Quando um lead vira venda no Triad, enviamos esse evento pro Meta Ads. Com isso, o algoritmo aprende o perfil de quem realmente compra — e passa a otimizar suas campanhas pra encontrar mais compradores, baratando seu custo por lead qualificado.</div>
+            </details>
+            <details>
+              <summary>Posso trocar de plano ou cancelar quando quiser?</summary>
+              <div className="faq-body">Sim. Você pode fazer upgrade, downgrade ou cancelar a qualquer momento, direto no painel, sem multa e sem precisar falar com ninguém.</div>
+            </details>
+            <details>
+              <summary>Meus dados ficam seguros?</summary>
+              <div className="faq-body">Sim. Usamos criptografia de ponta a ponta, autenticação em duas etapas e permissões por usuário. Nossa infraestrutura opera com 99,9% de disponibilidade.</div>
+            </details>
+            <details>
+              <summary>Funciona pra mais de uma empresa ou unidade?</summary>
+              <div className="faq-body">Sim. O Triad é multiempresa: você gerencia várias unidades com permissões separadas e visão unificada, tudo na mesma conta.</div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA FINAL */}
+      <section className="cta-final">
+        <div className="wrap">
+          <span className="eyebrow reveal">Comece agora</span>
+          <h2 className="reveal">Quantos leads você perdeu enquanto lia esta página?</h2>
+          <p className="lead reveal">Crie sua conta grátis e coloque seu funil pra rodar ainda hoje.</p>
+          <a className="btn btn-primary btn-lg reveal" href="#" onClick={(e) => { e.preventDefault(); goToSignup(); }}>Criar conta grátis →</a>
+          <small className="reveal">Sem compromisso. Cancele quando quiser.</small>
+        </div>
+      </section>
+
+      <footer>
+        <div className="wrap">
+          <div className="foot-grid">
+            <div>
+              <a className="logo" href="#top">
+                <span className="logo-mark">▲</span>Triad CRM
+              </a>
+              <p>O CRM que organiza seus leads do WhatsApp, cobra os follow-ups do time e devolve dados pra Meta otimizar suas campanhas.</p>
+            </div>
+            <div className="foot-col">
+              <h4>Produto</h4>
+              <a href="#solucao">Funcionalidades</a>
+              <a href="#planos">Planos</a>
+              <a href="#faq">FAQ</a>
+            </div>
+            <div className="foot-col">
+              <h4>Empresa</h4>
+              <a href="#">Sobre</a>
+              <a href="#">Contato</a>
+              <a href="#">Blog</a>
+            </div>
+          </div>
+          <div className="foot-base">
+            <span>© 2026 Triad Company. Todos os direitos reservados.</span>
+            <div className="links">
+              <a href="#">Privacidade</a>
+              <a href="#">Termos</a>
             </div>
           </div>
         </div>
