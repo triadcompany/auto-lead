@@ -38,7 +38,7 @@ const CSS = `
 /* ---------- NAV ---------- */
 .triad-lp nav{position:sticky;top:0;z-index:50;background:rgba(12,10,9,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
 .triad-lp .nav-inner{display:flex;align-items:center;justify-content:space-between;height:68px}
-.triad-lp .logo{font-family:var(--display);font-weight:800;font-size:1.25rem;display:flex;align-items:center;gap:9px}
+.triad-lp .logo{font-family:var(--display);font-weight:800;font-size:1.25rem;display:flex;align-items:center;gap:9px;white-space:nowrap}
 .triad-lp .logo-mark{width:28px;height:28px;border-radius:8px;background:var(--ember);display:grid;place-items:center;font-size:.9rem;color:#0C0A09}
 .triad-lp .logo-img{width:32px;height:32px;object-fit:contain}
 .triad-lp .nav-links{display:flex;gap:28px;font-size:.92rem;color:var(--muted)}
@@ -292,6 +292,10 @@ const CSS = `
 @media (max-width:640px){
   .triad-lp section{padding:72px 0}
   .triad-lp .nav-links{display:none}
+  .triad-lp .logo{font-size:1.02rem;gap:7px}
+  .triad-lp .logo-img{width:26px;height:26px}
+  .triad-lp .nav-cta{gap:8px}
+  .triad-lp .nav-cta .btn{padding:9px 14px;font-size:.82rem}
   .triad-lp .dores-grid,.triad-lp .sol-grid,.triad-lp .planos-grid{grid-template-columns:1fr}
   .triad-lp .quem-grid,.triad-lp .seg-grid{grid-template-columns:1fr}
   .triad-lp .hero{padding:72px 0 56px}
@@ -553,13 +557,13 @@ export default function LandingPage() {
       <section className="dores">
         <div className="wrap">
           <div className="center reveal">
-            <h2>Se você já pensou alguma dessas frases,<br />o Triad foi feito pra você</h2>
+            <h2>Se você já pensou algumas dessas frases,<br />o Triad foi feito pra você</h2>
           </div>
           <div className="dores-grid">
-            <div className="dor reveal"><q>O lead chamou no WhatsApp de madrugada. Quando o vendedor viu, ele já tinha comprado em outro lugar.</q><small>, Velocidade de resposta</small></div>
-            <div className="dor reveal"><q>Eu pergunto como estão as negociações e cada vendedor responde uma coisa. Ninguém sabe o número real.</q><small>, Visibilidade do time</small></div>
-            <div className="dor reveal"><q>Combinamos de retornar em 3 dias. Ninguém retornou. Ninguém nem lembrava.</q><small>, Follow-ups perdidos</small></div>
-            <div className="dor reveal"><q>Gasto milhares em anúncio todo mês e não faço ideia de qual campanha traz cliente que compra.</q><small>, Dinheiro no escuro</small></div>
+            <div className="dor reveal"><q>O lead chamou no WhatsApp de madrugada. Quando o vendedor viu, ele já tinha comprado em outro lugar.</q><small>— Velocidade de resposta</small></div>
+            <div className="dor reveal"><q>Eu pergunto como estão as negociações e cada vendedor responde uma coisa. Ninguém sabe o número real.</q><small>— Visibilidade do time</small></div>
+            <div className="dor reveal"><q>Combinamos de retornar em 3 dias. Ninguém retornou. Ninguém nem lembrava.</q><small>— Follow-ups perdidos</small></div>
+            <div className="dor reveal"><q>Gasto milhares em anúncio todo mês e não faço ideia de qual campanha traz cliente que compra.</q><small>— Dinheiro no escuro</small></div>
           </div>
         </div>
       </section>
