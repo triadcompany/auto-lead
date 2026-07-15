@@ -40,6 +40,7 @@ const CSS = `
 .triad-lp .nav-inner{display:flex;align-items:center;justify-content:space-between;height:68px}
 .triad-lp .logo{font-family:var(--display);font-weight:800;font-size:1.25rem;display:flex;align-items:center;gap:9px}
 .triad-lp .logo-mark{width:28px;height:28px;border-radius:8px;background:var(--ember);display:grid;place-items:center;font-size:.9rem;color:#0C0A09}
+.triad-lp .logo-img{width:32px;height:32px;object-fit:contain}
 .triad-lp .nav-links{display:flex;gap:28px;font-size:.92rem;color:var(--muted)}
 .triad-lp .nav-links a:hover{color:var(--text)}
 .triad-lp .nav-cta{display:flex;gap:12px;align-items:center}
@@ -487,7 +488,7 @@ export default function LandingPage() {
       <nav>
         <div className="wrap nav-inner">
           <a className="logo" href="#top">
-            <span className="logo-mark">▲</span>Triad CRM
+            <img src="/triad-crm-logo.png" alt="Triad CRM" className="logo-img" />Triad CRM
           </a>
           <div className="nav-links">
             <a href="#solucao">Solução</a>
@@ -822,7 +823,7 @@ export default function LandingPage() {
           <div className="foot-grid">
             <div>
               <a className="logo" href="#top">
-                <span className="logo-mark">▲</span>Triad CRM
+                <img src="/triad-crm-logo.png" alt="Triad CRM" className="logo-img" />Triad CRM
               </a>
               <p>O CRM que organiza seus leads do WhatsApp, cobra os follow-ups do time e devolve dados pra Meta otimizar suas campanhas.</p>
             </div>
