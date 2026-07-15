@@ -24,6 +24,8 @@ import Tasks from "./pages/Tasks";
 import NotFound from "./pages/NotFound";
 
 import LandingPage from "./pages/LandingPage";
+import TermosDeUso from "./pages/TermosDeUso";
+import PoliticaDePrivacidade from "./pages/PoliticaDePrivacidade";
 import Prospeccao from "./pages/Prospeccao";
 import Automacoes from "./pages/Automacoes";
 import Onboarding from "./pages/Onboarding";
@@ -122,6 +124,8 @@ const App = () => {
                 <Routes>
                   {/* ── Public routes ── */}
                   <Route path="/landing" element={<LandingPage />} />
+<Route path="/termos" element={<TermosDeUso />} />
+<Route path="/privacidade" element={<PoliticaDePrivacidade />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/seller-auth" element={<SellerAuth />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
