@@ -21,7 +21,7 @@ const CSS = `
   --radius:14px;
   --display:'Bricolage Grotesque',sans-serif;
   --body:'Inter',sans-serif;
-  background:var(--bg);color:var(--text);font-family:var(--body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  background:var(--bg);color:var(--text);font-family:var(--body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;
 }
 .triad-lp *{margin:0;padding:0;box-sizing:border-box}
 .triad-lp img{max-width:100%}
@@ -186,7 +186,7 @@ const CSS = `
 
 @media (max-width:880px){
   .triad-lp .story-grid{flex-direction:column;gap:8px}
-  .triad-lp .story-visual{order:-1;position:sticky;top:64px;transform:none;height:340px;width:100%;margin-bottom:28px}
+  .triad-lp .story-visual{order:-1;position:sticky;top:64px;transform:none;height:340px;width:100%;margin-bottom:28px;flex:none}
   .triad-lp .story-steps{padding-left:36px;order:2}
   .triad-lp .step .dot{left:-36px}
 }
@@ -308,6 +308,12 @@ export default function LandingPage() {
 
     const prevTitle = document.title;
     document.title = "Triad CRM — Todo lead ignorado vira venda do concorrente";
+
+    // overflow-x:hidden vai no <body>, não num wrapper interno — em qualquer
+    // ancestral que não seja o scroller real, essa propriedade quebra
+    // position:sticky nos elementos filhos (ex.: o card animado da seção Solução).
+    const prevOverflowX = document.body.style.overflowX;
+    document.body.style.overflowX = "hidden";
 
     // ── reveal on scroll ──────────────────────────────────────────────────
     const io = new IntersectionObserver(
@@ -465,6 +471,7 @@ export default function LandingPage() {
 
     return () => {
       document.title = prevTitle;
+      document.body.style.overflowX = prevOverflowX;
       io.disconnect();
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
