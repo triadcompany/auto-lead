@@ -56,7 +56,7 @@ const CSS = `
 .triad-lp .hero{padding:110px 0 80px;position:relative}
 .triad-lp .hero::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 60% 45% at 50% -5%,rgba(255,107,44,.14),transparent 70%);pointer-events:none;opacity:0;animation:tlpGlowIn 1.6s ease forwards}
 .triad-lp .hero-grid{position:relative;text-align:center;max-width:820px;margin:0 auto}
-.triad-lp .hero h1{font-size:clamp(2.6rem,6.4vw,4.4rem);font-weight:800}
+.triad-lp .hero h1{font-size:clamp(2.6rem,6.4vw,3.8rem);font-weight:800}
 .triad-lp .hero h1 .flip{color:var(--ember)}
 .triad-lp .hero .lead{margin:24px auto 0;max-width:640px;font-size:1.15rem}
 .triad-lp .hero-ctas{margin-top:36px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
@@ -515,7 +515,7 @@ export default function LandingPage() {
             <h1>
               <span className="line l1">Seu WhatsApp lota.</span>
               <br />
-              <span className="flip line l2">Seu rival agradece.</span>
+              <span className="flip line l2">Seu concorrente agradece.</span>
             </h1>
             <p className="lead">
               Lead sem resposta vira venda de outro lugar. Automatize do seu jeito e deixe sua Meta Ads aprender quem compra.
