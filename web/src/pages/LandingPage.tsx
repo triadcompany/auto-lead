@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 // CSS escopado sob .triad-lp — a página original era um HTML autocontido
 // (com seletores globais tipo body/html/*), mas aqui roda dentro de uma SPA
@@ -848,8 +848,8 @@ export default function LandingPage() {
           <div className="foot-base">
             <span>© 2026 Triad Company. Todos os direitos reservados.</span>
             <div className="links">
-              <a href="#">Privacidade</a>
-              <a href="#">Termos</a>
+              <Link to="/privacidade">Privacidade</Link>
+              <Link to="/termos">Termos</Link>
             </div>
           </div>
         </div>
