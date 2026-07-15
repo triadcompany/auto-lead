@@ -203,6 +203,11 @@ const CSS = `
 .triad-lp .dif-item .n{font-family:var(--display);font-weight:800;font-size:1.5rem;color:var(--ember)}
 .triad-lp .dif-item h3{font-size:1.18rem;font-weight:700}
 .triad-lp .dif-item p{color:var(--muted);font-size:.95rem}
+.triad-lp .dif-item:nth-child(1){transition-delay:0s}
+.triad-lp .dif-item:nth-child(2){transition-delay:.1s}
+.triad-lp .dif-item:nth-child(3){transition-delay:.2s}
+.triad-lp .dif-item:nth-child(4){transition-delay:.3s}
+.triad-lp .dif-item:nth-child(5){transition-delay:.4s}
 
 /* ---------- SEGURANÇA ---------- */
 .triad-lp .seg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:48px}
