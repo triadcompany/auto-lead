@@ -35,9 +35,6 @@ const CSS = `
 .triad-lp .center{text-align:center}
 .triad-lp .center .lead{margin:16px auto 0}
 
-.triad-lp .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:.78rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ember);background:var(--ember-soft);border:1px solid var(--ember-line);padding:6px 14px;border-radius:999px;margin-bottom:20px}
-.triad-lp .eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ember)}
-
 /* ---------- NAV ---------- */
 .triad-lp nav{position:sticky;top:0;z-index:50;background:rgba(12,10,9,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
 .triad-lp .nav-inner{display:flex;align-items:center;justify-content:space-between;height:68px}
@@ -67,7 +64,6 @@ const CSS = `
 
 @keyframes tlpGlowIn{to{opacity:1}}
 @keyframes tlpHeroUp{from{opacity:0;transform:translateY(16px);filter:blur(8px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
-.triad-lp .hero-grid .eyebrow{opacity:0;animation:tlpHeroUp 1.1s cubic-bezier(.22,1,.36,1) forwards;animation-delay:.1s}
 .triad-lp .hero-grid h1 .line{display:inline-block;opacity:0;transform:translateY(18px);filter:blur(8px);animation:tlpHeroUp 1.15s cubic-bezier(.22,1,.36,1) forwards}
 .triad-lp .hero-grid h1 .line.l1{animation-delay:.28s}
 .triad-lp .hero-grid h1 .line.l2{animation-delay:.48s}
@@ -274,7 +270,7 @@ const CSS = `
   .triad-lp .card{animation:none}
   .triad-lp .pulse{animation:none}
   .triad-lp .hero::before{animation:none;opacity:1}
-  .triad-lp .hero-grid .eyebrow,.triad-lp .hero-grid h1 .line,.triad-lp .hero-grid .lead,.triad-lp .hero-grid .hero-ctas,.triad-lp .hero-grid .hero-notes{animation:none;opacity:1;transform:none}
+  .triad-lp .hero-grid h1 .line,.triad-lp .hero-grid .lead,.triad-lp .hero-grid .hero-ctas,.triad-lp .hero-grid .hero-notes{animation:none;opacity:1;transform:none}
   .triad-lp .hero-pipeline{animation:none;opacity:1;transform:none}
 }
 
@@ -510,7 +506,6 @@ export default function LandingPage() {
       <header className="hero" id="top">
         <div className="wrap">
           <div className="hero-grid">
-            <span className="eyebrow">CRM + WhatsApp + Meta Ads</span>
             <h1>
               <span className="line l1">Seu WhatsApp lota.</span>
               <br />
@@ -552,7 +547,6 @@ export default function LandingPage() {
       <section className="dores">
         <div className="wrap">
           <div className="center reveal">
-            <span className="eyebrow">Soa familiar?</span>
             <h2>Se você já pensou alguma dessas frases,<br />o Triad foi feito pra você</h2>
           </div>
           <div className="dores-grid">
@@ -568,7 +562,6 @@ export default function LandingPage() {
       <section id="solucao">
         <div className="wrap">
           <div className="center reveal">
-            <span className="eyebrow">A solução</span>
             <h2>Do clique no anúncio ao fechamento:<br />cada lead com dono, prazo e próximo passo</h2>
           </div>
 
@@ -677,7 +670,6 @@ export default function LandingPage() {
       <section style={{ paddingTop: 0 }}>
         <div className="wrap">
           <div className="center reveal">
-            <span className="eyebrow">Pra quem é</span>
             <h2>Feito pra quem vende de verdade</h2>
           </div>
           <div className="quem-grid">
@@ -693,7 +685,6 @@ export default function LandingPage() {
       <section className="dif" id="diferenciais">
         <div className="wrap">
           <div className="center reveal">
-            <span className="eyebrow">Diferenciais</span>
             <h2>O que o Triad faz que os outros não fazem</h2>
           </div>
           <div className="dif-list">
@@ -710,7 +701,6 @@ export default function LandingPage() {
       <section>
         <div className="wrap">
           <div className="center reveal">
-            <span className="eyebrow">Segurança</span>
             <h2>Seus leads são seu ativo mais caro.<br />Aqui, eles ficam trancados.</h2>
           </div>
           <div className="seg-grid">
@@ -726,7 +716,6 @@ export default function LandingPage() {
       <section className="planos" id="planos">
         <div className="wrap">
           <div className="center reveal">
-            <span className="eyebrow">Planos</span>
             <h2>O plano se paga com um lead<br />que você deixaria escapar</h2>
             <p className="lead">Comece organizando o funil. Escale quando quiser IA, automação ilimitada e campanhas mais baratas.</p>
           </div>
@@ -787,7 +776,6 @@ export default function LandingPage() {
       <section id="faq" style={{ paddingTop: 0 }}>
         <div className="wrap">
           <div className="center reveal">
-            <span className="eyebrow">Dúvidas</span>
             <h2>Perguntas frequentes</h2>
           </div>
           <div className="faq-list reveal">
@@ -822,7 +810,6 @@ export default function LandingPage() {
       {/* CTA FINAL */}
       <section className="cta-final">
         <div className="wrap">
-          <span className="eyebrow reveal">Comece agora</span>
           <h2 className="reveal">Quantos leads você perdeu enquanto lia esta página?</h2>
           <p className="lead reveal">Crie sua conta grátis e coloque seu funil pra rodar ainda hoje.</p>
           <a className="btn btn-primary btn-lg reveal" href="#" onClick={(e) => { e.preventDefault(); goToSignup(); }}>Criar conta grátis →</a>
