@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { prisma } from "../lib/prisma.js"
+import { resolveActiveProfile } from "../lib/auth.js"
 
 async function verifyClerkToken(token: string): Promise<string> {
   const { verifyToken } = await import("@clerk/backend")
@@ -26,22 +27,19 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
     const { email, name, avatar_url, invitation_token } = req.body
 
-    let profile = await prisma.profile.findFirst({
-      where: { clerkUserId: userId },
-      include: { organization: true },
-    })
-
-    // Fluxo de convite: usuário sem org + token válido → anexa à empresa convidada
-    if ((!profile || !profile.organizationId) && invitation_token) {
+    // Fluxo de convite: token válido e pendente → anexa (ou reanexa) o usuário à
+    // organização convidada — mesmo que ele já pertença a outra(s) (multi-org).
+    // Isso acontece automaticamente, sem tela de confirmação.
+    let justJoinedOrgId: string | null = null
+    if (invitation_token) {
       const invite = await prisma.userInvitation.findUnique({
         where: { id: invitation_token },
       }).catch(() => null)
 
       if (invite && invite.status === "pending") {
-        profile = await prisma.profile.upsert({
-          where: { clerkUserId: userId },
+        await prisma.profile.upsert({
+          where: { clerkUserId_organizationId: { clerkUserId: userId, organizationId: invite.organizationId } },
           update: {
-            organizationId: invite.organizationId,
             role: invite.role,
             email, name,
             ...(avatar_url && { avatarUrl: avatar_url }),
@@ -55,16 +53,36 @@ export default async function authRoutes(fastify: FastifyInstance) {
             role: invite.role,
             ...(avatar_url && { avatarUrl: avatar_url }),
           },
-          include: { organization: true },
         })
         await prisma.userInvitation.update({
           where: { id: invite.id },
           data: { status: "accepted", updatedAt: new Date() },
         }).catch(() => null)
+        justJoinedOrgId = invite.organizationId
       }
     }
 
-    if (!profile || !profile.organizationId) {
+    // A organização recém-aceita tem prioridade nesta chamada (o usuário acabou
+    // de entrar, deve cair nela); caso contrário usa a mesma resolução do resto da API.
+    const active = await resolveActiveProfile(userId, justJoinedOrgId || undefined)
+
+    if (!active.profile) {
+      return { ok: true, profile: null, org: null, needsOnboarding: true }
+    }
+
+    if (justJoinedOrgId) {
+      await prisma.usersProfile.upsert({
+        where: { clerkUserId: userId },
+        update: { lastActiveOrganizationId: justJoinedOrgId },
+        create: { clerkUserId: userId, lastActiveOrganizationId: justJoinedOrgId },
+      }).catch(() => null)
+    }
+
+    let profile = await prisma.profile.findUnique({
+      where: { id: active.profile.id },
+      include: { organization: true },
+    })
+    if (!profile) {
       return { ok: true, profile: null, org: null, needsOnboarding: true }
     }
 
@@ -73,9 +91,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
       profile.name !== name ||
       (avatar_url && profile.avatarUrl !== avatar_url)
 
-    let finalProfile: typeof profile = profile
     if (needsUpdate) {
-      finalProfile = await prisma.profile.update({
+      profile = await prisma.profile.update({
         where: { id: profile.id },
         data: {
           email,
@@ -84,17 +101,17 @@ export default async function authRoutes(fastify: FastifyInstance) {
           updatedAt: new Date(),
         },
         include: { organization: true },
-      }) as typeof profile
+      })
     }
 
     return {
       ok: true,
-      profile: finalProfile,
+      profile,
       org: {
-        org_id: finalProfile.organizationId,
-        clerk_org_id: finalProfile.organizationId,
-        role: finalProfile.role as string,
-        name: (finalProfile as any).organization?.name || '',
+        org_id: profile.organizationId,
+        clerk_org_id: profile.organizationId,
+        role: profile.role as string,
+        name: (profile as any).organization?.name || '',
       },
       needsOnboarding: false,
     }
