@@ -159,6 +159,7 @@ async function runMigrations() {
     END $$`,
     `CREATE UNIQUE INDEX IF NOT EXISTS profiles_clerk_user_id_organization_id_key ON profiles (clerk_user_id, organization_id)`,
     `ALTER TABLE users_profile ADD COLUMN IF NOT EXISTS last_active_organization_id UUID`,
+    `CREATE TABLE IF NOT EXISTS system_flags (key TEXT PRIMARY KEY, done_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
   ]
   for (const sql of statements) {
     try {
@@ -186,6 +187,8 @@ try {
   await server.listen({ port, host: "0.0.0.0" })
   console.log(`API rodando em http://localhost:${port}`)
   startAutomationRecovery().catch((e) => console.error("[automation] recovery init error:", e))
+  const { backfillMultiOrgFromClerk } = await import("./lib/multiOrgBackfill.js")
+  backfillMultiOrgFromClerk().catch((e) => console.error("[backfill-multi-org] init error:", e))
 } catch (err) {
   server.log.error(err)
   process.exit(1)
