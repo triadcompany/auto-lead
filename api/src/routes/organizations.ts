@@ -42,10 +42,12 @@ export default async function organizationsRoutes(fastify: FastifyInstance) {
       return reply.code(403).send({ error: "Unauthorized" })
     }
 
-    // Se já tem perfil com org, retorna existente
+    // Se já tem perfil com org, retorna a mais antiga (bootstrap é só para o
+    // primeiro onboarding — entrar numa 2ª organização acontece via convite)
     const existing = await prisma.profile.findFirst({
-      where: { clerkUserId: userId },
+      where: { clerkUserId: userId, organizationId: { not: null } },
       include: { organization: true },
+      orderBy: { createdAt: "asc" },
     })
     if (existing?.organization) {
       return reply.code(200).send({ org: existing.organization, profile: existing })
@@ -76,8 +78,8 @@ export default async function organizationsRoutes(fastify: FastifyInstance) {
 
     // Cria/atualiza perfil
     const profile = await prisma.profile.upsert({
-      where: { clerkUserId: userId },
-      update: { organizationId: org.id, role: "admin", onboardingCompleted: true, updatedAt: new Date() },
+      where: { clerkUserId_organizationId: { clerkUserId: userId, organizationId: org.id } },
+      update: { role: "admin", onboardingCompleted: true, updatedAt: new Date() },
       create: {
         clerkUserId: userId,
         name: user_name,
