@@ -76,14 +76,58 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     })
   })
 
-  // GET /users/me — perfil do usuário atual
+  // GET /users/me — perfil do usuário na organização ativa
   fastify.get("/users/me", async (req, reply) => {
-    const profile = await prisma.profile.findFirst({
-      where: { clerkUserId: req.auth.userId },
+    const profile = await prisma.profile.findUnique({
+      where: { id: req.auth.profileId },
       include: { organization: true },
     })
     if (!profile) return reply.code(404).send({ error: "Profile not found" })
     return profile
+  })
+
+  // GET /users/me/organizations — todas as organizações do usuário (multi-org)
+  fastify.get("/users/me/organizations", async (req) => {
+    const profiles = await prisma.profile.findMany({
+      where: { clerkUserId: req.auth.userId, organizationId: { not: null } },
+      select: {
+        organizationId: true,
+        role: true,
+        organization: { select: { name: true, logoUrl: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    })
+    return profiles.map((p) => ({
+      organization_id: p.organizationId,
+      name: p.organization?.name || "",
+      role: p.role,
+      logo_url: p.organization?.logoUrl || null,
+      is_current: p.organizationId === req.auth.orgId,
+    }))
+  })
+
+  // POST /users/me/active-org — troca a organização ativa (persiste pra próxima sessão)
+  fastify.post<{ Body: { organization_id: string } }>("/users/me/active-org", async (req, reply) => {
+    const { organization_id } = req.body
+    const target = await prisma.profile.findFirst({
+      where: { clerkUserId: req.auth.userId, organizationId: organization_id },
+      select: { organizationId: true, role: true, organization: { select: { name: true } } },
+    })
+    if (!target) {
+      return reply.code(403).send({ error: "Not a member of this organization" })
+    }
+
+    await prisma.usersProfile.upsert({
+      where: { clerkUserId: req.auth.userId },
+      update: { lastActiveOrganizationId: organization_id },
+      create: { clerkUserId: req.auth.userId, lastActiveOrganizationId: organization_id },
+    })
+
+    return {
+      org_id: target.organizationId,
+      role: target.role,
+      name: target.organization?.name || "",
+    }
   })
 
   // POST /users/sync — sincroniza usuário do Clerk (substitui sync-clerk-user + sync-login)
@@ -97,14 +141,16 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     }
   }>("/users/sync", async (req, reply) => {
     const { clerk_user_id, email, name, avatar_url, organization_id } = req.body
+    if (!organization_id) {
+      return reply.code(400).send({ error: "organization_id is required" })
+    }
 
     const profile = await prisma.profile.upsert({
-      where: { clerkUserId: clerk_user_id },
+      where: { clerkUserId_organizationId: { clerkUserId: clerk_user_id, organizationId: organization_id } },
       update: {
         email,
         name,
         ...(avatar_url && { avatarUrl: avatar_url }),
-        ...(organization_id && { organizationId: organization_id }),
         updatedAt: new Date(),
       },
       create: {
@@ -284,8 +330,8 @@ export default async function usersRoutes(fastify: FastifyInstance) {
       if (!invite) return reply.code(404).send({ error: "Invitation not found or expired" })
 
       await prisma.profile.upsert({
-        where: { clerkUserId: req.body.clerk_user_id },
-        update: { organizationId: invite.organizationId, role: invite.role, updatedAt: new Date() },
+        where: { clerkUserId_organizationId: { clerkUserId: req.body.clerk_user_id, organizationId: invite.organizationId } },
+        update: { role: invite.role, updatedAt: new Date() },
         create: {
           clerkUserId: req.body.clerk_user_id,
           email: invite.email,
