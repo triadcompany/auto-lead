@@ -1,4 +1,54 @@
 import type { FastifyRequest, FastifyReply } from "fastify"
+import { prisma } from "./prisma.js"
+
+export type ActiveProfileResult = {
+  profile: { id: string; organizationId: string; role: string } | null
+  status: 401 | 403 | null
+  message: string | null
+}
+
+/**
+ * Um clerkUserId pode ter 1 Profile por organização (multi-org). Escolhe qual
+ * é a organização ativa desta requisição, nessa prioridade:
+ *   1. requestedOrgId (header X-Org-Id) — se pertencer ao usuário
+ *   2. UsersProfile.lastActiveOrganizationId — última organização usada
+ *   3. o profile mais antigo (fallback determinístico)
+ *
+ * `profile` vem null quando `status`/`message` estão preenchidos — confira
+ * `profile` antes de usar o resultado.
+ */
+export async function resolveActiveProfile(
+  clerkUserId: string,
+  requestedOrgId?: string
+): Promise<ActiveProfileResult> {
+  const profiles = await prisma.profile.findMany({
+    where: { clerkUserId, organizationId: { not: null } },
+    select: { id: true, organizationId: true, role: true },
+    orderBy: { createdAt: "asc" },
+  })
+
+  if (profiles.length === 0) {
+    return { profile: null, status: 401, message: "No organization found for user" }
+  }
+
+  let profile = requestedOrgId ? profiles.find((p) => p.organizationId === requestedOrgId) : undefined
+
+  if (requestedOrgId && !profile) {
+    return { profile: null, status: 403, message: "Not a member of this organization" }
+  }
+
+  if (!profile) {
+    const usersProfile = await prisma.usersProfile.findUnique({
+      where: { clerkUserId },
+      select: { lastActiveOrganizationId: true },
+    })
+    profile = profiles.find((p) => p.organizationId === usersProfile?.lastActiveOrganizationId)
+  }
+
+  if (!profile) profile = profiles[0]
+
+  return { profile: profile as { id: string; organizationId: string; role: string }, status: null, message: null }
+}
 
 export const orgScope = (req: FastifyRequest) => ({
   organizationId: (req as any).auth?.orgId as string,
