@@ -34,21 +34,29 @@ export function useUserOrganizations() {
     }
     setLoading(true);
     try {
-      let logoUrl: string | null = null;
-      try {
-        const orgData = await api.organizations.me() as any;
-        logoUrl = orgData?.logoUrl || orgData?.logo_url || null;
-      } catch { /* non-critical */ }
-
-      const org: UserOrganization = {
-        organization_id: profile.organization_id || orgId,
-        clerk_org_id: null,
-        name: orgName || 'Minha Empresa',
-        role: (profile.role as 'admin' | 'seller') || 'seller',
-        is_current: true,
-        logo_url: logoUrl,
-      };
-      setOrganizations([org]);
+      const orgs = await api.users.myOrganizations();
+      setOrganizations(
+        orgs.map((o) => ({
+          organization_id: o.organization_id,
+          clerk_org_id: null,
+          name: o.name,
+          role: o.role,
+          is_current: o.is_current,
+          logo_url: o.logo_url,
+        }))
+      );
+    } catch {
+      // Fallback: pelo menos a organização atual, pra não deixar o switcher vazio
+      setOrganizations([
+        {
+          organization_id: profile.organization_id || orgId,
+          clerk_org_id: null,
+          name: orgName || 'Minha Empresa',
+          role: (profile.role as 'admin' | 'seller') || 'seller',
+          is_current: true,
+          logo_url: null,
+        },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -68,6 +76,8 @@ export function useUserOrganizations() {
       if (target.organization_id === orgId) return;
       setSwitching(true);
       try {
+        await api.users.setActiveOrg(target.organization_id);
+
         if (target.clerk_org_id) {
           try {
             await setActive({ organization: target.clerk_org_id });
@@ -94,7 +104,7 @@ export function useUserOrganizations() {
         setSwitching(false);
       }
     },
-    [user?.id, orgId, setActive, switchActiveOrg, queryClient, navigate, toast, refreshProfile]
+    [user?.id, orgId, setActive, switchActiveOrg, queryClient, navigate, toast, refreshProfile, api]
   );
 
   return { organizations, loading, switching, switchOrg, reload: load };
