@@ -130,6 +130,35 @@ async function runMigrations() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`,
     `CREATE INDEX IF NOT EXISTS idx_meta_capi_logs_org ON meta_capi_logs (organization_id, created_at)`,
+    // Multi-organização: um clerk_user_id passa a poder ter 1 profile por organização
+    // (antes era único sozinho). Remove o índice único antigo — de nome variável,
+    // por isso a busca dinâmica em vez de DROP INDEX com nome fixo — e cria o composto.
+    `DO $$
+    DECLARE
+      r RECORD;
+      cname TEXT;
+    BEGIN
+      FOR r IN
+        SELECT ic.relname AS index_name, i.indexrelid
+        FROM pg_index i
+        JOIN pg_class ic ON ic.oid = i.indexrelid
+        JOIN pg_class tc ON tc.oid = i.indrelid
+        JOIN pg_attribute a ON a.attrelid = tc.oid AND a.attnum = i.indkey[0]
+        WHERE tc.relname = 'profiles'
+          AND i.indisunique
+          AND array_length(i.indkey, 1) = 1
+          AND a.attname = 'clerk_user_id'
+      LOOP
+        SELECT con.conname INTO cname FROM pg_constraint con WHERE con.conindid = r.indexrelid;
+        IF cname IS NOT NULL THEN
+          EXECUTE format('ALTER TABLE profiles DROP CONSTRAINT %I', cname);
+        ELSE
+          EXECUTE format('DROP INDEX IF EXISTS %I', r.index_name);
+        END IF;
+      END LOOP;
+    END $$`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS profiles_clerk_user_id_organization_id_key ON profiles (clerk_user_id, organization_id)`,
+    `ALTER TABLE users_profile ADD COLUMN IF NOT EXISTS last_active_organization_id UUID`,
   ]
   for (const sql of statements) {
     try {
