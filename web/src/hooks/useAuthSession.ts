@@ -84,12 +84,16 @@ export function useAuthSession(): UseAuthSessionReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Multi-org: toda chamada da API precisa saber qual organização está ativa —
-  // mantém o client (api.ts) sincronizado sempre que `org` muda.
-  useEffect(() => {
-    setActiveOrgId(org?.org_id ?? null);
-  }, [org?.org_id]);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+  // Multi-org: toda chamada da API precisa saber qual organização está ativa.
+  // Sincroniza o client (api.ts) de forma SÍNCRONA em todo lugar que `org` muda
+  // (não via useEffect — isso criava uma corrida onde invalidateQueries() disparava
+  // refetches antes do header X-Org-Id ser atualizado, buscando a org errada).
+  const applyOrg = useCallback((next: OrgInfo | null) => {
+    setOrg(next);
+    setActiveOrgId(next?.org_id ?? null);
+  }, []);
 
   const bootstrappingRef = useRef(false);
   const lastUserIdRef = useRef<string | null>(null);
@@ -141,20 +145,20 @@ export function useAuthSession(): UseAuthSessionReturn {
       if (data.needsOnboarding) {
         setNeedsOnboarding(true);
         setProfile(null);
-        setOrg(null);
+        applyOrg(null);
         return;
       }
 
       setProfile(toProfile(data.profile));
       setRole((data.org?.role as 'admin' | 'seller') || null);
-      setOrg(data.org ?? null);
+      applyOrg(data.org ?? null);
       setNeedsOnboarding(false);
     } catch (err: any) {
       setError(err instanceof Error ? err : new Error(err?.message || 'Bootstrap failed'));
     } finally {
       bootstrappingRef.current = false;
     }
-  }, [session]);
+  }, [session, applyOrg]);
 
   const refreshProfile = useCallback(async () => {
     if (!user) return;
@@ -182,10 +186,10 @@ export function useAuthSession(): UseAuthSessionReturn {
   }, [user, bootstrap]);
 
   const setActiveOrg = useCallback((next: OrgInfo) => {
-    setOrg(next);
+    applyOrg(next);
     setNeedsOnboarding(false);
     setError(null);
-  }, []);
+  }, [applyOrg]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -193,7 +197,7 @@ export function useAuthSession(): UseAuthSessionReturn {
     if (!user) {
       setProfile(null);
       setRole(null);
-      setOrg(null);
+      applyOrg(null);
       setLoading(false);
       setError(null);
       setNeedsOnboarding(false);
@@ -210,7 +214,7 @@ export function useAuthSession(): UseAuthSessionReturn {
         setError(err instanceof Error ? err : new Error(err?.message || 'Bootstrap failed'));
       })
       .finally(() => setLoading(false));
-  }, [user, isLoaded, bootstrap]);
+  }, [user, isLoaded, bootstrap, applyOrg]);
 
   return useMemo(() => ({
     profile,
