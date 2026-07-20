@@ -105,12 +105,13 @@ model OrgMember {
 
 /// Clerk user profile mirror (synced via webhook)
 model UsersProfile {
-  clerkUserId String   @id @map("clerk_user_id")
-  email       String?
-  fullName    String?  @map("full_name")
-  imageUrl    String?  @map("image_url")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  clerkUserId               String   @id @map("clerk_user_id")
+  email                     String?
+  fullName                  String?  @map("full_name")
+  imageUrl                  String?  @map("image_url")
+  lastActiveOrganizationId  String?  @map("last_active_organization_id") @db.Uuid
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                 DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
   @@map("users_profile")
 }
@@ -200,7 +201,7 @@ model Organization {
 model Profile {
   id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId               String?   @unique @map("user_id") @db.Uuid   // legacy Supabase auth
-  clerkUserId          String?   @unique @map("clerk_user_id")
+  clerkUserId          String?   @map("clerk_user_id")   // não é mais único sozinho — um usuário pode ter 1 Profile por organização
   name                 String
   email                String
   role                 AppRole   @default(seller)
@@ -233,6 +234,7 @@ model Profile {
   toTransfers          ConversationTransfer[] @relation("TransferTo")
   conversationEvents   ConversationEvent[] @relation("EventPerformer")
 
+  @@unique([clerkUserId, organizationId])
   @@map("profiles")
 }
 
