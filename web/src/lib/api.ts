@@ -19,6 +19,14 @@ const BASE_URL = resolveBaseUrl()
 
 export type ApiError = { status: number; message: string }
 
+// Organização ativa (multi-org) — setada pelo AuthContext sempre que muda,
+// lida de forma síncrona aqui pra ir em toda chamada sem reescrever a
+// assinatura de todo call site do client.
+let activeOrgId: string | null = null
+export function setActiveOrgId(orgId: string | null) {
+  activeOrgId = orgId
+}
+
 async function request<T>(
   getToken: () => Promise<string | null>,
   method: string,
@@ -40,6 +48,7 @@ async function request<T>(
     headers: {
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(activeOrgId ? { "X-Org-Id": activeOrgId } : {}),
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   })
@@ -64,6 +73,7 @@ async function uploadForm<T>(
     method: "POST",
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(activeOrgId ? { "X-Org-Id": activeOrgId } : {}),
       // NÃO setar Content-Type — browser adiciona boundary automaticamente
     },
     body: formData,
@@ -122,6 +132,10 @@ export function createApi(getToken: () => Promise<string | null>) {
         get<any>(`/invitations/${token}`),
       acceptInvitation: (token: string, clerk_user_id: string) =>
         post<any>(`/users/invitations/${token}/accept`, { clerk_user_id }),
+      myOrganizations: () =>
+        get<Array<{ organization_id: string; name: string; role: "admin" | "seller"; logo_url: string | null; is_current: boolean }>>("/users/me/organizations"),
+      setActiveOrg: (organization_id: string) =>
+        post<{ org_id: string; role: string; name: string }>("/users/me/active-org", { organization_id }),
     },
 
     // ── Organizations ────────────────────────────────────────────────────────
