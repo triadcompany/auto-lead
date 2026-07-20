@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useUser, useSession } from '@clerk/clerk-react';
+import { setActiveOrgId } from '@/lib/api';
 
 function resolveApiUrl(): string {
   const env = import.meta.env.VITE_API_URL as string
@@ -82,6 +83,12 @@ export function useAuthSession(): UseAuthSessionReturn {
   const [org, setOrg] = useState<OrgInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  // Multi-org: toda chamada da API precisa saber qual organização está ativa —
+  // mantém o client (api.ts) sincronizado sempre que `org` muda.
+  useEffect(() => {
+    setActiveOrgId(org?.org_id ?? null);
+  }, [org?.org_id]);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
   const bootstrappingRef = useRef(false);
