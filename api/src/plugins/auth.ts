@@ -1,6 +1,6 @@
 import fp from "fastify-plugin"
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify"
-import { prisma } from "../lib/prisma.js"
+import { resolveActiveProfile } from "../lib/auth.js"
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -52,17 +52,14 @@ async function authPlugin(fastify: FastifyInstance) {
       })
 
       const userId = payload.sub
+      const requestedOrgId = req.headers["x-org-id"] as string | undefined
 
-      const profile = await prisma.profile.findFirst({
-        where: { clerkUserId: userId },
-        select: { id: true, organizationId: true, role: true },
-      })
-
-      if (!profile?.organizationId) {
-        return reply.code(401).send({ error: "No organization found for user" })
+      const result = await resolveActiveProfile(userId, requestedOrgId)
+      if (!result.profile) {
+        return reply.code(result.status || 401).send({ error: result.message })
       }
 
-      req.auth = { userId, profileId: profile.id, orgId: profile.organizationId, role: profile.role }
+      req.auth = { userId, profileId: result.profile.id, orgId: result.profile.organizationId, role: result.profile.role }
     } catch {
       return reply.code(401).send({ error: "Invalid token" })
     }
