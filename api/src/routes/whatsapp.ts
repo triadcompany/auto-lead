@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { prisma } from "../lib/prisma.js"
-import { orgScope } from "../lib/auth.js"
+import { orgScope, resolveActiveProfile } from "../lib/auth.js"
 import { emit } from "../plugins/socket.js"
 import { findPausedReplyRouterRun, matchReply, resumeRun, fireAutomationTrigger } from "../lib/automationRunner.js"
 import { enrichLeadFromCtwa } from "../lib/metaCtwa.js"
@@ -476,12 +476,9 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     try {
       const { verifyToken } = await import("@clerk/backend")
       const payload = await verifyToken(authHeader.slice(7), { secretKey: process.env.CLERK_SECRET_KEY })
-      const profile = await prisma.profile.findFirst({
-        where: { clerkUserId: payload.sub },
-        select: { organizationId: true },
-      })
-      if (!profile?.organizationId) return reply.code(401).send({ error: "No organization found" })
-      orgId = profile.organizationId
+      const result = await resolveActiveProfile(payload.sub, req.headers["x-org-id"] as string | undefined)
+      if (!result.profile) return reply.code(result.status || 401).send({ error: result.message })
+      orgId = result.profile.organizationId
     } catch {
       return reply.code(401).send({ error: "Invalid token" })
     }
