@@ -9,6 +9,7 @@ export function UpdatePrompt() {
 
   useEffect(() => {
     let intervalId: number | undefined;
+    let onVisibilityChange: (() => void) | undefined;
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.ready.then((reg) => {
@@ -29,16 +30,28 @@ export function UpdatePrompt() {
           }
         });
 
-        // Check for updates every hour
+        // Check for updates every hour...
         intervalId = window.setInterval(() => {
           reg.update();
         }, 60 * 60 * 1000);
+
+        // ...e também sempre que a aba volta a ficar visível (usuário troca de
+        // aba/app e volta) — reduz a demora de até 1h sem depender só do polling.
+        onVisibilityChange = () => {
+          if (document.visibilityState === 'visible') {
+            reg.update();
+          }
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
       });
     }
 
     return () => {
       if (intervalId) {
         window.clearInterval(intervalId);
+      }
+      if (onVisibilityChange) {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
       }
     };
   }, []);
