@@ -105,14 +105,6 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
     return () => { cancelled = true; };
   }, [pipelines, api]);
 
-  // DIAGNÓSTICO TEMPORÁRIO — remover depois de achar o bug do Select vazio
-  useEffect(() => {
-    console.log("[lead-edit-debug] lead.seller_id:", lead?.seller_id, "| lead.stage_id:", lead?.stage_id);
-    console.log("[lead-edit-debug] profiles ids:", profiles.map((p) => p.id));
-    console.log("[lead-edit-debug] stages ids:", stages.map((s) => s.id));
-    console.log("[lead-edit-debug] pipelines:", pipelines.map((p) => p.id));
-  }, [lead, profiles, stages, pipelines]);
-
   useEffect(() => {
     if (lead) {
       setFormData({
@@ -237,7 +229,7 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
                 <Label htmlFor="edit-seller" className="font-poppins font-medium">
                   Vendedor Responsável *
                 </Label>
-                <Select value={formData.seller_id} onValueChange={(value) => handleInputChange("seller_id", value)}>
+                <Select key={`seller-${profiles.length}`} value={formData.seller_id} onValueChange={(value) => handleInputChange("seller_id", value)}>
                   <SelectTrigger className="font-poppins">
                     <SelectValue placeholder="Selecione o vendedor" />
                   </SelectTrigger>
@@ -283,7 +275,7 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
                 <Label htmlFor="edit-stage" className="font-poppins font-medium">
                   Etapa do Lead *
                 </Label>
-                <Select value={formData.stage_id} onValueChange={(value) => handleInputChange("stage_id", value)}>
+                <Select key={`stage-${stages.length}`} value={formData.stage_id} onValueChange={(value) => handleInputChange("stage_id", value)}>
                   <SelectTrigger className="font-poppins">
                     <SelectValue placeholder="Selecione a etapa" />
                   </SelectTrigger>
