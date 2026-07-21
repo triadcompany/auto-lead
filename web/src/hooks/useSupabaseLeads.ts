@@ -31,6 +31,12 @@ export interface Lead {
   meta_adset_name?: string;
   meta_ad_id?: string;
   meta_ad_name?: string;
+  fbc?: string;
+  ctwa_click_id?: string;
+  ad_source_id?: string;
+  ad_source_url?: string;
+  ad_media_url?: string;
+  ad_thumbnail_url?: string;
   seller_name?: string;
   stage_name?: string;
   stage_position?: number;
@@ -77,6 +83,12 @@ function normalizeLead(l: any): Lead {
     meta_adset_name: l.metaAdsetName || l.meta_adset_name,
     meta_ad_id: l.metaAdId || l.meta_ad_id,
     meta_ad_name: l.metaAdName || l.meta_ad_name,
+    fbc: l.fbc,
+    ctwa_click_id: l.ctwaClickId || l.ctwa_click_id,
+    ad_source_id: l.adSourceId || l.ad_source_id,
+    ad_source_url: l.adSourceUrl || l.ad_source_url,
+    ad_media_url: l.adMediaUrl || l.ad_media_url,
+    ad_thumbnail_url: l.adThumbnailUrl || l.ad_thumbnail_url,
     seller_name: l.sellerName || l.seller_name,
     stage_name: l.stageName || l.stage_name,
     stage_position: l.stagePosition ?? l.stage_position,
