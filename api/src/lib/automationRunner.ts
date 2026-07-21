@@ -392,6 +392,51 @@ async function runFromNode(
         }
       }
     }
+    // Salva a mensagem no nosso banco também — sem isso, ela nunca aparecia
+    // no Inbox: o envio ia direto pra Evolution API sem ficar registrado
+    // aqui, dependendo (sem garantia nenhuma) do webhook ecoar de volta.
+    if (msgOk) {
+      try {
+        const orgId: string = ctx.organization_id || ""
+        const leadId: string | undefined = ctx.lead_id
+        if (orgId && leadId) {
+          const conversation = await prisma.conversation.findFirst({
+            where: { organizationId: orgId, leadId },
+            orderBy: { lastMessageAt: "desc" },
+            select: { id: true, channel: true },
+          })
+          if (conversation) {
+            const sentBody =
+              msgType === "text" ? renderTemplate(config.text || "", ctx) :
+              msgType === "document" ? (config.filename || "Documento") :
+              renderTemplate(config.caption || "", ctx)
+            const savedMessage = await prisma.message.create({
+              data: {
+                organizationId: orgId,
+                conversationId: conversation.id,
+                direction: "outbound",
+                body: sentBody,
+                messageType: msgType,
+                mediaUrl: config.mediaUrl || null,
+                channel: conversation.channel,
+                senderName: "Automação",
+              },
+            })
+            await prisma.conversation.update({
+              where: { id: conversation.id },
+              data: {
+                lastMessageAt: new Date(),
+                lastMessagePreview: sentBody.substring(0, 100) || `[${msgType}]`,
+              },
+            })
+            emit(orgId, "message:created", { conversationId: conversation.id, message: savedMessage })
+          }
+        }
+      } catch (e) {
+        console.error("[automationRunner] falha ao salvar mensagem enviada no banco:", e)
+      }
+    }
+
     await recordStep(runId, nodeId, "message", msgOk ? "completed" : "failed", { label: nodeLabel(node), error: msgErr })
     // continue to next node
     const nextEdge = edges.find((e: any) => e.source === nodeId)
