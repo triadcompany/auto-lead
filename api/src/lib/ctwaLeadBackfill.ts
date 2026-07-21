@@ -1,7 +1,7 @@
 import { prisma } from "./prisma.js"
 import { enrichLeadFromCtwa } from "./metaCtwa.js"
 
-const FLAG = "ctwa_lead_enrichment_backfill_v1"
+const FLAG = "ctwa_lead_enrichment_backfill_v2"
 
 /**
  * Leads antigos que vieram de um clique em anúncio (CTWA) mas nunca foram
