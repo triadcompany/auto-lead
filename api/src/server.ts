@@ -169,6 +169,15 @@ async function runMigrations() {
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS ad_source_url TEXT`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS ad_media_url TEXT`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS ad_thumbnail_url TEXT`,
+    // DIAGNÓSTICO TEMPORÁRIO — remover junto com o insert em whatsapp.ts depois
+    // de confirmar o formato real do payload do webhook da Evolution API.
+    `CREATE TABLE IF NOT EXISTS debug_webhook_log (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event TEXT,
+      instance_name TEXT,
+      payload JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`,
   ]
   for (const sql of statements) {
     try {
