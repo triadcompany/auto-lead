@@ -32,6 +32,11 @@ export interface InboxThread {
   is_group?: boolean;
   group_name?: string | null;
   group_participants_count?: number | null;
+  ctwa_ad_id?: string | null;
+  ctwa_clid?: string | null;
+  ctwa_source_url?: string | null;
+  ctwa_media_url?: string | null;
+  ctwa_thumbnail_url?: string | null;
 }
 
 export interface InboxMessage {
