@@ -57,6 +57,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { CreateLeadFromInboxModal } from '@/components/inbox/CreateLeadFromInboxModal';
+import { InboxLeadPanel } from '@/components/inbox/InboxLeadPanel';
 import { AiSuggestionPanel } from '@/components/inbox/AiSuggestionPanel';
 import { ConversationIntelligenceBadge } from '@/components/inbox/ConversationIntelligenceBadge';
 import { AudioPlayer } from '@/components/inbox/AudioPlayer';
@@ -805,6 +806,7 @@ export default function InboxPage() {
   const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [createLeadModalOpen, setCreateLeadModalOpen] = useState(false);
+  const [leadPanelOpen, setLeadPanelOpen] = useState(false);
   const [resetFirstTouchOpen, setResetFirstTouchOpen] = useState(false);
   const [resetAlsoDeleteLead, setResetAlsoDeleteLead] = useState(false);
   const [resettingFirstTouch, setResettingFirstTouch] = useState(false);
@@ -1200,7 +1202,11 @@ export default function InboxPage() {
               </Button>
 
               {/* ── LEFT: Identification ── */}
-              <div className="flex items-center gap-2.5 min-w-0 flex-shrink-0">
+              <div
+                className={`flex items-center gap-2.5 min-w-0 flex-shrink-0 ${selectedThread.lead_id ? 'cursor-pointer hover:opacity-80' : ''}`}
+                onClick={() => { if (selectedThread.lead_id) setLeadPanelOpen(true); }}
+                title={selectedThread.lead_id ? 'Ver e editar dados do lead' : undefined}
+              >
                 <Avatar className="h-8 w-8">
                   {selectedThread.profile_picture_url && (
                     <AvatarImage src={selectedThread.profile_picture_url} alt={selectedContact?.name || ''} />
@@ -1593,6 +1599,13 @@ export default function InboxPage() {
           onSave={(data) => createLeadFromConversation(selectedThread.id, data)}
         />
       )}
+
+      {/* Painel lateral do lead (dados + anúncio), aberto ao clicar no nome do contato */}
+      <InboxLeadPanel
+        leadId={selectedThread?.lead_id || null}
+        open={leadPanelOpen}
+        onOpenChange={setLeadPanelOpen}
+      />
 
       {/* Reset First Touch Dialog */}
       <AlertDialog open={resetFirstTouchOpen} onOpenChange={setResetFirstTouchOpen}>
