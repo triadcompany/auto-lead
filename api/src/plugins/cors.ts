@@ -16,7 +16,7 @@ async function cors(fastify: FastifyInstance) {
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "x-n8n-signature", "x-evolution-signature"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-n8n-signature", "x-evolution-signature", "x-org-id"],
   })
 }
 
