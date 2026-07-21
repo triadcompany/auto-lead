@@ -4,7 +4,14 @@ export async function enrichLeadFromCtwa(
   orgId: string,
   leadId: string,
   adId: string,
-  opts?: { fbc?: string | null; accessToken?: string | null }
+  opts?: {
+    fbc?: string | null
+    accessToken?: string | null
+    clickId?: string | null
+    sourceUrl?: string | null
+    mediaUrl?: string | null
+    thumbnailUrl?: string | null
+  }
 ): Promise<void> {
   let token = opts?.accessToken
   if (!token) {
@@ -30,7 +37,12 @@ export async function enrichLeadFromCtwa(
         metaAdsetName: data.adset?.name || null,
         metaCampaignId: data.adset?.campaign?.id || null,
         metaCampaignName: data.adset?.campaign?.name || null,
+        adSourceId: adId,
         ...(opts?.fbc ? { fbc: opts.fbc } : {}),
+        ...(opts?.clickId ? { ctwaClickId: opts.clickId } : {}),
+        ...(opts?.sourceUrl ? { adSourceUrl: opts.sourceUrl } : {}),
+        ...(opts?.mediaUrl ? { adMediaUrl: opts.mediaUrl } : {}),
+        ...(opts?.thumbnailUrl ? { adThumbnailUrl: opts.thumbnailUrl } : {}),
       },
     })
   } catch (e) {
