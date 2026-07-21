@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSidebarVisibility } from "@/contexts/SidebarVisibilityContext";
 
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -55,7 +56,15 @@ export default function Automacoes() {
     listRuns, listLogs, getRunStats, triggerWorker,
   } = useAutomations();
 
+  const { setHidden: setSidebarHidden } = useSidebarVisibility();
   const [editingAutomation, setEditingAutomation] = useState<Automation | null>(null);
+
+  // Esconde a nav lateral enquanto o editor de fluxo estiver aberto — mais
+  // espaço horizontal pra montar a automação. Restaura ao sair/desmontar.
+  useEffect(() => {
+    setSidebarHidden(!!editingAutomation);
+    return () => setSidebarHidden(false);
+  }, [editingAutomation, setSidebarHidden]);
   const [currentFlow, setCurrentFlow] = useState<AutomationFlow | null>(null);
   const [flowLoading, setFlowLoading] = useState(false);
   const [createDialog, setCreateDialog] = useState(false);
