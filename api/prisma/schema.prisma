@@ -1823,3 +1823,17 @@ model SystemFlag {
 
   @@map("system_flags")
 }
+
+// DIAGNÓSTICO TEMPORÁRIO — remover junto com o insert em whatsapp.ts depois
+// de confirmar o formato real do payload do webhook da Evolution API.
+// Precisa estar declarada aqui pelo mesmo motivo do SystemFlag acima —
+// senão o db push apaga a tabela (e o que foi capturado) a cada deploy.
+model DebugWebhookLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event        String?
+  instanceName String?  @map("instance_name")
+  payload      Json?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("debug_webhook_log")
+}
