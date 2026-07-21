@@ -791,11 +791,19 @@ export default function InboxPage() {
     }
   }, [orgSettings.inbox_enabled, orgSettingsLoading, navigate]);
 
-  // Auto-select thread by phone query param (e.g. from Kanban)
+  // Auto-select thread by phone query param (e.g. from Kanban).
+  // Compara pelos últimos 8 dígitos (número local, sem DDD/país) em vez do
+  // telefone completo — o "nono dígito" pode estar presente no lead.phone e
+  // ausente no contact_phone da conversa (ou vice-versa), então comparar a
+  // string inteira falha silenciosamente mesmo sendo o mesmo contato.
   useEffect(() => {
     const phoneParam = searchParams.get('phone');
     if (phoneParam && threads.length > 0 && !loadingThreads) {
-      const match = threads.find(t => (t.contact_phone || '').replace(/\D/g, '').includes(phoneParam));
+      const paramTail = phoneParam.replace(/\D/g, '').slice(-8);
+      const match = threads.find(t => {
+        const threadTail = (t.contact_phone || '').replace(/\D/g, '').slice(-8);
+        return threadTail.length === 8 && threadTail === paramTail;
+      });
       if (match) {
         selectThread(match.id);
       }
