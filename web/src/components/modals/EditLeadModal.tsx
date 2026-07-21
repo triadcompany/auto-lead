@@ -409,58 +409,6 @@ export function EditLeadModal({ open, onOpenChange, lead, onSave, onDelete }: Ed
             </div>
           </div>
 
-          {/* Seção: Rastreamento de Anúncio */}
-          <div className="space-y-4">
-            <h3 className="font-poppins font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-              Rastreamento Meta Ads
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-campaign" className="font-poppins font-medium flex items-center gap-1">
-                  <Megaphone className="h-3 w-3 text-muted-foreground" />
-                  Campanha
-                </Label>
-                <Input
-                  id="edit-campaign"
-                  value={formData.meta_campaign_name}
-                  onChange={(e) => handleInputChange("meta_campaign_name", e.target.value)}
-                  placeholder="Nome da campanha"
-                  className="font-poppins"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-adset" className="font-poppins font-medium">
-                  Conjunto de Anúncios
-                </Label>
-                <Input
-                  id="edit-adset"
-                  value={formData.meta_adset_name}
-                  onChange={(e) => handleInputChange("meta_adset_name", e.target.value)}
-                  placeholder="Nome do conjunto"
-                  className="font-poppins"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-ad" className="font-poppins font-medium">
-                  Anúncio
-                </Label>
-                <Input
-                  id="edit-ad"
-                  value={formData.meta_ad_name}
-                  onChange={(e) => handleInputChange("meta_ad_name", e.target.value)}
-                  placeholder="Nome do anúncio"
-                  className="font-poppins"
-                />
-              </div>
-            </div>
-            {(lead?.meta_campaign_id || lead?.meta_adset_id || lead?.meta_ad_id) && (
-              <p className="text-xs text-muted-foreground font-poppins">
-                IDs: {[lead.meta_campaign_id && `Campanha: ${lead.meta_campaign_id}`, lead.meta_adset_id && `Conjunto: ${lead.meta_adset_id}`, lead.meta_ad_id && `Anúncio: ${lead.meta_ad_id}`].filter(Boolean).join(' · ')}
-              </p>
-            )}
-          </div>
-
           {/* Observações */}
           <div className="space-y-2">
             <Label htmlFor="edit-observations" className="font-poppins font-medium">
