@@ -105,14 +105,15 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
     return () => { cancelled = true; };
   }, [pipelines, api]);
 
-  const [effectLog, setEffectLog] = useState("EFFECT NAO RODOU AINDA");
+  const [effectLog, setEffectLog] = useState<string[]>(["EFFECT NAO RODOU AINDA"]);
+  const renderCountRef = React.useRef(0);
+  renderCountRef.current += 1;
 
   useEffect(() => {
-    setEffectLog(
-      `EFFECT rodou em ${new Date().toISOString()} | lead=${lead ? "existe" : "NULL"} | lead.seller_id=${JSON.stringify(lead?.seller_id)} | lead.stage_id=${JSON.stringify(lead?.stage_id)}`
-    );
+    const entry = `#${renderCountRef.current} rodou em ${new Date().toISOString()} | lead=${lead ? "existe" : "NULL"} | seller_id=${JSON.stringify(lead?.seller_id)} | stage_id=${JSON.stringify(lead?.stage_id)}`;
+    setEffectLog((prev) => [...prev.slice(-4), entry]);
     if (lead) {
-      setFormData({
+      const next = {
         name: lead.name,
         email: lead.email || "",
         phone: lead.phone,
@@ -129,7 +130,8 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
         meta_campaign_name: lead.meta_campaign_name || "",
         meta_adset_name: lead.meta_adset_name || "",
         meta_ad_name: lead.meta_ad_name || "",
-      });
+      };
+      setFormData(next);
     }
   }, [lead]);
 
@@ -182,7 +184,12 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
 
       <TabsContent value="dados" className="mt-4">
         <form onSubmit={handleSubmit} className="space-y-6">
-          <p className="text-xs text-red-500 break-all bg-red-50 p-2 rounded">{effectLog}</p>
+          <div className="text-xs text-red-500 break-all bg-red-50 p-2 rounded space-y-1">
+            <p>RENDER ATUAL #{renderCountRef.current} | formData.seller_id={JSON.stringify(formData.seller_id)} | formData.stage_id={JSON.stringify(formData.stage_id)}</p>
+            {effectLog.map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
           {/* Seção: Informações Básicas */}
           <div className="space-y-4">
             <h3 className="font-poppins font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
