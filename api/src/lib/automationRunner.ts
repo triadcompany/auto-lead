@@ -132,18 +132,23 @@ async function sendWhatsAppMedia(
   mediaType: "image" | "video" | "document" | "audio",
   mediaUrl: string,
   opts: { caption?: string; filename?: string; asVoiceNote?: boolean } = {}
-): Promise<void> {
+): Promise<boolean> {
   const base = process.env.EVOLUTION_API_URL?.replace(/\/$/, "") || ""
   const apiKey = process.env.EVOLUTION_API_KEY || ""
   const headers = { "Content-Type": "application/json", apikey: apiKey }
 
   if (mediaType === "audio" && opts.asVoiceNote !== false) {
-    await fetch(`${base}/message/sendWhatsAppAudio/${instanceName}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ number: phone, audio: mediaUrl }),
-    }).catch((e) => console.error("[automationRunner] sendAudio failed:", e))
-    return
+    try {
+      const res = await fetch(`${base}/message/sendWhatsAppAudio/${instanceName}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ number: phone, audio: mediaUrl }),
+      })
+      return res.ok
+    } catch (e) {
+      console.error("[automationRunner] sendAudio failed:", e)
+      return false
+    }
   }
 
   const body: Record<string, any> = {
@@ -154,11 +159,17 @@ async function sendWhatsAppMedia(
   if (opts.caption) body.caption = opts.caption
   if (opts.filename) body.fileName = opts.filename
 
-  await fetch(`${base}/message/sendMedia/${instanceName}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  }).catch((e) => console.error("[automationRunner] sendMedia failed:", e))
+  try {
+    const res = await fetch(`${base}/message/sendMedia/${instanceName}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    })
+    return res.ok
+  } catch (e) {
+    console.error("[automationRunner] sendMedia failed:", e)
+    return false
+  }
 }
 
 // ── registro de passos da execução (para "Detalhes da Execução") ───────────────
@@ -329,7 +340,13 @@ async function runFromNode(
   }
 
   if (nodeType === "message") {
-    const phone: string = ctx.lead_phone || ctx.phone || ""
+    // Telefone do lead vem cru (como foi cadastrado/recebido do webhook), sem
+    // o 55 na frente necessariamente — a Evolution API precisa do formato
+    // completo (DDI+DDD+número) pra entregar de verdade, senão aceita a
+    // requisição (200 OK) mas a mensagem nunca chega. Mesmo bug já corrigido
+    // nos disparos em massa (broadcasts.ts) — aqui usa o mesmo normalizador
+    // já existente neste arquivo (toE164Brazil).
+    const phone: string = toE164Brazil(ctx.lead_phone || ctx.phone || "")
     const instanceName: string = ctx.instance_name || ""
     const msgType: string = config.messageType || "text"
 
@@ -346,15 +363,33 @@ async function runFromNode(
       } else if (msgType === "image" || msgType === "video") {
         const mediaUrl: string = config.mediaUrl || ""
         const caption = renderTemplate(config.caption || "", ctx)
-        if (mediaUrl) await sendWhatsAppMedia(instanceName, phone, msgType, mediaUrl, { caption })
+        if (mediaUrl) {
+          msgOk = await sendWhatsAppMedia(instanceName, phone, msgType, mediaUrl, { caption })
+          if (!msgOk) msgErr = "Falha ao enviar pela Evolution"
+        } else {
+          msgOk = false
+          msgErr = "Sem URL de mídia configurada"
+        }
       } else if (msgType === "audio") {
         const mediaUrl: string = config.mediaUrl || ""
-        if (mediaUrl) await sendWhatsAppMedia(instanceName, phone, "audio", mediaUrl, { asVoiceNote: config.asVoiceNote ?? true })
+        if (mediaUrl) {
+          msgOk = await sendWhatsAppMedia(instanceName, phone, "audio", mediaUrl, { asVoiceNote: config.asVoiceNote ?? true })
+          if (!msgOk) msgErr = "Falha ao enviar pela Evolution"
+        } else {
+          msgOk = false
+          msgErr = "Sem URL de áudio configurada"
+        }
       } else if (msgType === "document") {
         const mediaUrl: string = config.mediaUrl || ""
         const caption: string = config.caption || ""
         const filename: string = config.filename || ""
-        if (mediaUrl) await sendWhatsAppMedia(instanceName, phone, "document", mediaUrl, { caption, filename })
+        if (mediaUrl) {
+          msgOk = await sendWhatsAppMedia(instanceName, phone, "document", mediaUrl, { caption, filename })
+          if (!msgOk) msgErr = "Falha ao enviar pela Evolution"
+        } else {
+          msgOk = false
+          msgErr = "Sem URL de documento configurada"
+        }
       }
     }
     await recordStep(runId, nodeId, "message", msgOk ? "completed" : "failed", { label: nodeLabel(node), error: msgErr })
