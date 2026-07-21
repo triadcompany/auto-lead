@@ -7,6 +7,52 @@ import { fireAutomationTrigger } from "../lib/automationRunner.js"
 import { enrichLeadFromCtwa } from "../lib/metaCtwa.js"
 import { logLeadActivity, computeLeadScore } from "../lib/leadActivity.js"
 
+// Converte um Lead do Prisma (camelCase) pro formato snake_case que o
+// frontend espera (interface Lead em web/src/hooks/useSupabaseLeads.ts).
+// Sem isso, campos como sellerId/stageId/valorNegocio/metaCampaignName
+// chegam undefined no front mesmo com dado correto no banco.
+function serializeLead(l: any) {
+  return {
+    id: l.id,
+    name: l.name,
+    email: l.email,
+    phone: l.phone,
+    seller_id: l.sellerId,
+    source: l.source,
+    interest: l.interest,
+    observations: l.observations,
+    stage_id: l.stageId,
+    pipeline_id: l.pipelineId,
+    created_at: l.createdAt,
+    updated_at: l.updatedAt,
+    created_by: l.createdBy,
+    valor_negocio: l.valorNegocio,
+    servico: l.servico,
+    cidade: l.cidade,
+    estado: l.estado,
+    status: l.status,
+    tags: l.tags,
+    score: l.score,
+    fbc: l.fbc,
+    fbp: l.fbp,
+    meta_campaign_id: l.metaCampaignId,
+    meta_campaign_name: l.metaCampaignName,
+    meta_adset_id: l.metaAdsetId,
+    meta_adset_name: l.metaAdsetName,
+    meta_ad_id: l.metaAdId,
+    meta_ad_name: l.metaAdName,
+    ctwa_click_id: l.ctwaClickId,
+    ad_source_id: l.adSourceId,
+    ad_source_url: l.adSourceUrl,
+    ad_media_url: l.adMediaUrl,
+    ad_thumbnail_url: l.adThumbnailUrl,
+    stage_name: l.stage?.name ?? l.stage_name ?? null,
+    stage_color: l.stage?.color ?? l.stage_color ?? null,
+    stage_position: l.stage?.position ?? l.stage_position ?? null,
+    seller_name: l.seller?.name ?? l.seller_name ?? null,
+  }
+}
+
 export default async function leadsRoutes(fastify: FastifyInstance) {
   // GET /leads — lista leads da org com filtros (substitui get_org_leads RPC)
   fastify.get<{
@@ -62,15 +108,7 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
           seller: { select: { name: true } },
         },
       })
-      return leads.map((l: any) => ({
-        ...l,
-        stage_name: l.stage?.name ?? null,
-        stage_color: l.stage?.color ?? null,
-        stage_position: l.stage?.position ?? null,
-        seller_name: l.seller?.name ?? null,
-        stage: undefined,
-        seller: undefined,
-      }))
+      return leads.map(serializeLead)
     } catch (err) {
       fastify.log.error({ err, query: req.query }, "GET /leads failed")
       return reply.code(500).send({ error: "Failed to list leads", detail: String(err) })
@@ -81,9 +119,13 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: { id: string } }>("/leads/:id", async (req, reply) => {
     const lead = await prisma.lead.findFirst({
       where: { id: req.params.id, ...orgScope(req) },
+      include: {
+        stage: { select: { name: true, color: true, position: true } },
+        seller: { select: { name: true } },
+      },
     })
     if (!lead) return reply.code(404).send({ error: "Not found" })
-    return lead
+    return serializeLead(lead)
   })
 
   // POST /leads
@@ -123,7 +165,7 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         performedBy: req.auth.profileId,
       })
     )
-    emit(req.auth.orgId, "lead:created", { ...lead, stage_name: null })
+    emit(req.auth.orgId, "lead:created", serializeLead(lead))
     setImmediate(() =>
       fireAutomationTrigger(req.auth.orgId, "lead_created", lead.id, {
         phone: lead.phone,
@@ -155,7 +197,7 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         }
       })
     }
-    return reply.code(201).send(lead)
+    return reply.code(201).send(serializeLead(lead))
   })
 
   // PATCH /leads/:id — atualiza lead (substitui update_lead_rpc)
@@ -194,8 +236,15 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
       if (b.meta_adset_id !== undefined) data.metaAdsetId = b.meta_adset_id
       if (b.meta_ad_id !== undefined) data.metaAdId = b.meta_ad_id
 
-      const lead = await prisma.lead.update({ where: { id: req.params.id }, data })
-      emit(req.auth.orgId, "lead:updated", lead)
+      const lead = await prisma.lead.update({
+        where: { id: req.params.id },
+        data,
+        include: {
+          stage: { select: { name: true, color: true, position: true } },
+          seller: { select: { name: true } },
+        },
+      })
+      emit(req.auth.orgId, "lead:updated", serializeLead(lead))
       const newSellerId = b.seller_id || b.sellerId
       if (newSellerId && newSellerId !== existing.sellerId) {
         setImmediate(async () => {
@@ -218,7 +267,7 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
           await prisma.lead.update({ where: { id: lead.id }, data: { score: newScore } }).catch(() => null)
         }
       })
-      return lead
+      return serializeLead(lead)
     }
   )
 
