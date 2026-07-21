@@ -160,6 +160,15 @@ async function runMigrations() {
     `CREATE UNIQUE INDEX IF NOT EXISTS profiles_clerk_user_id_organization_id_key ON profiles (clerk_user_id, organization_id)`,
     `ALTER TABLE users_profile ADD COLUMN IF NOT EXISTS last_active_organization_id UUID`,
     `CREATE TABLE IF NOT EXISTS system_flags (key TEXT PRIMARY KEY, done_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
+    // Painel "Informações de anúncios" no lead — campos CTWA hoje descartados no webhook
+    `ALTER TABLE conversations ADD COLUMN IF NOT EXISTS ctwa_source_url TEXT`,
+    `ALTER TABLE conversations ADD COLUMN IF NOT EXISTS ctwa_media_url TEXT`,
+    `ALTER TABLE conversations ADD COLUMN IF NOT EXISTS ctwa_thumbnail_url TEXT`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS ctwa_click_id TEXT`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS ad_source_id TEXT`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS ad_source_url TEXT`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS ad_media_url TEXT`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS ad_thumbnail_url TEXT`,
   ]
   for (const sql of statements) {
     try {
