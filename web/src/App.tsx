@@ -72,11 +72,13 @@ const App = () => {
   useEffect(() => {
     // Register service worker for PWA — only in production
     if ('serviceWorker' in navigator && import.meta.env.PROD) {
-      let hasReloadedForNewWorker = false;
-      // Só recarrega se JÁ havia um SW controlando a página (ou seja, é uma
-      // ATUALIZAÇÃO aceita pelo usuário) — nunca na primeira instalação.
-      const hadController = !!navigator.serviceWorker.controller;
-
+      // NÃO recarrega aqui em resposta a "controllerchange" — esse evento
+      // dispara em TODAS as abas abertas do site quando QUALQUER uma delas
+      // aceita a atualização, o que recarregava abas sozinhas sem o usuário
+      // ter clicado em nada nelas. O reload correto (só na aba onde o
+      // usuário realmente clicou "Atualizar Agora") já é feito pelo
+      // UpdatePrompt, que espera o worker daquela aba especificamente ficar
+      // "activated" antes de recarregar.
       navigator.serviceWorker
         .register('/sw.js', { updateViaCache: 'none' })
         .then((registration) => {
@@ -84,12 +86,6 @@ const App = () => {
 
           registration.update().catch((err) => {
             console.log('Service Worker update check failed:', err);
-          });
-
-          navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (!hadController || hasReloadedForNewWorker) return;
-            hasReloadedForNewWorker = true;
-            window.location.reload();
           });
         })
         .catch((err) => console.log('Service Worker registration failed:', err));
