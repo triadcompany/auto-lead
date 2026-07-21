@@ -28,6 +28,7 @@ export function EditLeadModal({ open, onOpenChange, lead, onSave, onDelete }: Ed
             Atualize as informações do cliente
           </DialogDescription>
         </DialogHeader>
+        <p className="text-xs text-red-500 font-mono">BUILD-DEBUG-v2</p>
 
         <LeadEditTabs lead={lead} onSave={onSave} onDelete={onDelete} onClose={() => onOpenChange(false)} />
       </DialogContent>
