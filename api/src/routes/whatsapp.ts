@@ -527,12 +527,17 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     const event = body.event as string
     const instanceName = body.instance as string
 
+    // DIAGNÓSTICO TEMPORÁRIO — remover depois de confirmar o fluxo real
+    console.log("[whatsapp][webhook-debug] event:", event, "| instance:", instanceName, "| bodyKeys:", Object.keys(body))
+
     if (!instanceName) return { received: true }
 
     // Find org by instance
     const integration = await (prisma as any).whatsappIntegration?.findFirst?.({
       where: { instanceName },
     }).catch(() => null)
+
+    console.log("[whatsapp][webhook-debug] integration found:", !!integration)
 
     if (!integration) return { received: true }
 
