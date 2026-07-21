@@ -1811,3 +1811,15 @@ model SalesGoal {
   @@unique([organizationId, profileId, period])
   @@map("sales_goals")
 }
+
+// ─── SYSTEM FLAGS ─────────────────────────────────────────────────────────────
+// Controle de scripts de backfill/migração que devem rodar só uma vez.
+// Precisa estar declarado aqui — senão `prisma db push --accept-data-loss`
+// (que roda a cada restart do container, ver Dockerfile) apaga essa tabela
+// por não reconhecê-la, fazendo os backfills rodarem de novo toda vez.
+model SystemFlag {
+  key    String   @id
+  doneAt DateTime @default(now()) @map("done_at") @db.Timestamptz
+
+  @@map("system_flags")
+}
