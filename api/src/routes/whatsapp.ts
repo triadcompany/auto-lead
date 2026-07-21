@@ -530,12 +530,12 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     // DIAGNÓSTICO TEMPORÁRIO — remover depois de confirmar o fluxo real.
     // Grava no banco em vez de só logar — mais fácil de consultar do que
     // caçar linha por linha no visualizador de logs da EasyPanel.
-    prisma.$executeRawUnsafe(
-      `INSERT INTO debug_webhook_log (event, instance_name, payload) VALUES ($1, $2, $3)`,
-      event || null,
-      instanceName || null,
-      JSON.stringify(body)
-    ).catch((e) => console.error("[whatsapp][webhook-debug] falhou ao gravar:", e))
+    // Usa o client do Prisma (não $executeRawUnsafe) porque o INSERT bruto
+    // sem cast ::jsonb falhava silenciosamente pra coluna payload (jsonb) —
+    // o erro era engolido pelo .catch() e nunca gravava nenhuma linha.
+    prisma.debugWebhookLog.create({
+      data: { event: event || null, instanceName: instanceName || null, payload: body },
+    }).catch((e) => console.error("[whatsapp][webhook-debug] falhou ao gravar:", e))
 
     if (!instanceName) return { received: true }
 
