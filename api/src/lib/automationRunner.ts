@@ -346,7 +346,7 @@ async function runFromNode(
     // requisição (200 OK) mas a mensagem nunca chega. Mesmo bug já corrigido
     // nos disparos em massa (broadcasts.ts) — aqui usa o mesmo normalizador
     // já existente neste arquivo (toE164Brazil).
-    const phone: string = toE164Brazil(ctx.lead_phone || ctx.phone || "")
+    const phone: string = toWhatsAppSendFormat(ctx.lead_phone || ctx.phone || "")
     const instanceName: string = ctx.instance_name || ""
     const msgType: string = config.messageType || "text"
 
@@ -895,6 +895,18 @@ function toE164Brazil(raw: string): string {
   if (d.startsWith("55") && (d.length === 12 || d.length === 13)) return d
   if (d.length === 10 || d.length === 11) return "55" + d
   return d
+}
+
+// Alguns números BR estão cadastrados no WhatsApp sem o nono dígito, mesmo
+// sendo celular — confirmado que remover o 9 é o formato que funciona pra
+// entregar de verdade pela Evolution API (diferente do E.164 "correto" acima,
+// que é o formato certo pra outras finalidades como CAPI).
+function toWhatsAppSendFormat(raw: string): string {
+  const e164 = toE164Brazil(raw)
+  if (e164.length === 13 && e164.startsWith("55") && e164[4] === "9") {
+    return e164.slice(0, 4) + e164.slice(5)
+  }
+  return e164
 }
 
 async function sendMetaCapiForLead(
