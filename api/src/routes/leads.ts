@@ -138,11 +138,17 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
         try {
           const conv = await prisma.conversation.findFirst({
             where: { organizationId: req.auth.orgId, contactPhone: { contains: phoneDigits }, ctwaAdId: { not: null } },
-            select: { ctwaAdId: true, ctwaClid: true },
+            select: { ctwaAdId: true, ctwaClid: true, ctwaSourceUrl: true, ctwaMediaUrl: true, ctwaThumbnailUrl: true },
             orderBy: { createdAt: "desc" },
           })
           if (conv?.ctwaAdId) {
-            await enrichLeadFromCtwa(req.auth.orgId, lead.id, conv.ctwaAdId, { fbc: conv.ctwaClid })
+            await enrichLeadFromCtwa(req.auth.orgId, lead.id, conv.ctwaAdId, {
+              fbc: conv.ctwaClid,
+              clickId: conv.ctwaClid,
+              sourceUrl: conv.ctwaSourceUrl,
+              mediaUrl: conv.ctwaMediaUrl,
+              thumbnailUrl: conv.ctwaThumbnailUrl,
+            })
           }
         } catch (e) {
           console.error("[leads] CTWA enrichment error:", e)
