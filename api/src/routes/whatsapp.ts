@@ -44,6 +44,14 @@ async function syncIncomingMessage(
   let body: string | null = null
   let messageType = "text"
 
+  // DIAGNÓSTICO TEMPORÁRIO — remover depois de confirmar o formato real do
+  // externalAdReply que a Evolution API manda. Loga toda mensagem recebida.
+  if (!fromMe) {
+    console.log("[whatsapp][ctwa-debug] msg keys:", Object.keys(msg))
+    console.log("[whatsapp][ctwa-debug] full msg:", JSON.stringify(msg))
+    console.log("[whatsapp][ctwa-debug] full message (nível acima, com key/contextInfo/etc):", JSON.stringify(message))
+  }
+
   // Extrai dados CTWA (Click-to-WhatsApp) — presentes na 1ª mensagem de anúncio
   const externalAdReply = msg.extendedTextMessage?.contextInfo?.externalAdReply
   const ctwaAdId: string | null = externalAdReply?.sourceId || null
