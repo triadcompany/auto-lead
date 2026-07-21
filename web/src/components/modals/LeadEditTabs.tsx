@@ -105,7 +105,12 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
     return () => { cancelled = true; };
   }, [pipelines, api]);
 
+  const [effectLog, setEffectLog] = useState("EFFECT NAO RODOU AINDA");
+
   useEffect(() => {
+    setEffectLog(
+      `EFFECT rodou em ${new Date().toISOString()} | lead=${lead ? "existe" : "NULL"} | lead.seller_id=${JSON.stringify(lead?.seller_id)} | lead.stage_id=${JSON.stringify(lead?.stage_id)}`
+    );
     if (lead) {
       setFormData({
         name: lead.name,
@@ -177,6 +182,7 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
 
       <TabsContent value="dados" className="mt-4">
         <form onSubmit={handleSubmit} className="space-y-6">
+          <p className="text-xs text-red-500 break-all bg-red-50 p-2 rounded">{effectLog}</p>
           {/* Seção: Informações Básicas */}
           <div className="space-y-4">
             <h3 className="font-poppins font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
