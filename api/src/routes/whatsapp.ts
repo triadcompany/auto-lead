@@ -527,8 +527,15 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
     const event = body.event as string
     const instanceName = body.instance as string
 
-    // DIAGNÓSTICO TEMPORÁRIO — remover depois de confirmar o fluxo real
-    console.log("[whatsapp][webhook-debug] event:", event, "| instance:", instanceName, "| bodyKeys:", Object.keys(body))
+    // DIAGNÓSTICO TEMPORÁRIO — remover depois de confirmar o fluxo real.
+    // Grava no banco em vez de só logar — mais fácil de consultar do que
+    // caçar linha por linha no visualizador de logs da EasyPanel.
+    prisma.$executeRawUnsafe(
+      `INSERT INTO debug_webhook_log (event, instance_name, payload) VALUES ($1, $2, $3)`,
+      event || null,
+      instanceName || null,
+      JSON.stringify(body)
+    ).catch((e) => console.error("[whatsapp][webhook-debug] falhou ao gravar:", e))
 
     if (!instanceName) return { received: true }
 
