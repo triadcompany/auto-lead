@@ -14,8 +14,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Lead } from "@/hooks/useSupabaseLeads";
 import { useSupabaseProfiles } from "@/hooks/useSupabaseProfiles";
-import { usePipelines } from "@/hooks/usePipelines";
+import { usePipelines, PipelineStage } from "@/hooks/usePipelines";
 import { useLeadSources } from "@/hooks/useLeadSources";
+import { useApi } from "@/hooks/useApi";
 import { BRAZILIAN_STATES } from "@/lib/brazilian-states";
 import { LeadFollowupTab } from "@/components/followups/LeadFollowupTab";
 import { LeadTimeline } from "@/components/leads/LeadTimeline";
@@ -85,8 +86,24 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
   });
 
   const { profiles } = useSupabaseProfiles();
-  const { stages } = usePipelines();
+  const { pipelines } = usePipelines();
   const { leadSources } = useLeadSources();
+  const api = useApi();
+
+  // Etapas de TODAS as pipelines, não só a "selecionada" por padrão — o lead
+  // pode pertencer a uma pipeline diferente da que abre por padrão, e nesse
+  // caso a etapa certa não estaria na lista pra bater com o valor do lead
+  // (o Select ficava mostrando vazio mesmo o lead tendo etapa definida).
+  const [stages, setStages] = useState<PipelineStage[]>([]);
+  useEffect(() => {
+    if (pipelines.length === 0) return;
+    let cancelled = false;
+    Promise.all(pipelines.map((p) => api.pipelines.stages(p.id).catch(() => [] as PipelineStage[])))
+      .then((lists) => {
+        if (!cancelled) setStages(lists.flat());
+      });
+    return () => { cancelled = true; };
+  }, [pipelines, api]);
 
   useEffect(() => {
     if (lead) {
