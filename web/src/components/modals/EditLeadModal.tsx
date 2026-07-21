@@ -26,7 +26,28 @@ import { useLeadSources } from "@/hooks/useLeadSources";
 import { BRAZILIAN_STATES } from "@/lib/brazilian-states";
 import { LeadFollowupTab } from "@/components/followups/LeadFollowupTab";
 import { LeadTimeline } from "@/components/leads/LeadTimeline";
-import { User, MessageCircle, Megaphone, History } from "lucide-react";
+import { User, MessageCircle, Megaphone, History, ExternalLink } from "lucide-react";
+
+function AdInfoRow({ label, value, link }: { label: string; value: string; link?: boolean }) {
+  return (
+    <div className="px-4 py-3">
+      <p className="text-xs font-poppins text-muted-foreground mb-1">{label}</p>
+      {link ? (
+        <a
+          href={value}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-poppins text-primary hover:underline break-all inline-flex items-center gap-1"
+        >
+          {value}
+          <ExternalLink className="h-3 w-3 shrink-0" />
+        </a>
+      ) : (
+        <p className="text-sm font-poppins break-all">{value}</p>
+      )}
+    </div>
+  );
+}
 
 interface EditLeadModalProps {
   open: boolean;
@@ -126,6 +147,10 @@ export function EditLeadModal({ open, onOpenChange, lead, onSave, onDelete }: Ed
     }
   };
 
+  const hasAdInfo = Boolean(
+    lead?.meta_ad_id || lead?.meta_campaign_id || lead?.ctwa_click_id || lead?.ad_source_url
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto card-gradient">
@@ -139,7 +164,7 @@ export function EditLeadModal({ open, onOpenChange, lead, onSave, onDelete }: Ed
         </DialogHeader>
 
         <Tabs defaultValue="dados" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className={`grid w-full ${hasAdInfo ? "grid-cols-4" : "grid-cols-3"}`}>
             <TabsTrigger value="dados" className="flex items-center gap-2">
               <User className="h-4 w-4" />
               Dados do Lead
@@ -148,6 +173,12 @@ export function EditLeadModal({ open, onOpenChange, lead, onSave, onDelete }: Ed
               <MessageCircle className="h-4 w-4" />
               Follow-up
             </TabsTrigger>
+            {hasAdInfo && (
+              <TabsTrigger value="anuncio" className="flex items-center gap-2">
+                <Megaphone className="h-4 w-4" />
+                Anúncio
+              </TabsTrigger>
+            )}
             <TabsTrigger value="historico" className="flex items-center gap-2">
               <History className="h-4 w-4" />
               Histórico
@@ -510,6 +541,45 @@ export function EditLeadModal({ open, onOpenChange, lead, onSave, onDelete }: Ed
               />
             )}
           </TabsContent>
+
+          {hasAdInfo && (
+            <TabsContent value="anuncio" className="mt-4">
+              {lead && (
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <h3 className="font-poppins font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Megaphone className="h-4 w-4" />
+                      Informações de Anúncios
+                    </h3>
+                    <p className="text-xs text-muted-foreground font-poppins">
+                      Campos relacionados ao anúncio que originou este contato
+                    </p>
+                  </div>
+                  <div className="rounded-lg border divide-y">
+                    {lead.meta_campaign_name && <AdInfoRow label="Campanha" value={lead.meta_campaign_name} />}
+                    {lead.meta_adset_name && <AdInfoRow label="Conjunto de anúncios" value={lead.meta_adset_name} />}
+                    {lead.meta_ad_name && <AdInfoRow label="Anúncio" value={lead.meta_ad_name} />}
+                    {lead.ctwa_click_id && <AdInfoRow label="CTWA Click ID" value={lead.ctwa_click_id} />}
+                    {lead.ad_source_url && <AdInfoRow label="URL de origem" value={lead.ad_source_url} link />}
+                    {lead.ad_source_id && <AdInfoRow label="ID de origem" value={lead.ad_source_id} />}
+                    {lead.ad_media_url && <AdInfoRow label="URL da mídia" value={lead.ad_media_url} link />}
+                    {lead.ad_thumbnail_url && (
+                      <div className="px-4 py-3">
+                        <p className="text-xs font-poppins text-muted-foreground mb-2">URL da miniatura</p>
+                        <a href={lead.ad_thumbnail_url} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={lead.ad_thumbnail_url}
+                            alt="Miniatura do anúncio"
+                            className="max-w-[220px] rounded-lg border"
+                          />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+          )}
 
           <TabsContent value="historico" className="mt-4">
             {lead && <LeadTimeline leadId={lead.id} />}
