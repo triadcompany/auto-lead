@@ -105,13 +105,7 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
     return () => { cancelled = true; };
   }, [pipelines, api]);
 
-  const [effectLog, setEffectLog] = useState<string[]>(["EFFECT NAO RODOU AINDA"]);
-  const renderCountRef = React.useRef(0);
-  renderCountRef.current += 1;
-
   useEffect(() => {
-    const entry = `#${renderCountRef.current} rodou em ${new Date().toISOString()} | lead=${lead ? "existe" : "NULL"} | seller_id=${JSON.stringify(lead?.seller_id)} | stage_id=${JSON.stringify(lead?.stage_id)}`;
-    setEffectLog((prev) => [...prev.slice(-4), entry]);
     if (lead) {
       const next = {
         name: lead.name,
@@ -184,12 +178,6 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
 
       <TabsContent value="dados" className="mt-4">
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="text-xs text-red-500 break-all bg-red-50 p-2 rounded space-y-1">
-            <p>RENDER ATUAL #{renderCountRef.current} | formData.seller_id={JSON.stringify(formData.seller_id)} | formData.stage_id={JSON.stringify(formData.stage_id)}</p>
-            {effectLog.map((line, i) => (
-              <p key={i}>{line}</p>
-            ))}
-          </div>
           {/* Seção: Informações Básicas */}
           <div className="space-y-4">
             <h3 className="font-poppins font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
@@ -242,7 +230,7 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
                 <Label htmlFor="edit-seller" className="font-poppins font-medium">
                   Vendedor Responsável *
                 </Label>
-                <Select value={formData.seller_id} onValueChange={(value) => handleInputChange("seller_id", value)}>
+                <Select value={formData.seller_id} onValueChange={(value) => value && handleInputChange("seller_id", value)}>
                   <SelectTrigger className="font-poppins">
                     <SelectValue placeholder="Selecione o vendedor">
                       {profiles.find((p) => p.id === formData.seller_id)?.name}
@@ -256,9 +244,6 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-red-500 break-all">
-                  DEBUG seller: lead.seller_id="{lead?.seller_id}" | formData.seller_id="{formData.seller_id}" | profiles={profiles.length} | match={profiles.find((p) => p.id === formData.seller_id)?.name ?? "NENHUM"}
-                </p>
               </div>
 
               <div className="space-y-2">
@@ -293,7 +278,7 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
                 <Label htmlFor="edit-stage" className="font-poppins font-medium">
                   Etapa do Lead *
                 </Label>
-                <Select value={formData.stage_id} onValueChange={(value) => handleInputChange("stage_id", value)}>
+                <Select value={formData.stage_id} onValueChange={(value) => value && handleInputChange("stage_id", value)}>
                   <SelectTrigger className="font-poppins">
                     <SelectValue placeholder="Selecione a etapa">
                       {stages.find((s) => s.id === formData.stage_id)?.name}
@@ -313,9 +298,6 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-red-500 break-all">
-                  DEBUG stage: lead.stage_id="{lead?.stage_id}" | formData.stage_id="{formData.stage_id}" | stages={stages.length} | match={stages.find((s) => s.id === formData.stage_id)?.name ?? "NENHUM"}
-                </p>
               </div>
             </div>
           </div>
