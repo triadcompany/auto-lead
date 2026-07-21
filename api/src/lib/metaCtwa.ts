@@ -13,6 +13,25 @@ export async function enrichLeadFromCtwa(
     thumbnailUrl?: string | null
   }
 ): Promise<void> {
+  // Campos que vêm direto do WhatsApp (não dependem do Meta Graph API) — sempre
+  // salvos, mesmo sem token configurado. Só nome de campanha/conjunto/anúncio
+  // precisa de uma chamada à API do Meta.
+  try {
+    await prisma.lead.update({
+      where: { id: leadId },
+      data: {
+        adSourceId: adId,
+        ...(opts?.fbc ? { fbc: opts.fbc } : {}),
+        ...(opts?.clickId ? { ctwaClickId: opts.clickId } : {}),
+        ...(opts?.sourceUrl ? { adSourceUrl: opts.sourceUrl } : {}),
+        ...(opts?.mediaUrl ? { adMediaUrl: opts.mediaUrl } : {}),
+        ...(opts?.thumbnailUrl ? { adThumbnailUrl: opts.thumbnailUrl } : {}),
+      },
+    })
+  } catch (e) {
+    console.error("[metaCtwa] falha ao salvar campos de origem:", e)
+  }
+
   let token = opts?.accessToken
   if (!token) {
     const capiSettings = await prisma.metaCapiSettings
@@ -37,12 +56,6 @@ export async function enrichLeadFromCtwa(
         metaAdsetName: data.adset?.name || null,
         metaCampaignId: data.adset?.campaign?.id || null,
         metaCampaignName: data.adset?.campaign?.name || null,
-        adSourceId: adId,
-        ...(opts?.fbc ? { fbc: opts.fbc } : {}),
-        ...(opts?.clickId ? { ctwaClickId: opts.clickId } : {}),
-        ...(opts?.sourceUrl ? { adSourceUrl: opts.sourceUrl } : {}),
-        ...(opts?.mediaUrl ? { adMediaUrl: opts.mediaUrl } : {}),
-        ...(opts?.thumbnailUrl ? { adThumbnailUrl: opts.thumbnailUrl } : {}),
       },
     })
   } catch (e) {
