@@ -244,7 +244,7 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-red-500 break-all">
-                  DEBUG seller: formData.seller_id="{formData.seller_id}" | profiles={profiles.length} | match={profiles.find((p) => p.id === formData.seller_id)?.name ?? "NENHUM"}
+                  DEBUG seller: lead.seller_id="{lead?.seller_id}" | formData.seller_id="{formData.seller_id}" | profiles={profiles.length} | match={profiles.find((p) => p.id === formData.seller_id)?.name ?? "NENHUM"}
                 </p>
               </div>
 
@@ -301,7 +301,7 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-red-500 break-all">
-                  DEBUG stage: formData.stage_id="{formData.stage_id}" | stages={stages.length} | match={stages.find((s) => s.id === formData.stage_id)?.name ?? "NENHUM"}
+                  DEBUG stage: lead.stage_id="{lead?.stage_id}" | formData.stage_id="{formData.stage_id}" | stages={stages.length} | match={stages.find((s) => s.id === formData.stage_id)?.name ?? "NENHUM"}
                 </p>
               </div>
             </div>
