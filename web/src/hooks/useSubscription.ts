@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApi } from '@/hooks/useApi';
@@ -82,14 +82,21 @@ export function useSubscription() {
 
   const organizationId = profile?.organization_id || authOrgId;
 
+  // Só a PRIMEIRA verificação deve travar a tela com o spinner do
+  // SubscriptionGate. As revalidações periódicas (a cada 60s, em background)
+  // não podem setar loading=true, senão a tela inteira do CRM fica piscando
+  // pra um spinner a cada minuto — parecendo um reload que não é.
+  const hasLoadedRef = useRef(false);
+
   const checkSubscription = useCallback(async () => {
     if (!user?.id || !organizationId) {
       setSubscription({ subscribed: false, plan: null, billing_cycle: null, status: null, current_period_end: null, cancel_at_period_end: false });
       setLoading(false);
+      hasLoadedRef.current = true;
       return;
     }
     try {
-      setLoading(true);
+      if (!hasLoadedRef.current) setLoading(true);
       const data = await api.billing.subscription() as any;
       setSubscription(data);
       setError(null);
@@ -99,6 +106,7 @@ export function useSubscription() {
       setSubscription({ subscribed: false, plan: null, billing_cycle: null, status: null, current_period_end: null, cancel_at_period_end: false });
     } finally {
       setLoading(false);
+      hasLoadedRef.current = true;
     }
   }, [user?.id, organizationId, api]);
 
