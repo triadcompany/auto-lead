@@ -198,6 +198,8 @@ try {
   startAutomationRecovery().catch((e) => console.error("[automation] recovery init error:", e))
   const { backfillMultiOrgFromClerk } = await import("./lib/multiOrgBackfill.js")
   backfillMultiOrgFromClerk().catch((e) => console.error("[backfill-multi-org] init error:", e))
+  const { backfillCtwaEnrichmentForExistingLeads } = await import("./lib/ctwaLeadBackfill.js")
+  backfillCtwaEnrichmentForExistingLeads().catch((e) => console.error("[backfill-ctwa] init error:", e))
 } catch (err) {
   server.log.error(err)
   process.exit(1)
