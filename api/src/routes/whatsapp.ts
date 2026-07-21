@@ -48,6 +48,9 @@ async function syncIncomingMessage(
   const externalAdReply = msg.extendedTextMessage?.contextInfo?.externalAdReply
   const ctwaAdId: string | null = externalAdReply?.sourceId || null
   const ctwaClid: string | null = externalAdReply?.ctwaClid || null
+  const ctwaSourceUrl: string | null = externalAdReply?.sourceUrl || null
+  const ctwaMediaUrl: string | null = externalAdReply?.mediaUrl || null
+  const ctwaThumbnailUrl: string | null = externalAdReply?.thumbnailUrl || externalAdReply?.thumbnail || null
 
   if (msg.conversation) {
     body = msg.conversation
@@ -90,6 +93,9 @@ async function syncIncomingMessage(
         unreadCount: fromMe ? 0 : 1,
         ...(ctwaAdId ? { ctwaAdId } : {}),
         ...(ctwaClid ? { ctwaClid } : {}),
+        ...(ctwaSourceUrl ? { ctwaSourceUrl } : {}),
+        ...(ctwaMediaUrl ? { ctwaMediaUrl } : {}),
+        ...(ctwaThumbnailUrl ? { ctwaThumbnailUrl } : {}),
       },
       select: { id: true, contactName: true, unreadCount: true, profilePictureUrl: true },
     }).catch(() => null)
@@ -97,7 +103,13 @@ async function syncIncomingMessage(
   } else if (ctwaAdId) {
     await prisma.conversation.update({
       where: { id: conv.id },
-      data: { ...(ctwaAdId ? { ctwaAdId } : {}), ...(ctwaClid ? { ctwaClid } : {}) },
+      data: {
+        ...(ctwaAdId ? { ctwaAdId } : {}),
+        ...(ctwaClid ? { ctwaClid } : {}),
+        ...(ctwaSourceUrl ? { ctwaSourceUrl } : {}),
+        ...(ctwaMediaUrl ? { ctwaMediaUrl } : {}),
+        ...(ctwaThumbnailUrl ? { ctwaThumbnailUrl } : {}),
+      },
     }).catch(() => null)
   }
 
@@ -181,8 +193,13 @@ async function syncIncomingMessage(
   // Enriquece lead com dados CTWA se mensagem veio de anúncio Click-to-WhatsApp
   if (!fromMe && ctwaAdId && lead) {
     setImmediate(() =>
-      enrichLeadFromCtwa(orgId, lead.id, ctwaAdId, { fbc: ctwaClid })
-        .catch((e) => console.error("[whatsapp] CTWA enrichment error:", e))
+      enrichLeadFromCtwa(orgId, lead.id, ctwaAdId, {
+        fbc: ctwaClid,
+        clickId: ctwaClid,
+        sourceUrl: ctwaSourceUrl,
+        mediaUrl: ctwaMediaUrl,
+        thumbnailUrl: ctwaThumbnailUrl,
+      }).catch((e) => console.error("[whatsapp] CTWA enrichment error:", e))
     )
   }
 
