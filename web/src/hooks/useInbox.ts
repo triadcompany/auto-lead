@@ -54,6 +54,11 @@ function normalizeThread(row: any): InboxThread {
     ai_state: row.ai_state ?? row.aiState ?? null,
     ai_pending: row.ai_pending ?? row.aiPending ?? false,
     ai_pending_started_at: row.ai_pending_started_at || row.aiPendingStartedAt || null,
+    ctwa_ad_id: row.ctwa_ad_id || row.ctwaAdId || null,
+    ctwa_clid: row.ctwa_clid || row.ctwaClid || null,
+    ctwa_source_url: row.ctwa_source_url || row.ctwaSourceUrl || null,
+    ctwa_media_url: row.ctwa_media_url || row.ctwaMediaUrl || null,
+    ctwa_thumbnail_url: row.ctwa_thumbnail_url || row.ctwaThumbnailUrl || null,
   };
 }
 
