@@ -1475,7 +1475,34 @@ export default function InboxPage() {
                   <p className="text-sm">Nenhuma mensagem nesta conversa</p>
                 </div>
               ) : (
-                <MessagesList messages={messages} isGroup={selectedThread.is_group} timelineItems={timelineItems} />
+                <>
+                  {(selectedThread.ctwa_thumbnail_url || selectedThread.ctwa_source_url) && (
+                    <a
+                      href={selectedThread.ctwa_source_url || undefined}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-3 mb-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+                    >
+                      {selectedThread.ctwa_thumbnail_url && (
+                        <img
+                          src={selectedThread.ctwa_thumbnail_url}
+                          alt="Anúncio"
+                          className="w-12 h-12 rounded-md object-cover shrink-0"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-muted-foreground">Iniciado a partir de um anúncio</p>
+                        {selectedThread.ctwa_source_url && (
+                          <p className="text-xs text-primary truncate">{selectedThread.ctwa_source_url}</p>
+                        )}
+                      </div>
+                      {selectedThread.ctwa_source_url && (
+                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      )}
+                    </a>
+                  )}
+                  <MessagesList messages={messages} isGroup={selectedThread.is_group} timelineItems={timelineItems} />
+                </>
               )}
 
               {/* AI Thinking Indicator */}
