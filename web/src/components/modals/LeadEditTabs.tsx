@@ -229,9 +229,11 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
                 <Label htmlFor="edit-seller" className="font-poppins font-medium">
                   Vendedor Responsável *
                 </Label>
-                <Select key={`seller-${profiles.length}`} value={formData.seller_id} onValueChange={(value) => handleInputChange("seller_id", value)}>
+                <Select value={formData.seller_id} onValueChange={(value) => handleInputChange("seller_id", value)}>
                   <SelectTrigger className="font-poppins">
-                    <SelectValue placeholder="Selecione o vendedor" />
+                    <SelectValue placeholder="Selecione o vendedor">
+                      {profiles.find((p) => p.id === formData.seller_id)?.name}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {profiles.map(profile => (
@@ -275,9 +277,11 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
                 <Label htmlFor="edit-stage" className="font-poppins font-medium">
                   Etapa do Lead *
                 </Label>
-                <Select key={`stage-${stages.length}`} value={formData.stage_id} onValueChange={(value) => handleInputChange("stage_id", value)}>
+                <Select value={formData.stage_id} onValueChange={(value) => handleInputChange("stage_id", value)}>
                   <SelectTrigger className="font-poppins">
-                    <SelectValue placeholder="Selecione a etapa" />
+                    <SelectValue placeholder="Selecione a etapa">
+                      {stages.find((s) => s.id === formData.stage_id)?.name}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {stages.map(stage => (
