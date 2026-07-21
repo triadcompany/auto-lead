@@ -105,6 +105,14 @@ export function LeadEditTabs({ lead, onSave, onDelete, onClose }: LeadEditTabsPr
     return () => { cancelled = true; };
   }, [pipelines, api]);
 
+  // DIAGNÓSTICO TEMPORÁRIO — remover depois de achar o bug do Select vazio
+  useEffect(() => {
+    console.log("[lead-edit-debug] lead.seller_id:", lead?.seller_id, "| lead.stage_id:", lead?.stage_id);
+    console.log("[lead-edit-debug] profiles ids:", profiles.map((p) => p.id));
+    console.log("[lead-edit-debug] stages ids:", stages.map((s) => s.id));
+    console.log("[lead-edit-debug] pipelines:", pipelines.map((p) => p.id));
+  }, [lead, profiles, stages, pipelines]);
+
   useEffect(() => {
     if (lead) {
       setFormData({
