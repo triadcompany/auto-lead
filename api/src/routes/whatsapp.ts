@@ -82,7 +82,7 @@ async function syncIncomingMessage(
   // Busca ou cria conversa
   let conv = await prisma.conversation.findFirst({
     where: { organizationId: orgId, instanceName, contactPhone: phone },
-    select: { id: true, contactName: true, unreadCount: true, profilePictureUrl: true },
+    select: { id: true, contactName: true, unreadCount: true, profilePictureUrl: true, firstTouchResetAt: true },
   }).catch(() => null)
 
   let isNewConversation = false
@@ -103,7 +103,7 @@ async function syncIncomingMessage(
         ...(ctwaMediaUrl ? { ctwaMediaUrl } : {}),
         ...(ctwaThumbnailUrl ? { ctwaThumbnailUrl } : {}),
       },
-      select: { id: true, contactName: true, unreadCount: true, profilePictureUrl: true },
+      select: { id: true, contactName: true, unreadCount: true, profilePictureUrl: true, firstTouchResetAt: true },
     }).catch(() => null)
     isNewConversation = true
   } else if (ctwaAdId) {
@@ -209,8 +209,17 @@ async function syncIncomingMessage(
     )
   }
 
-  // Dispara automações de "primeira mensagem" apenas para mensagens inbound novas
-  if (!fromMe && isNewConversation) {
+  // Dispara automações de "primeira mensagem" para conversas novas OU quando
+  // o reset de teste (POST /leads/:id/reset-first-touch) marcou a conversa —
+  // limpa a marca em seguida pra não disparar de novo nas próximas mensagens.
+  const wasReset = !isNewConversation && !!conv.firstTouchResetAt
+  if (wasReset) {
+    await prisma.conversation.update({
+      where: { id: conv.id },
+      data: { firstTouchResetAt: null },
+    }).catch(() => null)
+  }
+  if (!fromMe && (isNewConversation || wasReset)) {
     setImmediate(() =>
       fireAutomationTrigger(orgId, "first_message", lead?.id ?? null, {
         phone,
