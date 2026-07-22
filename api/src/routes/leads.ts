@@ -6,52 +6,7 @@ import crypto from "node:crypto"
 import { fireAutomationTrigger } from "../lib/automationRunner.js"
 import { enrichLeadFromCtwa } from "../lib/metaCtwa.js"
 import { logLeadActivity, computeLeadScore } from "../lib/leadActivity.js"
-
-// Converte um Lead do Prisma (camelCase) pro formato snake_case que o
-// frontend espera (interface Lead em web/src/hooks/useSupabaseLeads.ts).
-// Sem isso, campos como sellerId/stageId/valorNegocio/metaCampaignName
-// chegam undefined no front mesmo com dado correto no banco.
-function serializeLead(l: any) {
-  return {
-    id: l.id,
-    name: l.name,
-    email: l.email,
-    phone: l.phone,
-    seller_id: l.sellerId,
-    source: l.source,
-    interest: l.interest,
-    observations: l.observations,
-    stage_id: l.stageId,
-    pipeline_id: l.pipelineId,
-    created_at: l.createdAt,
-    updated_at: l.updatedAt,
-    created_by: l.createdBy,
-    valor_negocio: l.valorNegocio,
-    servico: l.servico,
-    cidade: l.cidade,
-    estado: l.estado,
-    status: l.status,
-    tags: l.tags,
-    score: l.score,
-    fbc: l.fbc,
-    fbp: l.fbp,
-    meta_campaign_id: l.metaCampaignId,
-    meta_campaign_name: l.metaCampaignName,
-    meta_adset_id: l.metaAdsetId,
-    meta_adset_name: l.metaAdsetName,
-    meta_ad_id: l.metaAdId,
-    meta_ad_name: l.metaAdName,
-    ctwa_click_id: l.ctwaClickId,
-    ad_source_id: l.adSourceId,
-    ad_source_url: l.adSourceUrl,
-    ad_media_url: l.adMediaUrl,
-    ad_thumbnail_url: l.adThumbnailUrl,
-    stage_name: l.stage?.name ?? l.stage_name ?? null,
-    stage_color: l.stage?.color ?? l.stage_color ?? null,
-    stage_position: l.stage?.position ?? l.stage_position ?? null,
-    seller_name: l.seller?.name ?? l.seller_name ?? null,
-  }
-}
+import { serializeLead } from "../lib/leadSerializer.js"
 
 export default async function leadsRoutes(fastify: FastifyInstance) {
   // GET /leads — lista leads da org com filtros (substitui get_org_leads RPC)
