@@ -2,6 +2,8 @@ import { prisma } from "./prisma.js"
 import { createHash } from "crypto"
 import { emit } from "../plugins/socket.js"
 import { logLeadActivity } from "./leadActivity.js"
+import { enrichLeadFromCtwa } from "./metaCtwa.js"
+import { serializeLead } from "./leadSerializer.js"
 
 // ── distribuição de leads ──────────────────────────────────────────────────────
 // Resolve o responsável de um novo lead quando "distribuição automática" está ativa:
@@ -597,7 +599,7 @@ async function runFromNode(
           if (created) {
             ctx.lead_id = created.id
             ctx.nome = created.name
-            try { emit(orgId, "lead:created", { ...created, stage_name: null }) } catch { /* socket off */ }
+            try { emit(orgId, "lead:created", serializeLead(created)) } catch { /* socket off */ }
             logLeadActivity({
               orgId, leadId: created.id, type: "created",
               description: `Lead criado por automação${ownerId ? " e distribuído" : ""}`,
@@ -607,6 +609,27 @@ async function runFromNode(
               where: { organizationId: orgId, contactPhone: { contains: phone.slice(-8) }, leadId: null },
               data: { leadId: created.id },
             }).catch(() => null)
+            // Enriquece com dados CTWA (campanha/anúncio/click id) se a
+            // conversa que originou esse lead veio de um clique em anúncio —
+            // mesma lógica que já existia em POST /leads, mas faltava aqui.
+            const phoneDigits = phone.replace(/\D/g, "").slice(-8)
+            if (phoneDigits) {
+              prisma.conversation.findFirst({
+                where: { organizationId: orgId, contactPhone: { contains: phoneDigits }, ctwaAdId: { not: null } },
+                select: { ctwaAdId: true, ctwaClid: true, ctwaSourceUrl: true, ctwaMediaUrl: true, ctwaThumbnailUrl: true },
+                orderBy: { createdAt: "desc" },
+              }).then((conv) => {
+                if (conv?.ctwaAdId) {
+                  return enrichLeadFromCtwa(orgId, created.id, conv.ctwaAdId, {
+                    fbc: conv.ctwaClid,
+                    clickId: conv.ctwaClid,
+                    sourceUrl: conv.ctwaSourceUrl,
+                    mediaUrl: conv.ctwaMediaUrl,
+                    thumbnailUrl: conv.ctwaThumbnailUrl,
+                  })
+                }
+              }).catch((e) => console.error("[automation] CTWA enrichment error:", e))
+            }
           }
         }
       }
