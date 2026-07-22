@@ -149,7 +149,63 @@ export function MetaIntegration() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="access-token">Access Token</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="access-token">Access Token</Label>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs">
+                        Como gerar esse token? (passo a passo)
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-lg">
+                      <DialogHeader>
+                        <DialogTitle>Como gerar o Access Token do Meta</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 text-sm">
+                        <p className="text-muted-foreground">
+                          Esse token é o que permite ao CRM enviar eventos de conversão pro Meta e buscar o nome da campanha/conjunto/anúncio de cada lead que vier de anúncio. Ele precisa ser gerado uma vez no Gerenciador de Negócios do Meta.
+                        </p>
+                        <ol className="space-y-3 list-decimal list-inside">
+                          <li>
+                            Acesse{" "}
+                            <a href="https://business.facebook.com/settings" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                              business.facebook.com/settings <ExternalLink className="h-3 w-3" />
+                            </a>{" "}
+                            (Configurações do Gerenciador de Negócios).
+                          </li>
+                          <li>No menu lateral, em <strong>Usuários</strong>, clique em <strong>Usuários do sistema</strong>.</li>
+                          <li>
+                            Se ainda não tiver um, clique em <strong>Adicionar</strong> e crie um usuário do sistema (pode chamar de "CRM Triad", função "Admin").
+                          </li>
+                          <li>
+                            Com o usuário do sistema selecionado, clique em <strong>Adicionar ativos</strong> e vincule a <strong>conta de anúncios</strong> (Ad Account) que roda os anúncios do WhatsApp — dê permissão de controle total.
+                          </li>
+                          <li>Clique em <strong>Gerar novo token</strong>.</li>
+                          <li>
+                            Selecione o app conectado (ou crie um app em{" "}
+                            <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                              developers.facebook.com/apps <ExternalLink className="h-3 w-3" />
+                            </a>{" "}
+                            se ainda não tiver um).
+                          </li>
+                          <li>
+                            Na lista de permissões, marque:
+                            <ul className="list-disc list-inside ml-4 mt-1 space-y-0.5">
+                              <li><code className="bg-muted px-1 rounded">ads_read</code> — pra buscar nome de campanha/conjunto/anúncio</li>
+                              <li><code className="bg-muted px-1 rounded">ads_management</code> — pra enviar eventos de conversão (CAPI)</li>
+                              <li><code className="bg-muted px-1 rounded">business_management</code> — pra acessar os ativos do negócio</li>
+                            </ul>
+                          </li>
+                          <li>Clique em <strong>Gerar token</strong> e copie o valor (começa com "EAA...").</li>
+                          <li>Cole o token aqui no campo <strong>Access Token</strong> e clique em <strong>Salvar</strong>.</li>
+                        </ol>
+                        <p className="text-xs text-muted-foreground border-t pt-3">
+                          O token gerado dessa forma não expira automaticamente (token de usuário do sistema), então esse processo só precisa ser feito uma vez.
+                        </p>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
                 <Input
                   id="access-token"
                   type="password"
@@ -158,7 +214,7 @@ export function MetaIntegration() {
                   onChange={(e) => setAccessToken(e.target.value)}
                 />
                 <p className="text-xs text-amber-600 dark:text-amber-500 font-medium">
-                  ⚠️ Permissões: ads_management e business_management
+                  ⚠️ Permissões necessárias: ads_read, ads_management e business_management
                 </p>
               </div>
 
