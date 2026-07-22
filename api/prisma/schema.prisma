@@ -898,6 +898,7 @@ model Conversation {
   ctwaSourceUrl               String?   @map("ctwa_source_url")
   ctwaMediaUrl                 String?   @map("ctwa_media_url")
   ctwaThumbnailUrl             String?   @map("ctwa_thumbnail_url")
+  firstTouchResetAt           DateTime? @map("first_touch_reset_at") @db.Timestamptz
   createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   organization  Organization @relation(fields: [organizationId], references: [id])
