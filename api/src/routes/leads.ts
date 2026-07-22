@@ -320,13 +320,30 @@ export default async function leadsRoutes(fastify: FastifyInstance) {
     }
   )
 
-  // POST /leads/:id/reset-first-touch (substitui reset-first-touch)
+  // POST /leads/:id/reset-first-touch — permite testar automações de
+  // "primeira mensagem" de novo na mesma conversa. O gatilho first_message
+  // só dispara quando uma Conversation é criada do zero (isNewConversation
+  // no webhook do WhatsApp); como reenviar mensagem numa conversa já
+  // existente nunca é "nova", marcamos a(s) conversa(s) vinculada(s) a este
+  // telefone com first_touch_reset_at — o webhook confere essa marca e
+  // dispara o gatilho mesmo em conversa antiga, limpando a marca em seguida.
   fastify.post<{ Params: { id: string } }>("/leads/:id/reset-first-touch", async (req, reply) => {
-    const updated = await prisma.lead.updateMany({
+    const lead = await prisma.lead.findFirst({
       where: { id: req.params.id, ...orgScope(req) },
-      data: { updatedAt: new Date() } as any,
+      select: { id: true, phone: true },
     })
-    if (updated.count === 0) return reply.code(404).send({ error: "Not found" })
+    if (!lead) return reply.code(404).send({ error: "Not found" })
+
+    await prisma.lead.update({ where: { id: lead.id }, data: { updatedAt: new Date() } })
+
+    const phoneDigits = (lead.phone || "").replace(/\D/g, "").slice(-8)
+    if (phoneDigits) {
+      await prisma.conversation.updateMany({
+        where: { organizationId: req.auth.orgId, contactPhone: { contains: phoneDigits } },
+        data: { firstTouchResetAt: new Date() },
+      }).catch(() => null)
+    }
+
     return { success: true }
   })
 
