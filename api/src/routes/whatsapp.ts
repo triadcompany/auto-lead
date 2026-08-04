@@ -352,19 +352,32 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
 
     const targetInstance = existing?.instanceName || instanceName
 
-    const createRes = await evolutionFetch("/instance/create", {
-      method: "POST",
-      body: JSON.stringify({
-        instanceName: targetInstance,
-        integration: "WHATSAPP-BAILEYS",
-        ...(webhookUrl
-          ? { webhook: { enabled: true, url: webhookUrl, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] } }
-          : {}),
-      }),
-    })
-    const createData = await createRes.json() as Record<string, any>
+    // Chamada pra Evolution API sem try/catch aqui derrubava a conexão sem
+    // resposta nenhuma (a exceção não tratada matava a request antes do
+    // Fastify aplicar os headers de CORS), o que aparecia no navegador como
+    // "bloqueado por CORS" — mascarando o erro real (Evolution inacessível,
+    // timeout, EVOLUTION_API_URL não configurado, etc).
+    let createData: Record<string, any> = {}
+    let createOk = true
+    try {
+      const createRes = await evolutionFetch("/instance/create", {
+        method: "POST",
+        body: JSON.stringify({
+          instanceName: targetInstance,
+          integration: "WHATSAPP-BAILEYS",
+          ...(webhookUrl
+            ? { webhook: { enabled: true, url: webhookUrl, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] } }
+            : {}),
+        }),
+      })
+      createData = await createRes.json().catch(() => ({})) as Record<string, any>
+      createOk = createRes.ok
+    } catch (e: any) {
+      fastify.log.error({ err: e, orgId, targetInstance }, "whatsapp/me/connect: evolutionFetch instance/create failed")
+      return reply.code(502).send({ ok: false, error: "Falha ao conectar com a Evolution API: " + (e?.message || "erro desconhecido") })
+    }
 
-    if (!createRes.ok && createData?.status !== 400) {
+    if (!createOk && createData?.status !== 400) {
       // Hard error (not "already exists")
       return reply.code(502).send({ ok: false, error: createData?.message || "Failed to create Evolution instance" })
     }
