@@ -390,9 +390,16 @@ export default async function whatsappRoutes(fastify: FastifyInstance) {
       return reply.code(502).send({ ok: false, error: "Falha ao conectar com a Evolution API: " + (e?.message || "erro desconhecido") })
     }
 
-    if (!createOk && createData?.status !== 400) {
-      // Hard error (not "already exists")
-      return reply.code(502).send({ ok: false, error: createData?.message || "Failed to create Evolution instance" })
+    // "Já existe" vem como 400 OU 403 dependendo da versão da Evolution API
+    // (confirmado: instância já criada retorna 403 com mensagem "already in
+    // use", não 400 como o código assumia) — precisa checar a mensagem, não
+    // só o status, senão todo cliente cujo WhatsApp desconectou (estado
+    // "close") e clica em "Conectar" de novo cai aqui como erro 502.
+    const alreadyExistsMsg = JSON.stringify(createData?.response?.message || createData?.message || "").toLowerCase()
+    const isAlreadyExists = alreadyExistsMsg.includes("already in use") || alreadyExistsMsg.includes("already exists")
+    if (!createOk && !isAlreadyExists) {
+      // Hard error de verdade (não "já existe")
+      return reply.code(502).send({ ok: false, error: createData?.response?.message?.[0] || createData?.message || "Failed to create Evolution instance" })
     }
 
     // Persist integration record
