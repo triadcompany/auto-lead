@@ -5,17 +5,30 @@ import { emit } from "../plugins/socket.js"
 import { findPausedReplyRouterRun, matchReply, resumeRun, fireAutomationTrigger } from "../lib/automationRunner.js"
 import { enrichLeadFromCtwa } from "../lib/metaCtwa.js"
 
+// Timeout curto e explícito — sem isso, uma Evolution API lenta/travada
+// (ex: recriando uma instância já conectada) deixa o fetch pendurado até o
+// proxy do EasyPanel na frente da nossa API cortar a conexão, o que devolve
+// um 502 sem headers de CORS e aparece no navegador como "bloqueado por
+// CORS" em vez do erro real. Com o timeout, sempre respondemos antes disso,
+// com um JSON de erro normal (headers de CORS aplicados certinho).
 async function evolutionFetch(path: string, options: RequestInit = {}) {
   const base = process.env.EVOLUTION_API_URL?.replace(/\/$/, "")
   if (!base) throw new Error("EVOLUTION_API_URL not set")
-  return fetch(`${base}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      apikey: process.env.EVOLUTION_API_KEY || "",
-      ...(options.headers || {}),
-    },
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15000)
+  try {
+    return await fetch(`${base}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        apikey: process.env.EVOLUTION_API_KEY || "",
+        ...(options.headers || {}),
+      },
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 // ── Sincroniza mensagem recebida do webhook no banco de dados ─────────────────
