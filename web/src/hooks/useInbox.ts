@@ -207,7 +207,7 @@ export function useInbox() {
         const data = await api.conversations.messages(selectedThreadId, { limit: 200 }) as any[];
         if (data.length === 0) return;
         setMessages(prev => {
-          const newMsgs = dedupeAndSort(data);
+          const newMsgs = dedupeAndSort(data.map(normalizeMessage));
           if (newMsgs.length === prev.length && newMsgs[newMsgs.length - 1]?.id === prev[prev.length - 1]?.id) return prev;
           return newMsgs;
         });
