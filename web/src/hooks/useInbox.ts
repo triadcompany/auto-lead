@@ -207,9 +207,18 @@ export function useInbox() {
         const data = await api.conversations.messages(selectedThreadId, { limit: 200 }) as any[];
         if (data.length === 0) return;
         setMessages(prev => {
-          const newMsgs = dedupeAndSort(data.map(normalizeMessage));
-          if (newMsgs.length === prev.length && newMsgs[newMsgs.length - 1]?.id === prev[prev.length - 1]?.id) return prev;
-          return newMsgs;
+          const fresh = dedupeAndSort(data.map(normalizeMessage));
+          // Reaproveita a referência antiga de cada mensagem já conhecida e
+          // inalterada — trocar o array inteiro a cada 7s (mesmo com dado
+          // normalizado certo) cria objetos novos pra tudo, o que remonta
+          // players de áudio/vídeo em execução e reinicia a reprodução.
+          const prevById = new Map(prev.map(m => [m.id, m]));
+          const merged = fresh.map(m => {
+            const old = prevById.get(m.id);
+            return old && JSON.stringify(old) === JSON.stringify(m) ? old : m;
+          });
+          if (merged.length === prev.length && merged.every((m, i) => m === prev[i])) return prev;
+          return merged;
         });
       } catch {
         // silent fallback
