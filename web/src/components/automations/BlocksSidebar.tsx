@@ -26,6 +26,7 @@ import {
   CheckCircle,
   BellRing,
   Shuffle,
+  UserPlus2,
 } from "lucide-react";
 
 interface BlockItem {
@@ -176,6 +177,14 @@ const blocks: BlockCategory[] = [
     category: "CRM",
     accent: "text-emerald-500",
     items: [
+      {
+        type: "action",
+        label: "Criar Lead",
+        desc: "Cria lead no pipeline/etapa escolhidos",
+        icon: UserPlus2,
+        color: "text-emerald-500 bg-emerald-500/10",
+        config: { actionType: "create_deal", params: {} },
+      },
       {
         type: "action",
         label: "Mover Etapa",
