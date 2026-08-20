@@ -172,6 +172,7 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
             <Select
               value={params.pipeline_id || ""}
               onValueChange={(v) => {
+                if (!v) return;
                 onChange({
                   ...config,
                   params: { ...params, pipeline_id: v, stage_id: "" },
@@ -179,7 +180,9 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
               }}
             >
               <SelectTrigger className="mt-1.5">
-                <SelectValue placeholder="Selecione o pipeline" />
+                <SelectValue placeholder="Selecione o pipeline">
+                  {pipelines.find((p) => p.id === params.pipeline_id)?.name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {pipelines.map((p) => (
@@ -196,11 +199,13 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
             <Label className="font-poppins text-sm">Etapa</Label>
             <Select
               value={params.stage_id || ""}
-              onValueChange={(v) => updateParams("stage_id", v)}
+              onValueChange={(v) => { if (v) updateParams("stage_id", v); }}
               disabled={!params.pipeline_id}
             >
               <SelectTrigger className="mt-1.5">
-                <SelectValue placeholder={params.pipeline_id ? "Selecione a etapa" : "Selecione o pipeline primeiro"} />
+                <SelectValue placeholder={params.pipeline_id ? "Selecione a etapa" : "Selecione o pipeline primeiro"}>
+                  {stages.find((s) => s.id === params.stage_id)?.name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {stages.map((s) => (
@@ -327,6 +332,7 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
             <Select
               value={params.pipeline_id || ""}
               onValueChange={(v) => {
+                if (!v) return;
                 const pipeline = pipelines.find(p => p.id === v);
                 onChange({
                   ...config,
@@ -335,7 +341,9 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
               }}
             >
               <SelectTrigger className="mt-1.5">
-                <SelectValue placeholder="Selecione o pipeline" />
+                <SelectValue placeholder="Selecione o pipeline">
+                  {pipelines.find((p) => p.id === params.pipeline_id)?.name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {pipelines.map((p) => (
@@ -351,6 +359,7 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
             <Select
               value={params.stage_id || ""}
               onValueChange={(v) => {
+                if (!v) return;
                 const stage = stages.find(s => s.id === v);
                 updateParams("stage_id", v);
                 updateParams("stage", stage?.name || "");
@@ -358,7 +367,9 @@ export function ActionEditor({ config, onChange }: ActionEditorProps) {
               disabled={!params.pipeline_id}
             >
               <SelectTrigger className="mt-1.5">
-                <SelectValue placeholder={params.pipeline_id ? "Selecione a etapa" : "Selecione o pipeline primeiro"} />
+                <SelectValue placeholder={params.pipeline_id ? "Selecione a etapa" : "Selecione o pipeline primeiro"}>
+                  {stages.find((s) => s.id === params.stage_id)?.name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {stages.map((s) => (
